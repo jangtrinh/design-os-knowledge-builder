@@ -8,6 +8,13 @@
 > **Universal Multimodal Knowledge Pipeline, Auto-Research Loop, and Epistemic Stopping Gate Engine for AI Coding Agents.**  
 > Built for the **Products** ecosystem (Claude Code, Codex Native, Antigravity, and Gemini).
 
+<p align="center">
+  <img src="./assets/hero_assembled.png" alt="Design OS Knowledge Builder - Assembled Technical State" width="760"/>
+</p>
+<p align="center">
+  <em>Figure 1: Fully seated mechanical assembly — Universal Multimodal Knowledge Ingestion & Epistemic Verification Engine (Isometric technical illustration, pure greyscale hairline <code>#202020</code> on <code>#ffffff</code>, seated state).</em>
+</p>
+
 ---
 
 ## 🌟 The Vision & Core Problem
@@ -24,7 +31,12 @@ In modern multi-agent software ecosystems, knowledge is frequently fragmented in
 
 ## 🏛️ Architecture & System Design
 
-![Architecture Diagram](./assets/architecture.png)
+<p align="center">
+  <img src="./assets/pipeline_assembled.png" alt="5-Stage Ingestion Pipeline - Assembled State" width="760"/>
+</p>
+<p align="center">
+  <em>Figure 2: 5-Stage Multimodal Ingestion Pipeline (PDF, Audio/Video, Diagram, Web) in docked assembled operating state.</em>
+</p>
 
 ### 1. Universal Knowledge Master Contract (`UKMC.v1`)
 Every knowledge file produced by the pipeline adheres to a strict contract:
@@ -54,7 +66,12 @@ Every knowledge file produced by the pipeline adheres to a strict contract:
 
 Auto-Research cannot rely on heuristics like "read 5 articles and stop". `design-os-knowledge-builder` defines 4 distinct, mutually exclusive termination states:
 
-![Stopping Gate Check](./assets/stopping_gate_check.png)
+<p align="center">
+  <img src="./assets/stopping_gate_assembled.png" alt="Epistemic Stopping Gate - Seated Assembly" width="560"/>
+</p>
+<p align="center">
+  <em>Figure 3: Epistemic Stopping Gate mechanism seated down on registration pins — distinguishing STOP_SUFFICIENT, DEEPEN, PAUSE_BUDGET, and ABSTAIN_BLOCKED. (Verified via <a href="./assets/stopping_gate_check.png">Codex Native Astra Logic Suite</a>).</em>
+</p>
 
 1. `STOP_SUFFICIENT`: **Sufficient Evidence**. 100% of required technical claims verified by independent sources and code execution; semantic saturation achieved ($\le 2\%$ delta across 3 rounds).
 2. `DEEPEN`: **Deficiencies Found**. Missing claims, single-source bias, version drift, or untested failure modes $\rightarrow$ Open another targeted probe.
@@ -83,6 +100,13 @@ To allow small models like **Gemini 3.8 Flash** to perform long-form research wi
 ---
 
 ## 👥 The 5-Perspective Council
+
+<p align="center">
+  <img src="./assets/council_assembled.png" alt="5-Perspective Council Verification - Seated Assembly" width="560"/>
+</p>
+<p align="center">
+  <em>Figure 4: 5-Perspective Verification Comparator seated on calibration base (Builder, Red-Team, Architect, Auditor, Operator).</em>
+</p>
 
 Before knowledge graduates into the core, it must pass 5 expert lenses:
 1. **Builder**: Is there actual runnable code and minimal reproduction?
@@ -135,7 +159,7 @@ python3 -m knowledge_builder.cli index --dir ./knowledge
 
 Run the formal verification test suite (testing all 11 stopping gate scenarios formulated with Codex Native Astra):
 ```bash
-python3 -m unittest discover tests
+PYTHONPATH=src python3 -m unittest discover tests
 ```
 
 ---
