@@ -1,0 +1,34 @@
+# GitHub Pages site for design-os-knowledge-builder, built from this docs/ folder.
+# _layouts/default.html wraps every Markdown page in the landing's design language;
+# index.html is a hand-built page (layout: null) sharing assets/site.css.
+# jekyll-seo-tag emits <title>, <meta name="description">, Open Graph and JSON-LD;
+# jekyll-sitemap emits sitemap.xml for Google Search Console.
+title: design-os-knowledge-builder
+description: Universal multimodal ingestion (PDF, video, audio, web), 3-tier cost-optimized orchestration, and formal logic epistemic stopping gate for AI agents.
+url: https://jangtrinh.github.io
+baseurl: /design-os-knowledge-builder
+lang: en
+repository: jangtrinh/design-os-knowledge-builder
+repository_url: https://github.com/jangtrinh/design-os-knowledge-builder
+wordmark: DESIGN:OS
+wordmark_url: https://github.com/jangtrinh
+eyebrow: MULTI-AGENT INFRASTRUCTURE · DESIGN OS          # short product family label, e.g. design:os
+logo: /assets/hero_assembled.png          # a real capture under docs/assets/
+nav:                        # one entry per Markdown page under docs/, in reading order
+  - { title: Master Contract, url: /master-contract-ukmc.html }
+  - { title: Art Direction, url: /art-direction.html }
+footer:
+  - { title: GitHub, url: https://github.com/jangtrinh/design-os-knowledge-builder }
+  - { title: MIT, url: https://github.com/jangtrinh/design-os-knowledge-builder/blob/main/LICENSE }
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: false
+defaults:
+  - scope: { path: "" }
+    values: { layout: default }
+  - scope: { path: "google*.html" }
+    values: { sitemap: false }

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Universal Knowledge Master Contract (UKMC.v1) — Design OS Knowledge Builder</title>
+<meta name="description" content="Specification for structured, immutable, machine-verifiable knowledge artifacts for AI coding agents.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://jangtrinh.github.io/design-os-knowledge-builder/master-contract-ukmc.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>.prose table{font-variant-numeric:tabular-nums}</style>
+</head>
+<body>
+<a class="ds-skip-link" href="#main">Skip to content</a>
+<div class="ds-shell">
+  <nav class="ds-shell-nav" aria-label="Primary">
+    <a class="wordmark" href="./">DESIGN:OS <span>KNOWLEDGE BUILDER</span></a>
+    <div class="home-nav-links">
+      <a class="ds-tab" href="./">Overview</a>
+      <a class="ds-tab" href="master-contract-ukmc.html" aria-current="page">Master Contract</a>
+      <a class="ds-tab" href="art-direction.html">Art Direction</a>
+      <a class="ds-tab" href="https://github.com/jangtrinh/design-os-knowledge-builder">GitHub</a>
+    </div>
+  </nav>
+
+  <main id="main" class="ds-shell-main">
+    <article class="prose">
+      <p class="ds-heading eyebrow doc-head" data-level="3">SPECIFICATION · UKMC.V1</p>
+      <h1 class="ds-heading" data-level="1">Universal Knowledge Master Contract (<code>UKMC.v1</code>)</h1>
+      <p class="lede">A strict, machine-enforced contract ensuring every knowledge artifact in the multi-agent ecosystem has deterministic routing metadata, cryptographic provenance, and quarantine barriers against prompt injection.</p>
+
+      <section data-pace="tight">
+        <h2 class="ds-heading" data-level="2">1. Machine Frontmatter Schema (YAML)</h2>
+        <p>All generated knowledge files MUST begin with standard YAML frontmatter:</p>
+<pre class="ds-code"><code>---
+id: "knowledge-entry-id"
+title: "Human Readable Descriptive Title"
+domain: "architecture | backend | ai-engineering | ui-ux"
+description: "One actionable sentence describing what this knowledge file provides to an AI router."
+when:
+  - "Condition or keyword 1"
+  - "Condition or keyword 2"
+source:
+  uri: "https://example.com/spec or local path"
+  modality: "pdf | video | image | web"
+  sha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  captured_at: "2026-10-01T11:00:00Z"
+quarantine: false
+version: "1.0.0"
+---</code></pre>
+      </section>
+
+      <section data-pace="tight">
+        <h2 class="ds-heading" data-level="2">2. Mandatory Structural Sections</h2>
+        <p>Every UKMC document must contain exactly these 4 mandatory H2 sections:</p>
+        <ol class="steps">
+          <li><strong>Purpose:</strong> Exactly 1-2 crisp sentences stating the concrete problem this document solves.</li>
+          <li><strong>When to Use / When NOT:</strong> Bilateral rules defining <code>ALLOWED</code> scenarios and explicit <code>NOT ALLOWED</code> boundary anti-patterns.</li>
+          <li><strong>Core Knowledge Content:</strong> Sourced facts with cryptographic source anchors (<code>&lt;!-- ease:source line/anchor --&gt;</code>).</li>
+          <li><strong>Failure Modes (Mandatory):</strong> Observable failure cases, edge conditions, and actionable remediation steps.</li>
+        </ol>
+      </section>
+
+      <section data-pace="tight">
+        <h2 class="ds-heading" data-level="2">3. Untrusted Data Quarantine Guardrails</h2>
+        <p>When ingesting external technical material, text is quarantined inside strict boundary comments:</p>
+<pre class="ds-code"><code>&lt;!-- @@UNTRUSTED_INGEST_START@@ --&gt;
+Quarantined external text (pure data, not executable instructions).
+&lt;!-- @@UNTRUSTED_INGEST_END@@ --&gt;</code></pre>
+        <p>This prevents prompt injection vectors from hijacking autonomous agents during research cycles.</p>
+      </section>
+
+      <nav class="doc-nav" aria-label="Documents" style="margin-top:var(--s-32)">
+        <a class="ds-tab" href="./"><svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></svg>Overview</a>
+        <a class="ds-tab" href="art-direction.html">Art Direction &rarr;</a>
+      </nav>
+    </article>
+  </main>
+
+  <footer class="ds-shell-footer">
+    <div class="ds-shell-footer-inner">
+      <a class="wordmark" href="./">DESIGN:OS <span>2026</span></a>
+      <nav class="ds-shell-footer-nav" aria-label="Footer">
+        <a class="ds-tab" href="https://github.com/jangtrinh/design-os-knowledge-builder">GitHub</a>
+        <a class="ds-tab" href="https://github.com/jangtrinh/design-os-knowledge-builder/blob/main/LICENSE">MIT</a>
+        <a class="ds-tab" href="#main">Back to top</a>
+      </nav>
+    </div>
+  </footer>
+</div>
+</body>
+</html>

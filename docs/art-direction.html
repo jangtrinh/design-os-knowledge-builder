@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Art Direction (Assembled Technical Illustrations) — Design OS Knowledge Builder</title>
+<meta name="description" content="Visual specification for 2:1 isometric technical drawings in pure greyscale for Design OS Knowledge Builder.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://jangtrinh.github.io/design-os-knowledge-builder/art-direction.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>.prose table{font-variant-numeric:tabular-nums}</style>
+</head>
+<body>
+<a class="ds-skip-link" href="#main">Skip to content</a>
+<div class="ds-shell">
+  <nav class="ds-shell-nav" aria-label="Primary">
+    <a class="wordmark" href="./">DESIGN:OS <span>KNOWLEDGE BUILDER</span></a>
+    <div class="home-nav-links">
+      <a class="ds-tab" href="./">Overview</a>
+      <a class="ds-tab" href="master-contract-ukmc.html">Master Contract</a>
+      <a class="ds-tab" href="art-direction.html" aria-current="page">Art Direction</a>
+      <a class="ds-tab" href="https://github.com/jangtrinh/design-os-knowledge-builder">GitHub</a>
+    </div>
+  </nav>
+
+  <main id="main" class="ds-shell-main">
+    <article class="prose">
+      <p class="ds-heading eyebrow doc-head" data-level="3">VISUAL DESIGN SYSTEM · ART DIRECTION</p>
+      <h1 class="ds-heading" data-level="1">Art Direction — Isometric Technical Illustration</h1>
+      <p class="lede">Adopted directly from the <code>jang-personal-site</code> design system. Zero exploded views: every asset depicts a resting, assembled, seated mechanical state.</p>
+
+      <section data-pace="tight">
+        <h2 class="ds-heading" data-level="2">The Invariants</h2>
+        <div class="register">
+          <div class="register-row" data-icon="none">
+            <h3>Projection</h3>
+            <p>2:1 isometric, axonometric (no perspective convergence; parallel lines remain strictly parallel).</p>
+          </div>
+          <div class="register-row" data-icon="none">
+            <h3>Line Weight &amp; Color</h3>
+            <p>Uniform hairline stroke, near-black <code>#202020</code> on flat pure white <code>#ffffff</code>.</p>
+          </div>
+          <div class="register-row" data-icon="none">
+            <h3>Isometric Grid</h3>
+            <p>Faint structural grid in light grey <code>#d0d0d0</code>–<code>#e4e4e4</code>, fading toward borders.</p>
+          </div>
+          <div class="register-row" data-icon="none">
+            <h3>Palette</h3>
+            <p>Pure greyscale (zero chroma). No colored elements or decorative gradient glows.</p>
+          </div>
+          <div class="register-row" data-icon="none">
+            <h3>Typography</h3>
+            <p><strong>Zero text inside image pixels.</strong> Every label, dimension, and callout is rendered as native DOM text so it remains searchable, auditable, and accessible.</p>
+          </div>
+          <div class="register-row" data-icon="none">
+            <h3>Assembled State Only</h3>
+            <p><strong>No exploded views.</strong> All mechanisms, trimmers, and comparator gauges are seated down on their alignment pins in their completed operational states.</p>
+          </div>
+        </div>
+      </section>
+
+      <section data-pace="tight">
+        <h2 class="ds-heading" data-level="2">Asset Catalog</h2>
+        <p>Canonical assets deployed in <code>assets/</code>:</p>
+        <ol class="steps">
+          <li><strong><code>hero_assembled.png</code>:</strong> Universal Ingestion &amp; Verification Chassis seated on standoff posts.</li>
+          <li><strong><code>pipeline_assembled.png</code>:</strong> 5-Stage Ingestion Pipeline with trimmer seated flat on platen.</li>
+          <li><strong><code>stopping_gate_assembled.png</code>:</strong> Epistemic Stopping Gate arm seated in registration detent.</li>
+          <li><strong><code>council_assembled.png</code>:</strong> 5-Perspective Council Comparator gauge seated on master calibration block.</li>
+        </ol>
+      </section>
+
+      <nav class="doc-nav" aria-label="Documents" style="margin-top:var(--s-32)">
+        <a class="ds-tab" href="./"><svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></svg>Overview</a>
+        <a class="ds-tab" href="master-contract-ukmc.html">&larr; Master Contract</a>
+      </nav>
+    </article>
+  </main>
+
+  <footer class="ds-shell-footer">
+    <div class="ds-shell-footer-inner">
+      <a class="wordmark" href="./">DESIGN:OS <span>2026</span></a>
+      <nav class="ds-shell-footer-nav" aria-label="Footer">
+        <a class="ds-tab" href="https://github.com/jangtrinh/design-os-knowledge-builder">GitHub</a>
+        <a class="ds-tab" href="https://github.com/jangtrinh/design-os-knowledge-builder/blob/main/LICENSE">MIT</a>
+        <a class="ds-tab" href="#main">Back to top</a>
+      </nav>
+    </div>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# design-os-knowledge-builder
+
+> Universal multimodal ingestion (PDF, video, audio, web), 3-tier cost-optimized orchestration, and formal logic epistemic stopping gate for AI agents.
+
+Universal Multimodal Knowledge Pipeline & Epistemic Stopping Gate for AI Coding Agents.
+
+## Documentation
+
+- [Overview](https://jangtrinh.github.io/design-os-knowledge-builder/): Main project overview, features, and evidence.
+- [Repository](https://github.com/jangtrinh/design-os-knowledge-builder): GitHub repository, source code, and release tags.
+
+## Core Features & Architecture
+
+- **Primary Interface**: CLI and programmatic API.
+- **Verification Gates**: Rigorous automated checks with reproducible evidence.
+- **Deterministic Workflows**: Predictable outputs and contract enforcement.
