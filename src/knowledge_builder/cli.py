@@ -14,6 +14,7 @@ from knowledge_builder.research.stopping_gate import (
     StoppingEvaluationInput,
     TerminationState,
 )
+from knowledge_builder.verify import cmd_verify
 
 
 class _Parser(argparse.ArgumentParser):
@@ -171,6 +172,10 @@ def main():
     p_lint = subparsers.add_parser("lint", help="Lint markdown file against UKMC standard")
     p_lint.add_argument("file", help="Path to markdown file")
     p_lint.set_defaults(func=cmd_lint)
+
+    p_verify = subparsers.add_parser("verify", help="Verify markdown provenance under a knowledge root")
+    p_verify.add_argument("root", help="External knowledge repository root")
+    p_verify.set_defaults(func=cmd_verify)
 
     # Index
     p_index = subparsers.add_parser("index", help="Emit machine-readable index.json")
