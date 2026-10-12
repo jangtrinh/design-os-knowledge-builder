@@ -294,6 +294,8 @@ class TestLiveKnowledgeRoot(unittest.TestCase):
         self.assertNotIn("unrecognized arguments", err)
         self.assertEqual(code, 0, out + err)
         self.assertEqual(_count(self, out, "failures"), 0)
+        self.assertGreater(_count(self, out, "files"), 0)
+        self.assertGreater(_count(self, out, "anchors"), 0)
 
 
 if __name__ == "__main__":

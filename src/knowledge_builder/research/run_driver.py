@@ -1,9 +1,17 @@
 """Ledger driver for one research run. It does not call a model or the network."""
 
 import json
+import os
 import sys
 from pathlib import Path
 
+from knowledge_builder.containment import (
+    ContainmentError,
+    create_empty_nofollow,
+    ensure_real_dir,
+    read_text_nofollow,
+    require_inside,
+)
 from knowledge_builder.research.ledger import AtomicResearchLedger, EvidenceAtom
 
 
@@ -52,19 +60,32 @@ def cmd_run_init(args):
     researcher = getattr(args, "researcher", None)
     if researcher is not None and (not isinstance(researcher, str) or researcher == ""):
         _fail("researcher runtime must be non-empty")
-    run_dir = _run_dir(args.root, args.id)
+    try:
+        run_dir = _prepare_run(args.root, args.id)
+    except ContainmentError as exc:
+        _fail(str(exc))
+    if os.path.islink(run_dir / "state.json") or os.path.islink(run_dir / "evidence.jsonl"):
+        _fail("refusing symlinked output")
     if (run_dir / "state.json").exists() or (run_dir / "evidence.jsonl").exists():
         _fail(f"run already exists: {args.id}")
-    ledger = AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence")
-    (ledger.stage_dir / "sources").mkdir(parents=True, exist_ok=True)
-    ledger.evidence_path.write_bytes(b"")
-    ledger.save_state(_initial_state(args.id, args.budget, required, researcher))
+    try:
+        ledger = AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence")
+        ensure_real_dir(ledger.stage_dir / "sources")
+        create_empty_nofollow(ledger.evidence_path)
+        ledger.save_state(_initial_state(args.id, args.budget, required, researcher))
+    except ContainmentError as exc:
+        _fail(str(exc))
     print(f"_evidence/{args.id}")
 
 
 def cmd_run_record(args):
-    run_dir = _run_dir(args.root, args.id)
+    try:
+        run_dir = _contained_run(args.root, args.id)
+    except ContainmentError as exc:
+        _fail(str(exc))
     evidence = run_dir / "evidence.jsonl"
+    if os.path.islink(run_dir / "state.json") or os.path.islink(evidence):
+        _fail("refusing symlinked output")
     if not (run_dir / "state.json").is_file() or not evidence.is_file():
         _fail(f"run is not initialized: {args.id}")
     raw = sys.stdin.read()
@@ -74,15 +95,21 @@ def cmd_run_record(args):
             raise ValueError("atom must be a JSON object")
         atom = EvidenceAtom(**data)
         AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence").record_atom(atom)
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (ContainmentError, TypeError, ValueError, json.JSONDecodeError) as exc:
         _fail(f"invalid atom: {exc}")
 
 
 def cmd_run_status(args):
-    run_dir = _run_dir(args.root, args.id)
-    if not (run_dir / "state.json").is_file():
+    try:
+        run_dir = _contained_run(args.root, args.id)
+    except ContainmentError as exc:
+        _fail(str(exc))
+    if os.path.islink(run_dir / "state.json") or not (run_dir / "state.json").is_file():
         _fail(f"run is not initialized: {args.id}")
-    state = AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence").load_state()
+    try:
+        state = AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence").load_state()
+    except ContainmentError as exc:
+        _fail(str(exc))
     # Printed only. A bad or missing note list never rewrites state.json and
     # is not an input to the stopping gate.
     reported = _entailment_notes_report(run_dir / "review.json")
@@ -100,11 +127,11 @@ def _entailment_notes_report(review_path):
 
     A malformed value is reported and dropped. It is data, not a gate input.
     """
-    if not review_path.is_file():
+    if os.path.islink(review_path) or not review_path.is_file():
         return None
     try:
-        review = json.loads(review_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
+        review = json.loads(read_text_nofollow(review_path))
+    except (ContainmentError, OSError, UnicodeError, json.JSONDecodeError):
         return None
     if not isinstance(review, dict) or "entailment_notes" not in review:
         return None
@@ -167,6 +194,35 @@ def _run_dir(root, run_id):
     if not isinstance(run_id, str) or run_id in {"", ".", ".."} or "/" in run_id or "\\" in run_id:
         _fail(f"run id is not a single path segment: {run_id}")
     return Path(root) / "_evidence" / run_id
+
+
+def _contained_run(root, run_id):
+    """Return _evidence/<id> without creating it. Refuse a symlink that escapes."""
+    run = _run_dir(root, run_id)
+    root_path = Path(root)
+    evidence = root_path / "_evidence"
+    if os.path.islink(evidence):
+        raise ContainmentError(f"refusing symlinked output: {evidence}")
+    if os.path.islink(run):
+        raise ContainmentError(f"refusing symlinked output: {run}")
+    if evidence.exists():
+        require_inside(evidence, root_path)
+    if run.exists():
+        require_inside(run, root_path)
+    return run
+
+
+def _prepare_run(root, run_id):
+    """Create a real _evidence/<id> inside root. A symlink is refused."""
+    _contained_run(root, run_id)
+    root_path = Path(root)
+    if os.path.islink(root_path) or not root_path.is_dir():
+        raise ContainmentError(f"not a directory: {root}")
+    evidence = ensure_real_dir(root_path / "_evidence")
+    require_inside(evidence, root_path)
+    run = ensure_real_dir(evidence / run_id)
+    require_inside(run, root_path)
+    return run
 
 
 def _fail(message):

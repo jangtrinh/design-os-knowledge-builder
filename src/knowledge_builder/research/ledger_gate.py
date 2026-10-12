@@ -2,8 +2,11 @@
 
 import hashlib
 import json
+import math
+import os
 from pathlib import Path
 
+from knowledge_builder.containment import ContainmentError, file_identity, read_text_nofollow, require_inside
 from knowledge_builder.quote_check import file_contains_quote
 from knowledge_builder.research.ledger import AtomicResearchLedger, require_relative_source_uri
 from knowledge_builder.research.stopping_gate import StoppingEvaluationInput
@@ -21,29 +24,30 @@ def ledger_evaluation_input(root, run_id):
     try:
         state = ledger.load_state()
         atoms = ledger.load_atoms()
-    except (OSError, TypeError, ValueError, json.JSONDecodeError, AttributeError) as exc:
+    except (OSError, TypeError, ValueError, json.JSONDecodeError, AttributeError, ContainmentError) as exc:
         raise LedgerGateError(f"unreadable ledger: {exc}") from exc
     if not isinstance(state, dict):
         raise LedgerGateError("state.json must be an object")
 
     required = _required_ids(state)
-    verified = sum(1 for claim_id in required if _claim_verified(root, atoms, claim_id))
+    verified = sum(1 for claim_id in required if _claim_verified(root, run_id, atoms, claim_id))
     block_reason = state.get("block_reason")
     return StoppingEvaluationInput(
         required_claims_total=len(required),
         required_claims_verified=verified,
         independent_sources_count=_independent_sources(root, run_id, atoms),
-        has_execution_proof=_has_execution_proof(root, atoms),
-        has_counterevidence_searched=_has_failure_mode(root, atoms),
+        has_execution_proof=_has_execution_proof(root, run_id, atoms),
+        has_counterevidence_searched=_has_failure_mode(root, run_id, atoms),
         unresolved_contradictions_count=_unresolved_contradictions(state, atoms),
         is_target_version_matched=_version_matched(state),
         consecutive_low_delta_rounds=_nonneg_int(state.get("consecutive_low_delta_rounds"), 0),
-        last_weighted_delta=_delta(state.get("last_weighted_delta")),
+        last_weighted_delta=_delta(state),
         remaining_budget_calls=_nonneg_int(state.get("remaining_budget_calls"), 0),
-        has_viable_probe_remaining=_flag(state, "has_viable_probe_remaining"),
+        has_viable_probe_remaining=_probe_remaining(state),
         is_blocked=state.get("is_blocked") is True,
         block_reason=block_reason if isinstance(block_reason, str) else None,
         independent_review_passed=_review_separates_duty(run_dir, state),
+        minimum_independent_sources=_minimum_sources(state),
     )
 
 
@@ -57,11 +61,12 @@ def _review_separates_duty(run_dir, state):
     if not isinstance(researcher, str) or researcher == "":
         return False
     path = run_dir / "review.json"
-    if not path.is_file():
+    if os.path.islink(path) or not path.is_file():
         return False
     try:
-        review = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
+        require_inside(path, run_dir)
+        review = json.loads(read_text_nofollow(path))
+    except (ContainmentError, OSError, UnicodeError, json.JSONDecodeError):
         return False
     if not isinstance(review, dict) or review.get("passed") is not True:
         return False
@@ -74,14 +79,29 @@ def _review_separates_duty(run_dir, state):
 def _run_dir(root, run_id):
     if not isinstance(run_id, str) or run_id in {"", ".", ".."} or "/" in run_id or "\\" in run_id:
         raise LedgerGateError(f"run id is not a single path segment: {run_id}")
-    return Path(root) / "_evidence" / run_id
+    root_path = Path(root)
+    evidence = root_path / "_evidence"
+    run = evidence / run_id
+    for candidate in (evidence, run):
+        if os.path.islink(candidate):
+            raise LedgerGateError(f"refusing symlinked output: {candidate}")
+    try:
+        if evidence.exists():
+            require_inside(evidence, root_path)
+        if run.exists():
+            require_inside(run, root_path)
+    except ContainmentError as exc:
+        raise LedgerGateError(str(exc)) from exc
+    return run
 
 
 def _required_ids(state):
-    raw = state.get("required_claim_ids") or []
-    if not isinstance(raw, list):
-        return []
-    return [item for item in raw if isinstance(item, str) and item]
+    if "required_claim_ids" not in state:
+        raise LedgerGateError("required_claim_ids must be a list of non-empty strings")
+    raw = state["required_claim_ids"]
+    if not isinstance(raw, list) or any(not isinstance(item, str) or item == "" for item in raw):
+        raise LedgerGateError("required_claim_ids must be a list of non-empty strings")
+    return list(raw)
 
 
 def _meta(atom):
@@ -95,51 +115,49 @@ def _supports(atom, claim_id):
     return atom.id == claim_id
 
 
-def _claim_verified(root, atoms, claim_id):
-    return any(_atom_verifies_claim(root, atom, claim_id) for atom in atoms)
+def _claim_verified(root, run_id, atoms, claim_id):
+    return any(_atom_verifies_claim(root, run_id, atom, claim_id) for atom in atoms)
 
 
-def _atom_verifies_claim(root, atom, claim_id):
+def _atom_verifies_claim(root, run_id, atom, claim_id):
     """Hash match plus a quote that occurs in that file. No quote stays UNCHECKED."""
     if not _supports(atom, claim_id):
         return False
-    if not _source_matches(root, atom.source_uri, atom.source_digest):
+    real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
+    if real is None:
         return False
-    rel = _repo_relative(atom.source_uri)
-    if rel is None:
-        return False
-    return file_contains_quote(Path(root).resolve() / rel, getattr(atom, "quote", None))
+    return file_contains_quote(real, getattr(atom, "quote", None))
 
 
 def _independent_sources(root, run_id, atoms):
-    # Distinct hash-valid files under _evidence/<run>/sources/, not a URI tally.
+    """Distinct inodes under this run's sources/. Aliases do not add a source."""
     found = set()
-    prefix = ("_evidence", run_id, "sources")
     for atom in atoms:
-        rel = _repo_relative(atom.source_uri)
-        if rel is None:
+        real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
+        if real is None:
             continue
-        parts = Path(rel).parts
-        if len(parts) <= len(prefix) or parts[: len(prefix)] != prefix:
+        try:
+            found.add(file_identity(real))
+        except OSError:
             continue
-        if _source_matches(root, atom.source_uri, atom.source_digest):
-            found.add(rel)
     return len(found)
 
 
-def _has_execution_proof(root, atoms):
+def _has_execution_proof(root, run_id, atoms):
     for atom in atoms:
         command = _meta(atom).get("command")
-        if isinstance(command, str) and command.strip() and _source_matches(
-            root, atom.source_uri, atom.source_digest
+        if isinstance(command, str) and command.strip() and _source_file(
+            root, run_id, atom.source_uri, atom.source_digest
         ):
             return True
     return False
 
 
-def _has_failure_mode(root, atoms):
+def _has_failure_mode(root, run_id, atoms):
     for atom in atoms:
-        if atom.claim_type == "FAILURE_MODE" and _source_matches(root, atom.source_uri, atom.source_digest):
+        if atom.claim_type == "FAILURE_MODE" and _source_file(
+            root, run_id, atom.source_uri, atom.source_digest
+        ):
             return True
     return False
 
@@ -162,23 +180,44 @@ def _unresolved_contradictions(state, atoms):
     return count
 
 
+def _explicit_bool(state, key):
+    if key not in state or not isinstance(state[key], bool):
+        return None
+    return state[key]
+
+
 def _version_matched(state):
-    # Absence is not a recorded mismatch.
-    if "is_target_version_matched" in state:
-        return state.get("is_target_version_matched") is True
-    return state.get("version_mismatch") is not True
+    """Missing or non-boolean version evidence cannot certify."""
+    value = _explicit_bool(state, "is_target_version_matched")
+    return False if value is None else value
 
 
-def _flag(state, key):
-    if key not in state:
-        return False
-    return state.get(key) is True
+def _probe_remaining(state):
+    """Unknown probe status must not look like 'no probe left'."""
+    value = _explicit_bool(state, "has_viable_probe_remaining")
+    return True if value is None else value
 
 
-def _delta(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+def _delta(state):
+    """None is not saturated. Any other non-finite or negative value is refused."""
+    if "last_weighted_delta" not in state or state.get("last_weighted_delta") is None:
         return 1.0
-    return float(value)
+    value = state.get("last_weighted_delta")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise LedgerGateError("last_weighted_delta must be a finite number >= 0")
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        raise LedgerGateError("last_weighted_delta must be a finite number >= 0")
+    return number
+
+
+def _minimum_sources(state):
+    if "minimum_independent_sources" not in state:
+        return 2
+    value = state.get("minimum_independent_sources")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise LedgerGateError("minimum_independent_sources must be an integer >= 1")
+    return value
 
 
 def _nonneg_int(value, default):
@@ -198,26 +237,41 @@ def _repo_relative(uri):
     return "/".join(parts)
 
 
-def _source_matches(root, uri, digest):
+def _source_file(root, run_id, uri, digest):
+    """Real file under this run's sources/ whose bytes match digest, else None."""
     if not isinstance(digest, str) or len(digest) != 64:
-        return False
+        return None
     try:
         int(digest, 16)
     except ValueError:
-        return False
+        return None
     rel = _repo_relative(uri)
     if rel is None:
-        return False
-    root_path = Path(root).resolve()
-    candidate = (root_path / rel).resolve()
+        return None
+    prefix = ("_evidence", run_id, "sources")
+    parts = Path(rel).parts
+    if len(parts) <= len(prefix) or parts[: len(prefix)] != prefix:
+        return None
+    root_path = Path(root)
+    sources = root_path / "_evidence" / run_id / "sources"
+    candidate = root_path / rel
+    if os.path.islink(sources):
+        return None
     try:
-        candidate.relative_to(root_path)
+        real_sources = require_inside(sources, root_path / "_evidence" / run_id)
+        real = require_inside(candidate, sources)
+    except ContainmentError:
+        return None
+    try:
+        real.relative_to(real_sources)
     except ValueError:
-        return False
-    if not candidate.is_file():
-        return False
+        return None
+    if not real.is_file():
+        return None
     hashed = hashlib.sha256()
-    with candidate.open("rb") as handle:
+    with real.open("rb") as handle:
         for chunk in iter(lambda: handle.read(65536), b""):
             hashed.update(chunk)
-    return hashed.hexdigest().lower() == digest.lower()
+    if hashed.hexdigest().lower() != digest.lower():
+        return None
+    return real

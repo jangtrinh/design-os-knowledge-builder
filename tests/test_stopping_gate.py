@@ -4,138 +4,72 @@ import unittest
 from knowledge_builder.research.stopping_gate import evaluate_stopping_gate, StoppingEvaluationInput, TerminationState
 
 
+def _passing(**overrides):
+    """One sufficient ledger. Negative tests override exactly one field."""
+    base = dict(
+        required_claims_total=5,
+        required_claims_verified=5,
+        independent_sources_count=3,
+        has_execution_proof=True,
+        has_counterevidence_searched=True,
+        unresolved_contradictions_count=0,
+        is_target_version_matched=True,
+        consecutive_low_delta_rounds=3,
+        last_weighted_delta=0.015,
+        remaining_budget_calls=5,
+        has_viable_probe_remaining=False,
+        independent_review_passed=True,
+    )
+    base.update(overrides)
+    return StoppingEvaluationInput(**base)
+
+
 class TestStoppingGateScenarios(unittest.TestCase):
 
     def test_scenario_1_sufficient_evidence(self):
         """Scenario 1: All hard gates pass + saturation reached -> STOP_SUFFICIENT."""
-        inp = StoppingEvaluationInput(
-            required_claims_total=5,
-            required_claims_verified=5,
-            independent_sources_count=3,
-            has_execution_proof=True,
-            has_counterevidence_searched=True,
-            unresolved_contradictions_count=0,
-            is_target_version_matched=True,
-            consecutive_low_delta_rounds=3,
-            last_weighted_delta=0.015,
-            remaining_budget_calls=5,
-            has_viable_probe_remaining=False,
-            independent_review_passed=True,
-        )
-        res = evaluate_stopping_gate(inp)
+        res = evaluate_stopping_gate(_passing())
         self.assertEqual(res.state, TerminationState.STOP_SUFFICIENT)
         self.assertTrue(res.hard_gates_passed)
         self.assertTrue(res.saturation_passed)
         self.assertIsNotNone(res.certificate)
 
     def test_scenario_2_low_delta_but_missing_critical_claims(self):
-        """Scenario 2: Delta is low but critical claims are still missing -> DEEPEN."""
-        inp = StoppingEvaluationInput(
-            required_claims_total=5,
-            required_claims_verified=3,  # Missing 2
-            independent_sources_count=3,
-            has_execution_proof=True,
-            has_counterevidence_searched=True,
-            unresolved_contradictions_count=0,
-            is_target_version_matched=True,
-            consecutive_low_delta_rounds=3,
-            last_weighted_delta=0.01,
-            remaining_budget_calls=5,
-            has_viable_probe_remaining=True,
-        )
-        res = evaluate_stopping_gate(inp)
+        """Scenario 2: Only the missing claims differ from a passing ledger -> DEEPEN."""
+        res = evaluate_stopping_gate(_passing(required_claims_verified=3))
         self.assertEqual(res.state, TerminationState.DEEPEN)
         self.assertFalse(res.hard_gates_passed)
 
     def test_scenario_3_many_urls_same_origin(self):
-        """Scenario 3: Single origin (1 independent source despite many URLs) -> DEEPEN."""
-        inp = StoppingEvaluationInput(
-            required_claims_total=5,
-            required_claims_verified=5,
-            independent_sources_count=1,  # Only 1 true independent source
-            has_execution_proof=True,
-            has_counterevidence_searched=True,
-            unresolved_contradictions_count=0,
-            is_target_version_matched=True,
-            consecutive_low_delta_rounds=3,
-            last_weighted_delta=0.01,
-            remaining_budget_calls=5,
-            has_viable_probe_remaining=True,
-        )
-        res = evaluate_stopping_gate(inp)
+        """Scenario 3: Only the source count differs from a passing ledger -> DEEPEN."""
+        res = evaluate_stopping_gate(_passing(independent_sources_count=1))
         self.assertEqual(res.state, TerminationState.DEEPEN)
 
     def test_scenario_4_marketing_no_execution_proof(self):
-        """Scenario 4: Documentation claims without runnable code proof -> DEEPEN."""
-        inp = StoppingEvaluationInput(
-            required_claims_total=5,
-            required_claims_verified=5,
-            independent_sources_count=3,
-            has_execution_proof=False,  # No execution test
-            has_counterevidence_searched=True,
-            unresolved_contradictions_count=0,
-            is_target_version_matched=True,
-            consecutive_low_delta_rounds=3,
-            last_weighted_delta=0.01,
-            remaining_budget_calls=5,
-            has_viable_probe_remaining=True,
-        )
-        res = evaluate_stopping_gate(inp)
+        """Scenario 4: Only execution proof differs from a passing ledger -> DEEPEN."""
+        res = evaluate_stopping_gate(_passing(has_execution_proof=False))
         self.assertEqual(res.state, TerminationState.DEEPEN)
 
     def test_scenario_5_unresolved_contradictions(self):
-        """Scenario 5: Active contradictory claims between sources -> DEEPEN."""
-        inp = StoppingEvaluationInput(
-            required_claims_total=5,
-            required_claims_verified=5,
-            independent_sources_count=3,
-            has_execution_proof=True,
-            has_counterevidence_searched=True,
-            unresolved_contradictions_count=2,  # 2 active contradictions
-            is_target_version_matched=True,
-            consecutive_low_delta_rounds=3,
-            last_weighted_delta=0.01,
-            remaining_budget_calls=5,
-            has_viable_probe_remaining=True,
-        )
-        res = evaluate_stopping_gate(inp)
+        """Scenario 5: Only unresolved contradictions differ from a passing ledger -> DEEPEN."""
+        res = evaluate_stopping_gate(_passing(unresolved_contradictions_count=2))
         self.assertEqual(res.state, TerminationState.DEEPEN)
 
     def test_scenario_6_version_drift(self):
-        """Scenario 6: Version mismatch -> DEEPEN."""
-        inp = StoppingEvaluationInput(
-            required_claims_total=5,
-            required_claims_verified=5,
-            independent_sources_count=3,
-            has_execution_proof=True,
-            has_counterevidence_searched=True,
-            unresolved_contradictions_count=0,
-            is_target_version_matched=False,  # Version drift
-            consecutive_low_delta_rounds=3,
-            last_weighted_delta=0.01,
-            remaining_budget_calls=5,
-            has_viable_probe_remaining=True,
-        )
-        res = evaluate_stopping_gate(inp)
+        """Scenario 6: Only the version flag differs from a passing ledger -> DEEPEN."""
+        res = evaluate_stopping_gate(_passing(is_target_version_matched=False))
         self.assertEqual(res.state, TerminationState.DEEPEN)
 
     def test_scenario_7_missing_counterevidence_search(self):
-        """Scenario 7: No failure/anti-pattern search conducted -> DEEPEN."""
-        inp = StoppingEvaluationInput(
-            required_claims_total=5,
-            required_claims_verified=5,
-            independent_sources_count=3,
-            has_execution_proof=True,
-            has_counterevidence_searched=False,  # Not searched
-            unresolved_contradictions_count=0,
-            is_target_version_matched=True,
-            consecutive_low_delta_rounds=3,
-            last_weighted_delta=0.01,
-            remaining_budget_calls=5,
-            has_viable_probe_remaining=True,
-        )
-        res = evaluate_stopping_gate(inp)
+        """Scenario 7: Only counterevidence differs from a passing ledger -> DEEPEN."""
+        res = evaluate_stopping_gate(_passing(has_counterevidence_searched=False))
         self.assertEqual(res.state, TerminationState.DEEPEN)
+
+    def test_f13_only_a_remaining_probe_blocks_stop(self):
+        """A passing ledger with one probe left must not stop."""
+        res = evaluate_stopping_gate(_passing(has_viable_probe_remaining=True))
+        self.assertNotEqual(res.state, TerminationState.STOP_SUFFICIENT)
+        self.assertIsNone(res.certificate)
 
     def test_scenario_8_blocked_upstream(self):
         """Scenario 8: Blocked by paywall or anti-scraping -> ABSTAIN_BLOCKED."""

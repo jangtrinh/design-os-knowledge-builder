@@ -6,6 +6,7 @@ import json
 import sys
 from pathlib import Path
 
+from knowledge_builder.containment import ContainmentError, atomic_write, require_inside
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
 
 
@@ -23,8 +24,8 @@ def cmd_index(args):
         sys.exit(1)
 
     entries = []
-    errors = []
-    for path in _markdown_files(root, _exclude_patterns(args)):
+    found, errors = _markdown_files(root, _exclude_patterns(args))
+    for path in found:
         entry, error = _entry(path, root)
         if error:
             errors.append(error)
@@ -36,8 +37,11 @@ def cmd_index(args):
         sys.exit(1)
 
     out_file = root / "index.json"
-    with open(out_file, "w", encoding="utf-8") as handle:
-        json.dump(entries, handle, indent=2)
+    try:
+        atomic_write(root, "index.json", json.dumps(entries, indent=2).encode("utf-8"))
+    except ContainmentError as exc:
+        print(f"[-] {exc}", file=sys.stderr)
+        sys.exit(1)
     print(f"[✓] Compiled machine-readable index with {len(entries)} file(s) into: {out_file}")
 
 
@@ -58,17 +62,29 @@ def _exclude_patterns(args):
 
 
 def _markdown_files(root, patterns):
+    """Markdown under root. A symlink whose real path escapes root is an error."""
     found = []
+    errors = []
     for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() != ".md":
-            continue
-        if path.name.lower() == "readme.md":
+        if path.suffix.lower() != ".md":
             continue
         relative = path.relative_to(root)
-        if _is_excluded(relative, patterns):
+        if path.name.lower() == "readme.md" or _is_excluded(relative, patterns):
+            continue
+        if path.is_dir() and not path.is_symlink():
+            continue
+        rel = relative.as_posix()
+        try:
+            require_inside(path, root)
+        except ContainmentError as exc:
+            errors.append(f"{rel}: {exc}")
+            continue
+        if not path.is_file():
+            errors.append(f"{rel}: unreadable")
             continue
         found.append(path)
-    return sorted(found, key=lambda item: item.relative_to(root).as_posix())
+    found.sort(key=lambda item: item.relative_to(root).as_posix())
+    return found, errors
 
 
 def _entry(path, root):

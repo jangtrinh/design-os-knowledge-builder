@@ -5,8 +5,11 @@ import re
 import sys
 from pathlib import Path
 
+from knowledge_builder.anchors import heading_present, parse_attributes, visible_lines
+from knowledge_builder.anchors import AnchorSyntaxError
+from knowledge_builder.containment import ContainmentError, require_inside
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
-from knowledge_builder.quote_check import file_contains_quote
+from knowledge_builder.quote_check import file_contains_quote, normalise_newlines
 
 
 HEADINGS = (
@@ -19,7 +22,6 @@ TIERS = {"verified", "community_reference", "draft"}
 KEBAB = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 ANCHOR = re.compile(r"<!--\s*ease:source\b(.*?)-->", re.DOTALL)
-ATTR = re.compile(r"""([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|(\S+))""")
 OPEN_ANCHOR = re.compile(r"<!--\s*ease:source\b")
 
 
@@ -43,7 +45,9 @@ def verify_root(root, claims=False):
     files = 0
     anchors = 0
     failures = []
-    for path in _markdown_files(root):
+    found, walk_errors = _markdown_files(root)
+    failures.extend(walk_errors)
+    for path in found:
         files += 1
         rel = path.relative_to(root).as_posix()
         try:
@@ -52,8 +56,10 @@ def verify_root(root, claims=False):
             failures.append(f"{rel}: {exc}")
             continue
         parsed_anchors = _anchors(text)
-        anchors += len(parsed_anchors)
-        if len(OPEN_ANCHOR.findall(text)) != len(parsed_anchors):
+        anchors += sum(1 for item in parsed_anchors if item is not None)
+        if len(OPEN_ANCHOR.findall(text)) != len(parsed_anchors) or any(
+            item is None for item in parsed_anchors
+        ):
             failures.append(f"{rel}: malformed ease:source anchor")
         try:
             data = parse_frontmatter(text)
@@ -64,38 +70,56 @@ def verify_root(root, claims=False):
             _check_metadata(data, rel, failures)
             _check_sources(root, rel, data.get("source_attribution"), failures)
         _check_headings(text, rel, failures)
+        checked = 0
+        quotes = []
         for index, attrs in enumerate(parsed_anchors):
+            if attrs is None:
+                continue
             where = f"anchor[{index}]"
             _check_ref(root, rel, attrs.get("uri"), attrs.get("sha256"), failures, where)
-            if claims:
-                _check_anchor_quote(root, rel, attrs, failures, where)
+            if isinstance(attrs.get("quote"), str):
+                quotes.append(attrs["quote"])
+            if claims and _check_anchor_quote(root, rel, attrs, failures, where):
+                checked += 1
+        if claims and _has_uncited_core(text, quotes):
+            failures.append(f"{rel}: uncited Core Knowledge content")
+        if claims and checked == 0:
+            failures.append(f"{rel}: no claim was checked")
     return files, anchors, failures
 
 
 def _markdown_files(root):
+    """Markdown under root. A symlink whose real path escapes root is an error."""
     found = []
+    errors = []
     for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() != ".md":
+        if path.suffix.lower() != ".md":
             continue
-        rel = path.relative_to(root)
-        if "_evidence" in rel.parts or path.name.lower() == "readme.md":
+        relative = path.relative_to(root)
+        if "_evidence" in relative.parts or path.name.lower() == "readme.md":
+            continue
+        if path.is_dir() and not path.is_symlink():
+            continue
+        rel = relative.as_posix()
+        try:
+            require_inside(path, root)
+        except ContainmentError as exc:
+            errors.append(f"{rel}: {exc}")
+            continue
+        if not path.is_file():
+            errors.append(f"{rel}: unreadable")
             continue
         found.append(path)
-    return sorted(found)
+    return sorted(found), errors
 
 
 def _anchors(text):
     found = []
     for match in ANCHOR.finditer(text):
-        attrs = {}
-        for attr in ATTR.finditer(match.group(1)):
-            value = attr.group(2)
-            if value is None:
-                value = attr.group(3)
-            if value is None:
-                value = attr.group(4)
-            attrs[attr.group(1)] = value
-        found.append(attrs)
+        try:
+            found.append(parse_attributes(match.group(1)))
+        except AnchorSyntaxError:
+            found.append(None)
     return found
 
 
@@ -107,14 +131,18 @@ def _check_metadata(data, rel, failures):
         if key not in data or data[key] is None:
             failures.append(f"{rel}: missing {key}")
     ident = data.get("id")
-    if isinstance(ident, str) and KEBAB.fullmatch(ident) is None:
+    if "id" in data and data["id"] is not None and not isinstance(ident, str):
+        failures.append(f"{rel}: id must be a string")
+    elif isinstance(ident, str) and KEBAB.fullmatch(ident) is None:
         failures.append(f"{rel}: id must be kebab-case")
     for key in ("title", "domain", "description", "version"):
         value = data.get(key)
         if key in data and data[key] is not None and (not isinstance(value, str) or not value.strip()):
             failures.append(f"{rel}: {key} must be a non-empty string")
     tier = data.get("trust_tier")
-    if isinstance(tier, str) and tier not in TIERS:
+    if "trust_tier" in data and data["trust_tier"] is not None and not isinstance(tier, str):
+        failures.append(f"{rel}: trust_tier must be a string")
+    elif isinstance(tier, str) and tier not in TIERS:
         failures.append(f"{rel}: trust_tier must be verified, community_reference, or draft")
     when = data.get("when")
     if "when" in data and (
@@ -137,19 +165,49 @@ def _check_sources(root, rel, sources, failures):
 
 
 def _check_anchor_quote(root, rel, attrs, failures, where):
+    """True only when the anchor quote occurs in the hashed file."""
     quote = attrs.get("quote")
     if not isinstance(quote, str) or quote.strip() == "":
         failures.append(f"{rel}: {where} UNCHECKED")
-        return
+        return False
     target, error = _locate(root, attrs.get("uri"))
     if error or target is None or not target.is_file() or not file_contains_quote(target, quote):
         failures.append(f"{rel}: {where} quote is not in the hashed file")
+        return False
+    return True
 
 
 def _check_headings(text, rel, failures):
+    lines = visible_lines(text)
     for heading in HEADINGS:
-        if heading not in text:
+        if not heading_present(lines, heading):
             failures.append(f"{rel}: missing heading {heading}")
+
+
+def _has_uncited_core(text, quotes):
+    """True when Core Knowledge prose remains after declared quotes are removed."""
+    core = normalise_newlines(_core_section(text))
+    for quote in quotes:
+        core = core.replace(normalise_newlines(quote), "")
+    return core.strip() != ""
+
+
+def _core_section(text):
+    lines = visible_lines(text)
+    start = None
+    for index, line in enumerate(lines):
+        if heading_present([line], "## Core Knowledge Content"):
+            start = index + 1
+            break
+    if start is None:
+        return ""
+    end = len(lines)
+    for index in range(start, len(lines)):
+        stripped = lines[index].strip()
+        if stripped == "##" or stripped.startswith("## "):
+            end = index
+            break
+    return "\n".join(lines[start:end])
 
 
 def _check_ref(root, rel, uri, sha, failures, where):
@@ -176,10 +234,12 @@ def _locate(root, uri):
         return None, f"uri is not repo-relative: {uri}"
     if _is_absolute(uri):
         return None, f"uri is not repo-relative: {uri}"
-    candidate = (root / uri).resolve()
+    candidate = root / uri
     try:
-        candidate.relative_to(root)
-    except ValueError:
+        require_inside(candidate, root)
+    except ContainmentError as exc:
+        if str(exc).startswith("unreadable"):
+            return None, f"unreadable: {uri}"
         return None, f"uri escapes root: {uri}"
     return candidate, None
 

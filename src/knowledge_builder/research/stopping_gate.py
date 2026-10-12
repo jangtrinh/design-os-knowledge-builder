@@ -38,6 +38,7 @@ class StoppingEvaluationInput:
     is_blocked: bool = False
     block_reason: Optional[str] = None
     independent_review_passed: bool = False
+    minimum_independent_sources: int = 2
 
 
 @dataclass
@@ -70,7 +71,8 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
 
     # 2. Hard Gate Evaluation (Score cannot compensate for a broken hard gate)
     coverage_ok = (inp.required_claims_total > 0) and (inp.required_claims_verified >= inp.required_claims_total)
-    sources_ok = inp.independent_sources_count >= 2
+    minimum_sources = inp.minimum_independent_sources
+    sources_ok = inp.independent_sources_count >= minimum_sources
     execution_ok = inp.has_execution_proof
     counterevidence_ok = inp.has_counterevidence_searched
     version_ok = inp.is_target_version_matched
@@ -134,7 +136,9 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     if not coverage_ok:
         reasons.append(f"Missing verified claims ({inp.required_claims_verified}/{inp.required_claims_total})")
     if not sources_ok:
-        reasons.append(f"Insufficient independent sources ({inp.independent_sources_count} < 2)")
+        reasons.append(
+            f"Insufficient independent sources ({inp.independent_sources_count} < {inp.minimum_independent_sources})"
+        )
     if not execution_ok:
         reasons.append("Missing code execution / test verification proof")
     if not counterevidence_ok:
