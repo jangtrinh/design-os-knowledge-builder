@@ -1,40 +1,43 @@
 ---
 name: es:knowledge-forge
 description: >
-  Universal Multimodal Knowledge Pipeline & Auto-Research Engine.
-  Ingests PDF, Video, Image, Audio, and Web into structured Universal Knowledge
+  Universal Multimodal Knowledge Pipeline.
+  Ingests PDF, Video, Image, and Web into structured Universal Knowledge
   Master Contract (UKMC.v1) Markdown with cryptographic provenance tracking,
   epistemic stopping gates, and multi-perspective audit.
-argument-hint: "[ingest <file> | research <topic> | gate <run_id> | lint <file> | index]"
+argument-hint: "[ingest <file> | verify <root> | gate | lint <file> | index --root]"
 ---
 
-# es:knowledge-forge — Universal Multimodal Knowledge & Auto-Research Engine
+# es:knowledge-forge — Universal Multimodal Knowledge Pipeline
 
-Governs the lifecycle of knowledge creation, validation, and curation across the Products workspace.
+This repository stores no topic files. Run commands against `~/Products/jang-knowledge/<domain>/<topic>`.
 
 ## 1. Commands
 
 ```bash
-# Ingest any media format (PDF, Video MP4, Diagram image, Web URL)
+# Fingerprint a PDF, image, or web URL. A missing pdftotext raises RuntimeError.
 python3 -m knowledge_builder.cli ingest <file_or_url>
 
-# Run Auto-Research loop with Google Search & GitHub repo inspection
-python3 -m knowledge_builder.cli research "<topic>" --github
+# Video extracts are written only under --out. A missing ffmpeg raises RuntimeError.
+python3 -m knowledge_builder.cli ingest <video> --out <directory>
 
-# Evaluate Stopping Condition (STOP_SUFFICIENT, DEEPEN, PAUSE_BUDGET, ABSTAIN_BLOCKED)
+# Check frontmatter, list-shaped source_attribution, hashes, anchors, and the four headings.
+python3 -m knowledge_builder.cli verify ~/Products/jang-knowledge/<domain>/<topic>
+
+# Print a stopping-gate decision from self-reported flags. This mode does not exit 0.
 python3 -m knowledge_builder.cli gate --run-id <run_id>
 
-# Lint Markdown against UKMC.v1 standards
+# Check the four headings and an ease:source anchor.
 python3 -m knowledge_builder.cli lint <markdown_file>
 
-# Compile machine-readable index.json
-python3 -m knowledge_builder.cli index --dir ./knowledge
+# Write index.json with the sha256 of each file. Skips _evidence/**.
+python3 -m knowledge_builder.cli index --root ~/Products/jang-knowledge/<domain>/<topic>
 ```
 
 ## 2. Universal Knowledge Master Contract (UKMC.v1)
 
-Every knowledge file under `knowledge/**` MUST follow the schema:
-- **Frontmatter**: `id`, `title`, `domain`, `description`, `when`, `trust_tier`, `source_attribution` (URI + SHA256).
+Every knowledge file under the external root MUST follow the schema:
+- **Frontmatter**: `id`, `title`, `domain`, `description`, `when`, `trust_tier`, `version`, and `source_attribution` as a list of `{uri, sha256}`. `uri` is repo-relative.
 - **Mandatory Sections**:
   1. `## Purpose`: Exactly 1-2 sentences defining what this file solves.
   2. `## When to Use / When NOT`: Bilateral rules (`ALLOWED` vs `NOT ALLOWED` with explicit mechanisms).

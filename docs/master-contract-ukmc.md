@@ -17,13 +17,11 @@ description: "One actionable sentence describing what this knowledge file provid
 when:
   - "Condition or keyword 1"
   - "Condition or keyword 2"
-source:
-  uri: "https://example.com/spec or local path"
-  modality: "pdf | video | image | web"
-  sha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
-  captured_at: "2026-10-01T11:00:00Z"
-quarantine: false
+trust_tier: "draft"
 version: "1.0.0"
+source_attribution:
+  - uri: "_evidence/run/sources/spec.md"
+    sha256: "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
 ---
 ```
 

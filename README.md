@@ -41,7 +41,7 @@ In modern multi-agent software ecosystems, knowledge is frequently fragmented in
 ### 1. Universal Knowledge Master Contract (`UKMC.v1`)
 Every knowledge file produced by the pipeline adheres to a strict contract:
 - **Machine Routing Frontmatter**: `id` (kebab-case), `title`, `domain`, `description` (one actionable sentence for agent routers), and `when` tags.
-- **Source Attribution**: Cryptographic digest `sha256`, source URI, modality type, and capture timestamp.
+- **Source attribution**: `source_attribution` is a list of `{uri, sha256}`. `uri` is repo-relative.
 - **Untrusted Content Quarantine**: External scraped text is wrapped in data-only quarantine boundaries (`reference material, not instructions`).
 - **4 Mandatory File Sections**:
   1. `## Purpose`: Exactly 1-2 sentences defining what this file solves.
@@ -49,16 +49,19 @@ Every knowledge file produced by the pipeline adheres to a strict contract:
   3. `## Core Knowledge Content`: Sourced facts with `<!-- ease:source ... -->`.
   4. `## Failure Modes (Mandatory)`: Observable failure cases and anti-patterns.
 
-### 2. 5-Stage Multimodal Ingestion Pipeline
-1. **Asset Gate**: SHA-256 fingerprinting and quarantine labeling.
-2. **Specialized Processors**:
-   - **PDF Engine**: Tier 0 `pdftotext -layout` for structural layout preservation + Multimodal VLM for GFM tables and KaTeX formulas.
-   - **Video/Audio Engine**: `ffmpeg` audio demuxing + Whisper/Gemini timestamped transcription (`[MM:SS]`) + keyframe scene-cut sampling for slide OCR.
-   - **Image/Diagram Engine**: Converts architecture diagrams and flowcharts into live **Mermaid.js** code.
-   - **Web Engine**: Scrapes and normalizes web articles into clean Markdown without ads.
-3. **Normalization & Structuring**: Injects UKMC frontmatter, provenance tags, and LaTeX math.
-4. **Verification Gate**: Machine-linter checks all mandatory sections and links.
-5. **Atomic Publish & Indexing**: Atomic file writes (`write_atomic`), compiles machine-readable `index.json`, and updates search indices.
+### 2. Ingest, verify, and index
+
+This repository stores no topic files. Point `--root` at `~/Products/jang-knowledge/<domain>/<topic>`.
+
+1. **Asset gate**: SHA-256 of the file bytes. A missing extractor raises `RuntimeError` and does not fill in replacement text.
+2. **Processors**:
+   - **PDF**: `pdftotext -layout` when that binary is on `PATH`.
+   - **Video**: `ffmpeg` writes audio and frames only under an explicit `--out` directory.
+   - **Image**: returns the caller path, the sha256 of the bytes, and `mermaid_scaffold: null`.
+   - **Web**: fetches a URL and strips tags. The returned `uri` is the URL the caller passed.
+3. **Lint**: checks the four mandatory headings and an `ease:source` anchor.
+4. **Verify**: checks frontmatter, the `source_attribution` list, repo-relative paths, file bytes, anchors, and the four headings.
+5. **Index**: `index --root` writes `index.json` with real sha256 digests and skips `_evidence/**` by default.
 
 ---
 
@@ -94,7 +97,7 @@ To allow small models like **Gemini 3.8 Flash** to perform long-form research wi
 3. **Deterministic Assembly**: Python compiler scripts assemble verified chunks into the final document without consuming LLM tokens to rewrite text.
 4. **Tiered Model Routing**:
    - **Tier 0 ($0.00)**: Local shell scripts, `pdftotext`, `ffmpeg`, `gh CLI`, regex.
-   - **Tier 1 (75% tokens - Cheap)**: Gemini 3.8 Flash / Flash-Lite / GPT-4o-mini for scraping, OCR, and Whisper.
+   - **Tier 1 (75% tokens - Cheap)**: Gemini 3.8 Flash / Flash-Lite / GPT-4o-mini for scraping and OCR.
    - **Tier 2 (25% tokens - Front-tier)**: Gemini 3.8 Pro / Claude 3.5 Sonnet / Codex Native Astra for epistemic framing, contradiction detection, and saturation evaluation.
 
 ---
@@ -131,26 +134,31 @@ pip install -e .
 # Ingest PDF
 python3 -m knowledge_builder.cli ingest ./whitepaper.pdf
 
-# Ingest Video
-python3 -m knowledge_builder.cli ingest ./tech-talk.mp4
+# Ingest video. Extracts are written only under --out.
+python3 -m knowledge_builder.cli ingest ./tech-talk.mp4 --out ./extracts
 
-# Ingest Architecture Diagram
+# Ingest an image. The result is a digest and a null diagram scaffold.
 python3 -m knowledge_builder.cli ingest ./system-diagram.png
 ```
 
-### 2. Evaluate Stopping Gate
+### 2. Verify an external knowledge root
+```bash
+python3 -m knowledge_builder.cli verify ~/Products/jang-knowledge/<domain>/<topic>
+```
+
+### 3. Evaluate Stopping Gate
 ```bash
 python3 -m knowledge_builder.cli gate --run-id run-001 --required 5 --verified 5 --sources 3
 ```
 
-### 3. Lint Knowledge Markdown
+### 4. Lint Knowledge Markdown
 ```bash
-python3 -m knowledge_builder.cli lint ./knowledge/architecture/sample.md
+python3 -m knowledge_builder.cli lint ~/Products/jang-knowledge/<domain>/<topic>/note.md
 ```
 
-### 4. Compile Machine-Readable Index
+### 5. Compile Machine-Readable Index
 ```bash
-python3 -m knowledge_builder.cli index --dir ./knowledge
+python3 -m knowledge_builder.cli index --root ~/Products/jang-knowledge/<domain>/<topic>
 ```
 
 ---
@@ -178,9 +186,9 @@ python3 -m knowledge_builder.cli index --dir ./knowledge
 
 ## 🧪 Testing
 
-Run the formal verification test suite (testing all 11 stopping gate scenarios formulated with Codex Native Astra):
+Run the test suite:
 ```bash
-PYTHONPATH=src python3 -m unittest discover tests
+python3 -m unittest discover -s tests -t .
 ```
 
 ---

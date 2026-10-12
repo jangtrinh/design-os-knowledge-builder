@@ -38,19 +38,25 @@ def gate_exit_code(state, *, self_reported=False):
 
 
 def cmd_ingest(args):
-    target = Path(args.target) if Path(args.target).exists() else args.target
+    raw = args.target
+    target = Path(raw) if Path(raw).exists() else raw
     print(f"[*] Ingesting: {target}")
 
-    if str(target).startswith("http://") or str(target).startswith("https://"):
-        res = process_web(str(target))
-    elif str(target).lower().endswith(".pdf"):
-        res = process_pdf(Path(target))
-    elif str(target).lower().endswith((".mp4", ".mov", ".mkv", ".avi")):
-        res = process_video(Path(target))
-    elif str(target).lower().endswith((".png", ".jpg", ".jpeg", ".svg")):
-        res = process_image(Path(target))
-    else:
-        print(f"[-] Unsupported file format: {target}")
+    try:
+        if str(target).startswith("http://") or str(target).startswith("https://"):
+            res = process_web(str(target))
+        elif str(target).lower().endswith(".pdf"):
+            res = process_pdf(target if isinstance(target, Path) else Path(target))
+        elif str(target).lower().endswith((".mp4", ".mov", ".mkv", ".avi")):
+            out = Path(args.out) if args.out else None
+            res = process_video(target if isinstance(target, Path) else Path(target), output_dir=out)
+        elif str(target).lower().endswith((".png", ".jpg", ".jpeg", ".svg")):
+            res = process_image(target if isinstance(target, Path) else Path(target))
+        else:
+            print(f"[-] Unsupported file format: {target}")
+            sys.exit(1)
+    except RuntimeError as exc:
+        print(f"[-] {exc}", file=sys.stderr)
         sys.exit(1)
 
     print(f"[✓] Modality: {res['modality']}")
@@ -126,6 +132,11 @@ def main():
     # Ingest
     p_ingest = subparsers.add_parser("ingest", help="Ingest PDF, video, image, or web url")
     p_ingest.add_argument("target", help="Path or URL to ingest")
+    p_ingest.add_argument(
+        "--out",
+        default=None,
+        help="Directory for video extracts. Required for video; writes nowhere else.",
+    )
     p_ingest.set_defaults(func=cmd_ingest)
 
     # Gate

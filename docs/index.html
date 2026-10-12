@@ -161,7 +161,7 @@
         <div class="register-row">
           <svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" data-size="20"><path d="M230.33,141.06a24.43,24.43,0,0,0-21.24-4.23l-41.84,9.62A28,28,0,0,0,140,112H89.94a31.82,31.82,0,0,0-22.63,9.37L44.69,144H16A16,16,0,0,0,0,160v40a16,16,0,0,0,16,16H120a7.93,7.93,0,0,0,1.94-.24l64-16a6.94,6.94,0,0,0,1.19-.4L226,182.82l.44-.2a24.6,24.6,0,0,0,3.93-41.56ZM16,160H40v40H16Zm203.43,8.21-38,16.18L119,200H56V155.31l22.63-22.62A15.86,15.86,0,0,1,89.94,128H140a12,12,0,0,1,0,24H112a8,8,0,0,0,0,16h32a8.32,8.32,0,0,0,1.79-.2l67-15.41.31-.08a8.6,8.6,0,0,1,6.3,15.9ZM164,96a36,36,0,0,0,5.9-.48,36,36,0,1,0,28.22-47A36,36,0,1,0,164,96Zm60-12a20,20,0,1,1-20-20A20,20,0,0,1,224,84ZM164,40a20,20,0,0,1,19.25,14.61,36,36,0,0,0-15,24.93A20.42,20.42,0,0,1,164,80a20,20,0,0,1,0-40Z"/></svg>
           <h3>Universal Multimodal Ingestion</h3>
-          <p>Converts PDFs, videos (timestamped Whisper transcripts + scene cuts), architecture diagrams (live Mermaid.js), and technical web docs into unified UKMC.v1 Markdown.</p>
+          <p>Fingerprints PDFs with pdftotext, videos with ffmpeg under an explicit output directory, and images as a digest. A missing binary raises RuntimeError. This repository stores no topic files.</p>
         </div>
         <div class="register-row">
           <svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" data-size="20"><path d="M224,128a8,8,0,0,1-8,8H104a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM104,72H216a8,8,0,0,0,0-16H104a8,8,0,0,0,0,16ZM216,184H104a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM43.58,55.16,48,52.94V104a8,8,0,0,0,16,0V40a8,8,0,0,0-11.58-7.16l-16,8a8,8,0,0,0,7.16,14.32ZM79.77,156.72a23.73,23.73,0,0,0-9.6-15.95,24.86,24.86,0,0,0-34.11,4.7,23.63,23.63,0,0,0-3.57,6.46,8,8,0,1,0,15,5.47,7.84,7.84,0,0,1,1.18-2.13,8.76,8.76,0,0,1,12-1.59A7.91,7.91,0,0,1,63.93,159a7.64,7.64,0,0,1-1.57,5.78,1,1,0,0,0-.08.11L33.59,203.21A8,8,0,0,0,40,216H72a8,8,0,0,0,0-16H56l19.08-25.53A23.47,23.47,0,0,0,79.77,156.72Z"/></svg>
@@ -202,10 +202,10 @@
 
       <ol class="steps" style="margin-top:var(--s-16)">
         <li><strong>Asset Gate:</strong> Calculates SHA-256 fingerprint, identifies MIME type, and wraps raw input in quarantine boundaries.</li>
-        <li><strong>Multimodal Extractors:</strong> Runs Tier 0 local utilities (<code>pdftotext</code>, <code>ffmpeg</code> demux) followed by VLM transcription &amp; Mermaid diagram generation.</li>
+        <li><strong>Multimodal extractors:</strong> <code>pdftotext -layout</code> for PDFs, and <code>ffmpeg</code> under an explicit output directory for video. A missing binary raises <code>RuntimeError</code>. Images return a digest and a null diagram scaffold.</li>
         <li><strong>Contract Normalization:</strong> Formulates UKMC.v1 YAML frontmatter, source anchors, and KaTeX math formatting.</li>
         <li><strong>Verification Gate:</strong> Machine linter checks bilateral rules, failure mode coverage, and link integrity.</li>
-        <li><strong>Atomic Publish:</strong> Performs atomic file writes (<code>write_atomic</code>) and builds search index (<code>index.json</code>).</li>
+        <li><strong>Index:</strong> <code>index --root</code> writes <code>index.json</code> with the sha256 of each file and skips <code>_evidence/**</code>.</li>
       </ol>
     </section>
 
