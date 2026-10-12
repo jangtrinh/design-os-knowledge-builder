@@ -40,7 +40,7 @@ Every UKMC markdown document must contain exactly these 4 mandatory H2 sections:
 - **NOT ALLOWED**: Prohibited conditions, out-of-scope boundaries, anti-patterns.
 
 ## Core Knowledge Content
-[Sourced facts, architectural rules, code examples, formulas. Every external fact must feature an anchor comment: `<!-- ease:source line/anchor -->`]
+[Sourced facts, architectural rules, code examples, formulas. Every external fact must feature an anchor comment: `<!-- ease:source line/anchor -->`. A block whose text starts, after an optional list marker, with `Derived:`, `Lineup decision:`, or `Observed:` is not an external fact.]
 
 ## Failure Modes (Mandatory)
 [List of real failure cases, race conditions, edge cases, and actionable remediation steps.]

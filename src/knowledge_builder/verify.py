@@ -9,7 +9,7 @@ from knowledge_builder.anchors import heading_present, parse_attributes, visible
 from knowledge_builder.anchors import AnchorSyntaxError
 from knowledge_builder.containment import ContainmentError, require_inside
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
-from knowledge_builder.quote_check import file_contains_quote, normalise_newlines
+from knowledge_builder.quote_check import file_contains_quote
 
 
 HEADINGS = (
@@ -23,13 +23,21 @@ KEBAB = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 ANCHOR = re.compile(r"<!--\s*ease:source\b(.*?)-->", re.DOTALL)
 OPEN_ANCHOR = re.compile(r"<!--\s*ease:source\b")
+# Not external facts. Same three labels as the anchor rule in the UKMC contract.
+EXEMPT_LABELS = ("Derived:", "Lineup decision:", "Observed:")
+_LIST_MARKER = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
+_H3 = re.compile(r"^#{3,}(?:\s|$)")
+_DELIM_CELL = re.compile(r":?-{3,}:?")
 
 
 def cmd_verify(args):
-    files, anchors, messages = verify_root(args.root, claims=bool(getattr(args, "claims", False)))
+    claims = bool(getattr(args, "claims", False))
+    files, anchors, messages, exempt_blocks = verify_root(args.root, claims=claims)
     print(f"files: {files}")
     print(f"anchors: {anchors}")
     print(f"failures: {len(messages)}")
+    if claims:
+        print(f"exempt blocks: {exempt_blocks}")
     for message in messages:
         print(message)
     if messages:
@@ -37,13 +45,17 @@ def cmd_verify(args):
 
 
 def verify_root(root, claims=False):
-    """Return (files, anchors, failure messages). claims=True also checks anchor quotes."""
+    """Return (files, anchors, failure messages, exempt blocks).
+
+    claims=True checks anchor quotes and per-block citations in Core Knowledge.
+    """
     root = Path(root)
     if not root.is_dir():
-        return 0, 0, [f"{root}: not a directory"]
+        return 0, 0, [f"{root}: not a directory"], 0
     root = root.resolve()
     files = 0
     anchors = 0
+    exempt_blocks = 0
     failures = []
     found, walk_errors = _markdown_files(root)
     failures.extend(walk_errors)
@@ -71,21 +83,20 @@ def verify_root(root, claims=False):
             _check_sources(root, rel, data.get("source_attribution"), failures)
         _check_headings(text, rel, failures)
         checked = 0
-        quotes = []
         for index, attrs in enumerate(parsed_anchors):
             if attrs is None:
                 continue
             where = f"anchor[{index}]"
             _check_ref(root, rel, attrs.get("uri"), attrs.get("sha256"), failures, where)
-            if isinstance(attrs.get("quote"), str):
-                quotes.append(attrs["quote"])
             if claims and _check_anchor_quote(root, rel, attrs, failures, where):
                 checked += 1
-        if claims and _has_uncited_core(text, quotes):
-            failures.append(f"{rel}: uncited Core Knowledge content")
+        if claims:
+            block_failures, exempt_here = _uncited_blocks(text, rel)
+            failures.extend(block_failures)
+            exempt_blocks += exempt_here
         if claims and checked == 0:
             failures.append(f"{rel}: no claim was checked")
-    return files, anchors, failures
+    return files, anchors, failures, exempt_blocks
 
 
 def _markdown_files(root):
@@ -184,30 +195,219 @@ def _check_headings(text, rel, failures):
             failures.append(f"{rel}: missing heading {heading}")
 
 
-def _has_uncited_core(text, quotes):
-    """True when Core Knowledge prose remains after declared quotes are removed."""
-    core = normalise_newlines(_core_section(text))
-    for quote in quotes:
-        core = core.replace(normalise_newlines(quote), "")
-    return core.strip() != ""
+def _uncited_blocks(text, rel):
+    """Failure lines for Core blocks with no ease:source, plus the exempt count."""
+    records = _line_records(text)
+    bounds = _core_bounds(records)
+    if bounds is None:
+        return [], 0
+    start, end = bounds
+    blocks = _blocks(records, start, end)
+    spans = _anchor_spans(text)
+    if end < len(records):
+        limit = records[end][0]
+    elif records:
+        limit = records[-1][0] + 1
+    else:
+        limit = 1
+    failures = []
+    exempt = 0
+    for index, (begin, finish, lines) in enumerate(blocks):
+        if _is_exempt(lines):
+            exempt += 1
+            continue
+        nxt = blocks[index + 1][0] if index + 1 < len(blocks) else limit
+        if _is_cited(begin, finish, nxt, spans):
+            continue
+        failures.append(f"{rel}:{begin}: uncited block: {_preview(lines)}")
+    return failures, exempt
 
 
-def _core_section(text):
-    lines = visible_lines(text)
+def _line_records(text):
+    """Original lines with comments removed, then fenced code marked."""
+    records = []
+    in_comment = False
+    in_fence = False
+    for number, line in enumerate(text.splitlines(), 1):
+        shown, in_comment = _strip_comment(line, in_comment)
+        if in_fence:
+            if shown.startswith("```"):
+                in_fence = False
+                records.append((number, shown, "fence-close"))
+            else:
+                records.append((number, shown, "fence"))
+            continue
+        if shown.startswith("```"):
+            in_fence = True
+            records.append((number, shown, "fence-open"))
+            continue
+        records.append((number, shown, "blank" if shown == "" else "text"))
+    return records
+
+
+def _strip_comment(line, in_comment):
+    visible = []
+    index = 0
+    while index < len(line):
+        if in_comment:
+            end = line.find("-->", index)
+            if end < 0:
+                return "".join(visible).strip(), True
+            in_comment = False
+            index = end + 3
+            continue
+        start = line.find("<!--", index)
+        if start < 0:
+            visible.append(line[index:])
+            break
+        visible.append(line[index:start])
+        end = line.find("-->", start + 4)
+        if end < 0:
+            return "".join(visible).strip(), True
+        index = end + 3
+    return "".join(visible).strip(), in_comment
+
+
+def _core_bounds(records):
     start = None
-    for index, line in enumerate(lines):
-        if heading_present([line], "## Core Knowledge Content"):
-            start = index + 1
+    for index, (_number, text, kind) in enumerate(records):
+        if kind == "text" and heading_present([text], "## Core Knowledge Content"):
+            start = index
             break
     if start is None:
-        return ""
-    end = len(lines)
-    for index in range(start, len(lines)):
-        stripped = lines[index].strip()
-        if stripped == "##" or stripped.startswith("## "):
+        return None
+    end = len(records)
+    for index in range(start + 1, len(records)):
+        _number, text, kind = records[index]
+        if kind == "text" and (text == "##" or text.startswith("## ")):
             end = index
             break
-    return "\n".join(lines[start:end])
+    return start, end
+
+
+def _blocks(records, start, end):
+    blocks = []
+    index = start + 1
+    while index < end:
+        _number, text, kind = records[index]
+        if kind in ("blank", "fence-close"):
+            index += 1
+            continue
+        if kind == "fence-open":
+            index, block = _fence_block(records, index, end)
+            blocks.append(block)
+            continue
+        if kind != "text" or _is_h3(text):
+            index += 1
+            continue
+        if _starts_table(records, index, end):
+            index, block = _table_block(records, index, end)
+            blocks.append(block)
+            continue
+        index, block = _text_block(records, index, end)
+        blocks.append(block)
+    return blocks
+
+
+def _fence_block(records, index, end):
+    begin = records[index][0]
+    lines = []
+    index += 1
+    while index < end and records[index][2] != "fence-close":
+        if records[index][1]:
+            lines.append(records[index][1])
+        index += 1
+    if index < end and records[index][2] == "fence-close":
+        finish = records[index][0]
+        index += 1
+    else:
+        finish = records[index - 1][0]
+    return index, (begin, finish, lines)
+
+
+def _table_block(records, index, end):
+    begin = records[index][0]
+    lines = []
+    finish = begin
+    while index < end and records[index][2] == "text" and "|" in records[index][1]:
+        lines.append(records[index][1])
+        finish = records[index][0]
+        index += 1
+    return index, (begin, finish, lines)
+
+
+def _text_block(records, index, end):
+    begin = records[index][0]
+    lines = [records[index][1]]
+    finish = begin
+    index += 1
+    while index < end and not _text_stops(records, index, end):
+        lines.append(records[index][1])
+        finish = records[index][0]
+        index += 1
+    return index, (begin, finish, lines)
+
+
+def _text_stops(records, index, end):
+    _number, text, kind = records[index]
+    if kind != "text":
+        return True
+    return _is_h3(text) or _is_list_item(text) or _starts_table(records, index, end)
+
+
+def _starts_table(records, index, end):
+    if index + 1 >= end:
+        return False
+    _number, header, header_kind = records[index]
+    _next, delim, delim_kind = records[index + 1]
+    if header_kind != "text" or delim_kind != "text":
+        return False
+    return "|" in header and _is_delim(delim)
+
+
+def _is_delim(text):
+    cells = [cell.strip() for cell in text.strip().strip("|").split("|")]
+    return bool(cells) and all(_DELIM_CELL.fullmatch(cell) for cell in cells)
+
+
+def _is_h3(text):
+    return _H3.match(text) is not None
+
+
+def _is_list_item(text):
+    return _LIST_MARKER.match(text) is not None
+
+
+def _is_exempt(lines):
+    if not lines:
+        return False
+    text = _LIST_MARKER.sub("", lines[0], count=1)
+    return text.startswith(EXEMPT_LABELS)
+
+
+def _is_cited(begin, finish, nxt, spans):
+    for span_start, span_end in spans:
+        if span_start <= finish and span_end >= begin:
+            return True
+        if finish < span_start < nxt:
+            return True
+    return False
+
+
+def _anchor_spans(text):
+    spans = []
+    for match in ANCHOR.finditer(text):
+        end = max(match.start(), match.end() - 1)
+        spans.append((_lineno(text, match.start()), _lineno(text, end)))
+    return spans
+
+
+def _lineno(text, offset):
+    return text.count("\n", 0, offset) + 1
+
+
+def _preview(lines):
+    return " ".join(line.strip() for line in lines if line.strip())[:60]
 
 
 def _check_ref(root, rel, uri, sha, failures, where):
