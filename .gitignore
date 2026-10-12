@@ -25,3 +25,6 @@ htmlcov/
 .DS_Store
 .venv
 .knowledge_staging/
+
+# Working plans, reviews and reports stay local
+plans/
