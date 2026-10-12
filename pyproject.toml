@@ -27,6 +27,8 @@ dependencies = []
 dev = [
   "pytest>=7.0.0",
 ]
+audio = []
+ocr = []
 
 [project.scripts]
 knowledge-builder = "knowledge_builder.cli:main"

@@ -6,6 +6,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+import fcntl
 import hashlib
 import json
 import os
@@ -61,12 +62,24 @@ class AtomicResearchLedger:
         self.state_path = self.stage_dir / "state.json"
 
     def record_atom(self, atom: EvidenceAtom) -> None:
-        """Append one evidence atom and fsync it. Relative source_uri only."""
+        """Append one evidence atom under an exclusive sibling lock, then fsync.
+
+        The lock file is evidence.jsonl.lock, next to the ledger. Writers
+        block each other for the append and the fsync, then release it.
+        """
         atom.source_uri = require_relative_source_uri(atom.source_uri)
-        with open(self.evidence_path, "a", encoding="utf-8") as handle:
-            handle.write(atom.to_jsonl() + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        self.stage_dir.mkdir(parents=True, exist_ok=True)
+        lock_path = self.evidence_path.with_name(self.evidence_path.name + ".lock")
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            with open(self.evidence_path, "a", encoding="utf-8") as handle:
+                handle.write(atom.to_jsonl() + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
 
     def load_atoms(self) -> List[EvidenceAtom]:
         """Read all verified atoms from disk."""

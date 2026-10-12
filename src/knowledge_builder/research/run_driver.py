@@ -83,7 +83,50 @@ def cmd_run_status(args):
     if not (run_dir / "state.json").is_file():
         _fail(f"run is not initialized: {args.id}")
     state = AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence").load_state()
+    # Printed only. A bad or missing note list never rewrites state.json and
+    # is not an input to the stopping gate.
+    reported = _entailment_notes_report(run_dir / "review.json")
+    if reported:
+        state = dict(state)
+        state.update(reported)
     print(json.dumps(state, indent=2, ensure_ascii=False))
+
+
+_ENTAILMENT_NOTES_ERROR = "ignored: entailment_notes must be a list of {claim_id, note} strings"
+
+
+def _entailment_notes_report(review_path):
+    """Validate review.json entailment_notes for status. None when the key is absent.
+
+    A malformed value is reported and dropped. It is data, not a gate input.
+    """
+    if not review_path.is_file():
+        return None
+    try:
+        review = json.loads(review_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(review, dict) or "entailment_notes" not in review:
+        return None
+    parsed = _parse_entailment_notes(review.get("entailment_notes"))
+    if parsed is None:
+        return {"entailment_notes_error": _ENTAILMENT_NOTES_ERROR}
+    return {"entailment_notes": parsed}
+
+
+def _parse_entailment_notes(notes):
+    if not isinstance(notes, list):
+        return None
+    parsed = []
+    for item in notes:
+        if not isinstance(item, dict):
+            return None
+        claim_id = item.get("claim_id")
+        note = item.get("note")
+        if not isinstance(claim_id, str) or not isinstance(note, str):
+            return None
+        parsed.append({"claim_id": claim_id, "note": note})
+    return parsed
 
 
 def _required_claim_ids(raw):

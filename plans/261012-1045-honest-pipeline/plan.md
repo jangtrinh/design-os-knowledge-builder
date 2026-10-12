@@ -21,7 +21,7 @@ output, then implement until green, then run the full suite.
 | 7 | Claim-vs-source: `quote=` on anchors and atoms, `verify --claims` | P1.3 | M | done (pending controller) |
 | 8 | `review.json` with reviewer_runtime != researcher_runtime required for STOP_SUFFICIENT | P1.4 | S | done (pending controller) |
 | 9 | Emitter writes list-shaped `source_attribution`; council becomes a gap report; drop pydantic | P1.5 | S | done (pending controller) |
-| 10 | P2: ledger file lock + fsync; optional `entailment_notes` in review.json (data only); optional extractor extras that raise when deps are missing | P2 | M | todo |
+| 10 | P2: ledger file lock + fsync; optional `entailment_notes` in review.json (data only); optional extractor extras that raise when deps are missing | P2 | M | done (pending controller) |
 
 Acceptance for the whole plan:
 - `python3 -m unittest discover tests` green; every phase added tests that were red before its change.
