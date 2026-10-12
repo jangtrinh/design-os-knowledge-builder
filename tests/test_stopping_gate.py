@@ -175,6 +175,50 @@ class TestStoppingGateScenarios(unittest.TestCase):
         res = evaluate_stopping_gate(inp)
         self.assertEqual(res.state, TerminationState.PAUSE_BUDGET)
 
+    def test_cli_defaults_are_not_stop_sufficient(self):
+        """Bare `gate` builds StoppingEvaluationInput from CLI defaults and must not certify."""
+        import io
+        from unittest.mock import patch
+
+        import knowledge_builder.cli as cli_mod
+
+        captured = {}
+
+        def spy(inp):
+            captured["decision"] = evaluate_stopping_gate(inp)
+            return captured["decision"]
+
+        with patch.object(cli_mod, "evaluate_stopping_gate", spy), patch(
+            "sys.argv", ["knowledge-builder", "gate"]
+        ), patch("sys.stdout", io.StringIO()), patch("sys.stderr", io.StringIO()):
+            try:
+                cli_mod.main()
+            except SystemExit:
+                pass
+
+        self.assertIn("decision", captured)
+        self.assertNotEqual(captured["decision"].state, TerminationState.STOP_SUFFICIENT)
+
+    def test_review_false_and_no_probe_is_not_stop_sufficient(self):
+        """Hard gates and saturation without an independent review do not stop."""
+        inp = StoppingEvaluationInput(
+            required_claims_total=5,
+            required_claims_verified=5,
+            independent_sources_count=3,
+            has_execution_proof=True,
+            has_counterevidence_searched=True,
+            unresolved_contradictions_count=0,
+            is_target_version_matched=True,
+            consecutive_low_delta_rounds=3,
+            last_weighted_delta=0.01,
+            remaining_budget_calls=5,
+            has_viable_probe_remaining=False,
+            independent_review_passed=False,
+        )
+        res = evaluate_stopping_gate(inp)
+        self.assertNotEqual(res.state, TerminationState.STOP_SUFFICIENT)
+        self.assertIsNone(res.certificate)
+
 
 if __name__ == "__main__":
     unittest.main()
