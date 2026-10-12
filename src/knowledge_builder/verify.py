@@ -7,7 +7,7 @@ from pathlib import Path
 
 from knowledge_builder.anchors import heading_present, parse_attributes, visible_lines
 from knowledge_builder.anchors import AnchorSyntaxError
-from knowledge_builder.containment import ContainmentError, require_inside
+from knowledge_builder.containment import ContainmentError, read_text_inside, require_inside
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
 from knowledge_builder.quote_check import file_contains_quote
 
@@ -63,8 +63,8 @@ def verify_root(root, claims=False):
         files += 1
         rel = path.relative_to(root).as_posix()
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError) as exc:
+            text = read_text_inside(path, root)
+        except (ContainmentError, OSError, UnicodeError) as exc:
             failures.append(f"{rel}: {exc}")
             continue
         parsed_anchors = _anchors(text)

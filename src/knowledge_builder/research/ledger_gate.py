@@ -212,8 +212,9 @@ def _delta(state):
 
 
 def _minimum_sources(state):
+    """A missing minimum cannot fall back to 2. Only an integer >= 1 certifies."""
     if "minimum_independent_sources" not in state:
-        return 2
+        raise LedgerGateError("minimum_independent_sources must be an integer >= 1")
     value = state.get("minimum_independent_sources")
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise LedgerGateError("minimum_independent_sources must be an integer >= 1")

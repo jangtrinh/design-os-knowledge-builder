@@ -19,6 +19,7 @@ from knowledge_builder.containment import (
     read_text_nofollow,
     reject_symlink,
     require_inside,
+    write_all,
 )
 
 
@@ -54,6 +55,12 @@ class EvidenceAtom:
         if self.metadata is None:
             d["metadata"] = {}
         return json.dumps(d, ensure_ascii=False)
+
+
+def _inode(path):
+    """Identity of this path. lstat does not follow a final symlink."""
+    st = os.lstat(path)
+    return (st.st_dev, st.st_ino)
 
 
 def require_relative_source_uri(uri):
@@ -109,8 +116,24 @@ class AtomicResearchLedger:
             raise ContainmentError(f"not a directory: {self.base_dir}")
         self.stage_dir = ensure_real_dir(self.base_dir / run_id)
         require_inside(self.stage_dir, self.base_dir)
+        self._root_path = self.base_dir.parent
+        self._base_identity = _inode(self.base_dir)
+        self._stage_identity = _inode(self.stage_dir)
         self.evidence_path = self.stage_dir / "evidence.jsonl"
         self.state_path = self.stage_dir / "state.json"
+
+    def _revalidate_contained(self):
+        """Refuse a run directory whose ancestors moved after construction."""
+        try:
+            reject_symlink(self.base_dir)
+            reject_symlink(self.stage_dir)
+            if _inode(self.base_dir) != self._base_identity:
+                raise ContainmentError("evidence directory changed")
+            if _inode(self.stage_dir) != self._stage_identity:
+                raise ContainmentError("run directory changed")
+            require_inside(self.stage_dir, self._root_path)
+        except OSError as exc:
+            raise ContainmentError(f"run directory is not contained: {exc}") from exc
 
     def record_atom(self, atom: EvidenceAtom) -> None:
         """Append one evidence atom under an exclusive sibling lock, then fsync.
@@ -120,14 +143,15 @@ class AtomicResearchLedger:
         A symlinked evidence.jsonl or lock is refused.
         """
         validate_atom(atom, self.run_id)
-        reject_symlink(self.stage_dir)
+        self._revalidate_contained()
         lock_path = self.evidence_path.with_name(self.evidence_path.name + ".lock")
         lock_fd = open_lock_nofollow(lock_path)
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            self._revalidate_contained()
             fd = open_append_nofollow(self.evidence_path)
             try:
-                os.write(fd, (atom.to_jsonl() + "\n").encode("utf-8"))
+                write_all(fd, (atom.to_jsonl() + "\n").encode("utf-8"))
                 os.fsync(fd)
             finally:
                 os.close(fd)
@@ -153,6 +177,7 @@ class AtomicResearchLedger:
 
     def save_state(self, state: Dict[str, Any]) -> None:
         """Save state machine cursor for idempotent resume."""
+        self._revalidate_contained()
         payload = json.dumps(state, indent=2, ensure_ascii=False).encode("utf-8")
         atomic_write(self.stage_dir, self.state_path.name, payload)
 

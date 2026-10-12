@@ -6,7 +6,12 @@ import json
 import sys
 from pathlib import Path
 
-from knowledge_builder.containment import ContainmentError, atomic_write, require_inside
+from knowledge_builder.containment import (
+    ContainmentError,
+    atomic_write,
+    read_bytes_inside,
+    require_inside,
+)
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
 
 
@@ -90,15 +95,16 @@ def _markdown_files(root, patterns):
 def _entry(path, root):
     rel = path.relative_to(root).as_posix()
     try:
-        data = parse_frontmatter(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, FrontmatterError) as exc:
+        blob = read_bytes_inside(path, root)
+        data = parse_frontmatter(blob.decode("utf-8"))
+    except (ContainmentError, OSError, UnicodeError, FrontmatterError) as exc:
         return None, f"{rel}: {exc}"
     doc_id = data.get("id") if isinstance(data, dict) else None
     if not isinstance(doc_id, str) or not doc_id:
         return None, f"{rel}: frontmatter id is missing"
     if doc_id != path.stem:
         return None, f"{rel}: id {doc_id!r} does not match filename {path.name}"
-    return {"id": doc_id, "path": rel, "sha256": _sha256(path)}, None
+    return {"id": doc_id, "path": rel, "sha256": hashlib.sha256(blob).hexdigest()}, None
 
 
 def _is_inside(root, package):
@@ -128,9 +134,3 @@ def _glob_match(path, pattern):
     return fnmatch.fnmatchcase(path, pattern)
 
 
-def _sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()

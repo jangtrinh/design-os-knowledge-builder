@@ -50,6 +50,13 @@ class StoppingDecision:
     certificate: Optional[Dict[str, Any]] = None
 
 
+def _require_minimum_sources(value):
+    """Reject a missing, typed-wrong, or non-positive source minimum."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("minimum_independent_sources must be an integer >= 1")
+    return value
+
+
 def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     """Evaluate whether an auto-research loop must STOP, DEEPEN, PAUSE, or ABSTAIN.
     
@@ -59,6 +66,8 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
          
     STOP_sufficient = Gt ∧ St ∧ DecisionStable ∧ NoMaterialProbeRemaining ∧ ValidIndependentReview
     """
+    minimum_sources = _require_minimum_sources(inp.minimum_independent_sources)
+
     # 1. Check if blocked
     if inp.is_blocked or (not inp.has_viable_probe_remaining and inp.required_claims_verified < inp.required_claims_total):
         if inp.is_blocked:
@@ -71,7 +80,6 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
 
     # 2. Hard Gate Evaluation (Score cannot compensate for a broken hard gate)
     coverage_ok = (inp.required_claims_total > 0) and (inp.required_claims_verified >= inp.required_claims_total)
-    minimum_sources = inp.minimum_independent_sources
     sources_ok = inp.independent_sources_count >= minimum_sources
     execution_ok = inp.has_execution_proof
     counterevidence_ok = inp.has_counterevidence_searched
