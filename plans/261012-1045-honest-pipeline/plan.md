@@ -14,7 +14,7 @@ output, then implement until green, then run the full suite.
 |---|---|---|---|---|
 | 1 | Fail-closed gate: review default false, AND stop rule, honest certificate, exit codes 0/2/3/4/1 | P0.1 | S | done (pending controller) |
 | 2 | `verify <root>`: frontmatter schema, list `source_attribution`, repo-relative uris, file exists, sha256, anchors, 4 headings | P0.2 | M | done (pending controller) |
-| 3 | `index --root` required, refuse root inside package, `--exclude` default `_evidence/**`, real sha256, id from frontmatter | P0.3 | S | todo |
+| 3 | `index --root` required, refuse root inside package, `--exclude` default `_evidence/**`, real sha256, id from frontmatter | P0.3 | S | done (pending controller) |
 | 4 | Docs tell the truth (skill/README/contract doc) + ingest never invents content | P0.4 + P0.5 | S | todo |
 | 5 | `run init/record/status` ledger driver (relative uris only, fsync) | P1.1 | M | todo |
 | 6 | `gate --root --run-id` reads the ledger; integer flags only under `--self-report` (never exit 0) | P1.2 | M | todo |

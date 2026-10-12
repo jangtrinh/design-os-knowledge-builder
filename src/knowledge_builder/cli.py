@@ -14,6 +14,7 @@ from knowledge_builder.research.stopping_gate import (
     StoppingEvaluationInput,
     TerminationState,
 )
+from knowledge_builder.index import cmd_index
 from knowledge_builder.verify import cmd_verify
 
 
@@ -118,31 +119,6 @@ def cmd_lint(args):
         print(f"[✓] Lint PASSED: {path.name} satisfies UKMC.v1 standards.")
 
 
-def cmd_index(args):
-    knowledge_dir = Path(args.dir)
-    if not knowledge_dir.exists():
-        print(f"[-] Directory not found: {knowledge_dir}")
-        sys.exit(1)
-
-    files = list(knowledge_dir.glob("**/*.md"))
-    index = []
-
-    for f in files:
-        if f.name.upper() == "README.MD":
-            continue
-        index.append({
-            "id": f.stem,
-            "path": str(f.relative_to(knowledge_dir)),
-            "sha256": "placeholder-hash",
-        })
-
-    out_file = knowledge_dir / "index.json"
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(index, f, indent=2)
-
-    print(f"[✓] Compiled machine-readable index with {len(index)} file(s) into: {out_file}")
-
-
 def main():
     parser = _Parser(description="Design OS Knowledge Builder CLI")
     subparsers = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
@@ -179,7 +155,13 @@ def main():
 
     # Index
     p_index = subparsers.add_parser("index", help="Emit machine-readable index.json")
-    p_index.add_argument("--dir", default="./knowledge", help="Directory containing knowledge markdown files")
+    p_index.add_argument("--root", required=True, help="External knowledge repository root")
+    p_index.add_argument(
+        "--exclude",
+        action="append",
+        default=None,
+        help="Root-relative glob to skip (default: _evidence/**)",
+    )
     p_index.set_defaults(func=cmd_index)
 
     args = parser.parse_args()
