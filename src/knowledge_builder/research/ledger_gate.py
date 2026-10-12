@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from knowledge_builder.quote_check import file_contains_quote
 from knowledge_builder.research.ledger import AtomicResearchLedger, require_relative_source_uri
 from knowledge_builder.research.stopping_gate import StoppingEvaluationInput
 
@@ -71,10 +72,19 @@ def _supports(atom, claim_id):
 
 
 def _claim_verified(root, atoms, claim_id):
-    return any(
-        _supports(atom, claim_id) and _source_matches(root, atom.source_uri, atom.source_digest)
-        for atom in atoms
-    )
+    return any(_atom_verifies_claim(root, atom, claim_id) for atom in atoms)
+
+
+def _atom_verifies_claim(root, atom, claim_id):
+    """Hash match plus a quote that occurs in that file. No quote stays UNCHECKED."""
+    if not _supports(atom, claim_id):
+        return False
+    if not _source_matches(root, atom.source_uri, atom.source_digest):
+        return False
+    rel = _repo_relative(atom.source_uri)
+    if rel is None:
+        return False
+    return file_contains_quote(Path(root).resolve() / rel, getattr(atom, "quote", None))
 
 
 def _independent_sources(root, run_id, atoms):

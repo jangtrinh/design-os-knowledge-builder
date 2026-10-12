@@ -23,6 +23,7 @@ class EvidenceAtom:
     confidence: str  # HIGH | MEDIUM | LOW
     verified_by_code: bool = False
     metadata: Dict[str, Any] = None
+    quote: Optional[str] = None
 
     def to_jsonl(self) -> str:
         d = asdict(self)

@@ -38,11 +38,11 @@ def _sha(body):
     return hashlib.sha256(body).hexdigest()
 
 
-def _atom(atom_id, claim_id, source_uri, digest, *, claim_type="FACT", metadata=None):
+def _atom(atom_id, claim_id, source_uri, digest, *, claim_type="FACT", metadata=None, quote=None):
     meta = {"claim": claim_id}
     if metadata:
         meta.update(metadata)
-    return {
+    atom = {
         "id": atom_id,
         "run_id": "run-1",
         "claim_type": claim_type,
@@ -54,6 +54,9 @@ def _atom(atom_id, claim_id, source_uri, digest, *, claim_type="FACT", metadata=
         "verified_by_code": False,
         "metadata": meta,
     }
+    if quote is not None:
+        atom["quote"] = quote
+    return atom
 
 
 class TestGateLedger(unittest.TestCase):
@@ -119,7 +122,7 @@ class TestGateLedger(unittest.TestCase):
             (root / rel).write_bytes(body)
             digest = _sha(body)
             atoms = [
-                _atom("atom-c1", "c1", rel, digest),
+                _atom("atom-c1", "c1", rel, digest, quote="frozen claim c1"),
                 _atom(
                     "contra-1",
                     "c-extra",
@@ -192,7 +195,7 @@ class TestGateLedger(unittest.TestCase):
             body2 = b"frozen claim c2\n"
             rel2 = "_evidence/run-1/sources/c2.txt"
             (root / rel2).write_bytes(body2)
-            atoms.append(_atom("atom-c2", "c2", rel2, _sha(body2)))
+            atoms.append(_atom("atom-c2", "c2", rel2, _sha(body2), quote="frozen claim c2"))
             (run / "evidence.jsonl").write_text(
                 "".join(json.dumps(atom) + "\n" for atom in atoms),
                 encoding="utf-8",

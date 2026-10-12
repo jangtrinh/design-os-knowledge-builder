@@ -173,6 +173,11 @@ def main():
 
     p_verify = subparsers.add_parser("verify", help="Verify markdown provenance under a knowledge root")
     p_verify.add_argument("root", help="External knowledge repository root")
+    p_verify.add_argument(
+        "--claims",
+        action="store_true",
+        help="Require each anchor quote to occur in the hashed file. Structural verify stays the default.",
+    )
     p_verify.set_defaults(func=cmd_verify)
 
     # Index

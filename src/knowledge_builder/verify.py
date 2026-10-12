@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
+from knowledge_builder.quote_check import file_contains_quote
 
 
 HEADINGS = (
@@ -23,7 +24,7 @@ OPEN_ANCHOR = re.compile(r"<!--\s*ease:source\b")
 
 
 def cmd_verify(args):
-    files, anchors, messages = verify_root(args.root)
+    files, anchors, messages = verify_root(args.root, claims=bool(getattr(args, "claims", False)))
     print(f"files: {files}")
     print(f"anchors: {anchors}")
     print(f"failures: {len(messages)}")
@@ -33,8 +34,8 @@ def cmd_verify(args):
         sys.exit(1)
 
 
-def verify_root(root):
-    """Return (files, anchors, failure messages). Messages name the repo-relative path."""
+def verify_root(root, claims=False):
+    """Return (files, anchors, failure messages). claims=True also checks anchor quotes."""
     root = Path(root)
     if not root.is_dir():
         return 0, 0, [f"{root}: not a directory"]
@@ -64,14 +65,10 @@ def verify_root(root):
             _check_sources(root, rel, data.get("source_attribution"), failures)
         _check_headings(text, rel, failures)
         for index, attrs in enumerate(parsed_anchors):
-            _check_ref(
-                root,
-                rel,
-                attrs.get("uri"),
-                attrs.get("sha256"),
-                failures,
-                f"anchor[{index}]",
-            )
+            where = f"anchor[{index}]"
+            _check_ref(root, rel, attrs.get("uri"), attrs.get("sha256"), failures, where)
+            if claims:
+                _check_anchor_quote(root, rel, attrs, failures, where)
     return files, anchors, failures
 
 
@@ -137,6 +134,16 @@ def _check_sources(root, rel, sources, failures):
             failures.append(f"{rel}: source_attribution[{index}] must be a mapping")
             continue
         _check_ref(root, rel, item.get("uri"), item.get("sha256"), failures, f"source_attribution[{index}]")
+
+
+def _check_anchor_quote(root, rel, attrs, failures, where):
+    quote = attrs.get("quote")
+    if not isinstance(quote, str) or quote.strip() == "":
+        failures.append(f"{rel}: {where} UNCHECKED")
+        return
+    target, error = _locate(root, attrs.get("uri"))
+    if error or target is None or not target.is_file() or not file_contains_quote(target, quote):
+        failures.append(f"{rel}: {where} quote is not in the hashed file")
 
 
 def _check_headings(text, rel, failures):
