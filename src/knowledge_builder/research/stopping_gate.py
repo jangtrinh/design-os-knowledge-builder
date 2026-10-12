@@ -91,24 +91,34 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         inp.last_weighted_delta <= 0.02
     )
 
-    # 4. Check if STOP_SUFFICIENT criteria met
-    if hard_gates_passed and saturation_passed:
-        if not inp.has_viable_probe_remaining or inp.independent_review_passed:
-            certificate = {
-                "decision": TerminationState.STOP_SUFFICIENT.value,
-                "verified_claims": f"{inp.required_claims_verified}/{inp.required_claims_total}",
-                "independent_sources": inp.independent_sources_count,
-                "saturation_rounds": inp.consecutive_low_delta_rounds,
-                "last_delta": inp.last_weighted_delta,
-                "independent_review": inp.independent_review_passed,
-            }
-            return StoppingDecision(
-                state=TerminationState.STOP_SUFFICIENT,
-                reason="All hard gates satisfied, semantic saturation reached (<=2% across >=3 rounds), independent review passed.",
-                hard_gates_passed=True,
-                saturation_passed=True,
-                certificate=certificate,
-            )
+    # 4. STOP_SUFFICIENT only when every conjunct holds (fail closed).
+    if (
+        hard_gates_passed
+        and saturation_passed
+        and not inp.has_viable_probe_remaining
+        and inp.independent_review_passed
+    ):
+        parts = [
+            "All hard gates satisfied",
+            "semantic saturation reached (<=2% across >=3 rounds)",
+        ]
+        if inp.independent_review_passed:
+            parts.append("independent review passed")
+        certificate = {
+            "decision": TerminationState.STOP_SUFFICIENT.value,
+            "verified_claims": f"{inp.required_claims_verified}/{inp.required_claims_total}",
+            "independent_sources": inp.independent_sources_count,
+            "saturation_rounds": inp.consecutive_low_delta_rounds,
+            "last_delta": inp.last_weighted_delta,
+            "independent_review": inp.independent_review_passed,
+        }
+        return StoppingDecision(
+            state=TerminationState.STOP_SUFFICIENT,
+            reason=", ".join(parts) + ".",
+            hard_gates_passed=True,
+            saturation_passed=True,
+            certificate=certificate,
+        )
 
     # 5. Check Budget
     if inp.remaining_budget_calls <= 0:
@@ -135,6 +145,10 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         reasons.append(f"Unresolved contradictions ({inp.unresolved_contradictions_count})")
     if not saturation_passed:
         reasons.append(f"Saturation not yet reached (round {inp.consecutive_low_delta_rounds}/3, delta {inp.last_weighted_delta:.1%})")
+    if inp.has_viable_probe_remaining:
+        reasons.append("A viable probe remains")
+    if not inp.independent_review_passed:
+        reasons.append("Independent review has not passed")
 
     return StoppingDecision(
         state=TerminationState.DEEPEN,

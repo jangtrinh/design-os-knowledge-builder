@@ -220,5 +220,84 @@ class TestStoppingGateScenarios(unittest.TestCase):
         self.assertIsNone(res.certificate)
 
 
+class TestGateExitCodes(unittest.TestCase):
+    def _run(self, argv):
+        import io
+        from unittest.mock import patch
+
+        import knowledge_builder.cli as cli_mod
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.argv", argv), patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            with self.assertRaises(SystemExit) as caught:
+                cli_mod.main()
+        return caught.exception.code, stdout.getvalue(), stderr.getvalue()
+
+    def test_bare_gate_exits_deepen(self):
+        code, out, _err = self._run(["knowledge-builder", "gate"])
+        self.assertEqual(code, 2)
+        self.assertNotIn("STOP_SUFFICIENT", out)
+
+    def test_budget_zero_exits_pause(self):
+        code, out, _err = self._run(["knowledge-builder", "gate", "--budget", "0"])
+        self.assertEqual(code, 3)
+        self.assertIn("PAUSE_BUDGET", out)
+        self.assertNotEqual(code, 0)
+
+    def test_removed_review_flag_is_usage_error(self):
+        code, _out, err = self._run(["knowledge-builder", "gate", "--review-passed"])
+        self.assertEqual(code, 1)
+        self.assertIn("--review-passed", err)
+
+    def test_exit_code_map(self):
+        from knowledge_builder.cli import gate_exit_code
+
+        self.assertEqual(gate_exit_code(TerminationState.STOP_SUFFICIENT), 0)
+        self.assertEqual(gate_exit_code(TerminationState.DEEPEN), 2)
+        self.assertEqual(gate_exit_code(TerminationState.PAUSE_BUDGET), 3)
+        self.assertEqual(gate_exit_code(TerminationState.ABSTAIN_BLOCKED), 4)
+        self.assertNotEqual(
+            gate_exit_code(TerminationState.STOP_SUFFICIENT, self_reported=True),
+            0,
+        )
+
+    def test_stop_reason_names_review_only_when_passed(self):
+        inp = StoppingEvaluationInput(
+            required_claims_total=5,
+            required_claims_verified=5,
+            independent_sources_count=3,
+            has_execution_proof=True,
+            has_counterevidence_searched=True,
+            unresolved_contradictions_count=0,
+            is_target_version_matched=True,
+            consecutive_low_delta_rounds=3,
+            last_weighted_delta=0.015,
+            remaining_budget_calls=5,
+            has_viable_probe_remaining=False,
+            independent_review_passed=True,
+        )
+        res = evaluate_stopping_gate(inp)
+        self.assertEqual(res.state, TerminationState.STOP_SUFFICIENT)
+        self.assertIn("review passed", res.reason)
+
+        blocked = StoppingEvaluationInput(
+            required_claims_total=5,
+            required_claims_verified=5,
+            independent_sources_count=3,
+            has_execution_proof=True,
+            has_counterevidence_searched=True,
+            unresolved_contradictions_count=0,
+            is_target_version_matched=True,
+            consecutive_low_delta_rounds=3,
+            last_weighted_delta=0.01,
+            remaining_budget_calls=5,
+            has_viable_probe_remaining=False,
+            independent_review_passed=False,
+        )
+        missed = evaluate_stopping_gate(blocked)
+        self.assertNotIn("review passed", missed.reason)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,9 +7,32 @@ import sys
 
 from knowledge_builder.contract import UniversalKnowledgeUnit, KnowledgeMetadata, SourceAttribution, ModalityType, TrustTier
 from knowledge_builder.processors import process_pdf, process_video, process_image, process_web
-from knowledge_builder.research.stopping_gate import evaluate_stopping_gate, StoppingEvaluationInput
-from knowledge_builder.research.ledger import AtomicResearchLedger, EvidenceAtom
 from knowledge_builder.research.council import run_council_audit
+from knowledge_builder.research.ledger import AtomicResearchLedger, EvidenceAtom
+from knowledge_builder.research.stopping_gate import (
+    evaluate_stopping_gate,
+    StoppingEvaluationInput,
+    TerminationState,
+)
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(1, f"{self.prog}: error: {message}\n")
+
+
+def gate_exit_code(state, *, self_reported=False):
+    """0 stop, 2 deepen, 3 pause, 4 abstain. Self-report must not exit 0."""
+    code = {
+        TerminationState.STOP_SUFFICIENT: 0,
+        TerminationState.DEEPEN: 2,
+        TerminationState.PAUSE_BUDGET: 3,
+        TerminationState.ABSTAIN_BLOCKED: 4,
+    }[state]
+    if self_reported and code == 0:
+        return 2
+    return code
 
 
 def cmd_ingest(args):
@@ -40,15 +63,16 @@ def cmd_gate(args):
         required_claims_total=args.required,
         required_claims_verified=args.verified,
         independent_sources_count=args.sources,
-        has_execution_proof=not args.no_code,
-        has_counterevidence_searched=not args.no_counterevidence,
+        # Qualitative proofs default false. The negative flags cannot grant them.
+        has_execution_proof=False,
+        has_counterevidence_searched=False,
         unresolved_contradictions_count=args.contradictions,
-        is_target_version_matched=not args.version_mismatch,
+        is_target_version_matched=False,
         consecutive_low_delta_rounds=args.rounds,
         last_weighted_delta=args.delta,
         remaining_budget_calls=args.budget,
         has_viable_probe_remaining=args.has_probes,
-        independent_review_passed=args.review_passed,
+        independent_review_passed=False,
     )
     decision = evaluate_stopping_gate(inp)
 
@@ -60,6 +84,9 @@ def cmd_gate(args):
     if decision.certificate:
         print(f"Certificate: {json.dumps(decision.certificate, indent=2)}")
     print(f"--------------------------------------------------")
+    # Integer and qualitative flags are self-reported. They may print a decision
+    # and must not certify it with exit 0.
+    sys.exit(gate_exit_code(decision.state, self_reported=True))
 
 
 def cmd_lint(args):
@@ -116,8 +143,8 @@ def cmd_index(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Design OS Knowledge Builder CLI")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser = _Parser(description="Design OS Knowledge Builder CLI")
+    subparsers = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
 
     # Ingest
     p_ingest = subparsers.add_parser("ingest", help="Ingest PDF, video, image, or web url")
@@ -128,7 +155,7 @@ def main():
     p_gate = subparsers.add_parser("gate", help="Evaluate stopping condition gate")
     p_gate.add_argument("--run-id", default="run-001")
     p_gate.add_argument("--required", type=int, default=5)
-    p_gate.add_argument("--verified", type=int, default=5)
+    p_gate.add_argument("--verified", type=int, default=0)
     p_gate.add_argument("--sources", type=int, default=3)
     p_gate.add_argument("--no-code", action="store_true")
     p_gate.add_argument("--no-counterevidence", action="store_true")
@@ -138,7 +165,6 @@ def main():
     p_gate.add_argument("--delta", type=float, default=0.01)
     p_gate.add_argument("--budget", type=int, default=10)
     p_gate.add_argument("--has-probes", action="store_true")
-    p_gate.add_argument("--review-passed", action="store_true", default=True)
     p_gate.set_defaults(func=cmd_gate)
 
     # Lint

@@ -12,7 +12,7 @@ output, then implement until green, then run the full suite.
 
 | # | Phase | Spec § | Effort | Status |
 |---|---|---|---|---|
-| 1 | Fail-closed gate: review default false, AND stop rule, honest certificate, exit codes 0/2/3/4/1 | P0.1 | S | todo |
+| 1 | Fail-closed gate: review default false, AND stop rule, honest certificate, exit codes 0/2/3/4/1 | P0.1 | S | done (pending controller) |
 | 2 | `verify <root>`: frontmatter schema, list `source_attribution`, repo-relative uris, file exists, sha256, anchors, 4 headings | P0.2 | M | todo |
 | 3 | `index --root` required, refuse root inside package, `--exclude` default `_evidence/**`, real sha256, id from frontmatter | P0.3 | S | todo |
 | 4 | Docs tell the truth (skill/README/contract doc) + ingest never invents content | P0.4 + P0.5 | S | todo |
