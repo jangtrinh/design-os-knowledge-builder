@@ -15,6 +15,7 @@ from knowledge_builder.research.stopping_gate import (
     TerminationState,
 )
 from knowledge_builder.index import cmd_index
+from knowledge_builder.research.run_driver import register_run
 from knowledge_builder.verify import cmd_verify
 
 
@@ -174,6 +175,8 @@ def main():
         help="Root-relative glob to skip (default: _evidence/**)",
     )
     p_index.set_defaults(func=cmd_index)
+
+    register_run(subparsers, _Parser)
 
     args = parser.parse_args()
     args.func(args)

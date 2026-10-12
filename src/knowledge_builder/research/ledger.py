@@ -31,6 +31,26 @@ class EvidenceAtom:
         return json.dumps(d, ensure_ascii=False)
 
 
+def require_relative_source_uri(uri):
+    """Accept a repo-relative path. Reject schemes and absolute paths.
+
+    An absolute file:// URI is never stored. The caller copies the bytes
+    into _evidence/<id>/sources/ and records that relative path instead.
+    """
+    if not isinstance(uri, str):
+        raise ValueError("source_uri must be a relative path")
+    text = uri.strip()
+    if not text or "://" in text or text.lower().startswith("file:"):
+        raise ValueError(f"source_uri must be relative, not {uri}")
+    if text.startswith(("/", "\\")) or Path(text).is_absolute():
+        raise ValueError(f"source_uri must be relative, not {uri}")
+    if len(text) >= 3 and text[0].isalpha() and text[1] == ":" and text[2] in "/\\":
+        raise ValueError(f"source_uri must be relative, not {uri}")
+    if ".." in Path(text).parts:
+        raise ValueError(f"source_uri escapes the knowledge root: {uri}")
+    return text
+
+
 class AtomicResearchLedger:
     def __init__(self, run_id: str, base_dir: Path = Path(".knowledge_staging")):
         self.run_id = run_id
@@ -40,9 +60,12 @@ class AtomicResearchLedger:
         self.state_path = self.stage_dir / "state.json"
 
     def record_atom(self, atom: EvidenceAtom) -> None:
-        """Append a single evidence atom (500B - 2KB) directly to disk."""
-        with open(self.evidence_path, "a", encoding="utf-8") as f:
-            f.write(atom.to_jsonl() + "\n")
+        """Append one evidence atom and fsync it. Relative source_uri only."""
+        atom.source_uri = require_relative_source_uri(atom.source_uri)
+        with open(self.evidence_path, "a", encoding="utf-8") as handle:
+            handle.write(atom.to_jsonl() + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
 
     def load_atoms(self) -> List[EvidenceAtom]:
         """Read all verified atoms from disk."""

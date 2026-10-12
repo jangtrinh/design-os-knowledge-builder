@@ -16,7 +16,7 @@ output, then implement until green, then run the full suite.
 | 2 | `verify <root>`: frontmatter schema, list `source_attribution`, repo-relative uris, file exists, sha256, anchors, 4 headings | P0.2 | M | done (pending controller) |
 | 3 | `index --root` required, refuse root inside package, `--exclude` default `_evidence/**`, real sha256, id from frontmatter | P0.3 | S | done (pending controller) |
 | 4 | Docs tell the truth (skill/README/contract doc) + ingest never invents content | P0.4 + P0.5 | S | done (pending controller) |
-| 5 | `run init/record/status` ledger driver (relative uris only, fsync) | P1.1 | M | todo |
+| 5 | `run init/record/status` ledger driver (relative uris only, fsync) | P1.1 | M | done (pending controller) |
 | 6 | `gate --root --run-id` reads the ledger; integer flags only under `--self-report` (never exit 0) | P1.2 | M | todo |
 | 7 | Claim-vs-source: `quote=` on anchors and atoms, `verify --claims` | P1.3 | M | todo |
 | 8 | `review.json` with reviewer_runtime != researcher_runtime required for STOP_SUFFICIENT | P1.4 | S | todo |
