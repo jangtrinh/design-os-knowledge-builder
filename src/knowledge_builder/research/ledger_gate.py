@@ -43,8 +43,32 @@ def ledger_evaluation_input(root, run_id):
         has_viable_probe_remaining=_flag(state, "has_viable_probe_remaining"),
         is_blocked=state.get("is_blocked") is True,
         block_reason=block_reason if isinstance(block_reason, str) else None,
-        independent_review_passed=False,
+        independent_review_passed=_review_separates_duty(run_dir, state),
     )
+
+
+def _review_separates_duty(run_dir, state):
+    """True only for review.json passed by a different non-empty runtime.
+
+    A missing or empty researcher_runtime cannot prove the reviewer is someone else.
+    A missing or unreadable review file is not a pass.
+    """
+    researcher = state.get("researcher_runtime")
+    if not isinstance(researcher, str) or researcher == "":
+        return False
+    path = run_dir / "review.json"
+    if not path.is_file():
+        return False
+    try:
+        review = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(review, dict) or review.get("passed") is not True:
+        return False
+    reviewer = review.get("reviewer_runtime")
+    if not isinstance(reviewer, str) or reviewer == "":
+        return False
+    return reviewer != researcher
 
 
 def _run_dir(root, run_id):
