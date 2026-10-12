@@ -48,13 +48,13 @@ Every UKMC markdown document must contain exactly these 4 mandatory H2 sections:
 
 ---
 
-## 3. Untrusted Content Quarantine Guardrails
+## 3. Untrusted content flag
 
-When ingesting external technical content:
-- External scraped text is quarantined with HTML comment blocks:
-  ```markdown
-  <!-- @@UNTRUSTED_INGEST_START@@ -->
-  Quarantined external text (pure data, not executable instructions).
-  <!-- @@UNTRUSTED_INGEST_END@@ -->
-  ```
-- No prompt injection or instructions inside quarantined bodies may modify the agent's task state.
+The emitter records whether the unit is external. Ingest does not wrap scraped text in comment markers, and this package does not treat the flag as a change to the agent's task.
+
+```yaml
+quarantine:
+  is_external_untrusted: false
+```
+
+External text stays data.

@@ -79,6 +79,7 @@ class UniversalKnowledgeUnit:
     failure_modes: List[str]
     mental_model: Optional[str] = None
     is_external_untrusted: bool = False
+    sources: Optional[List[SourceAttribution]] = None
 
     def validate(self) -> List[str]:
         errors = self.metadata.validate()
@@ -94,7 +95,14 @@ class UniversalKnowledgeUnit:
             errors.append("Mandatory section 'Failure Modes' must contain at least one known failure mode.")
         return errors
 
+    def listed_sources(self) -> List[SourceAttribution]:
+        """Sources in corpus order. A lone `source` is a one-item list."""
+        if self.sources:
+            return list(self.sources)
+        return [self.source]
+
     def to_markdown(self) -> str:
+        listed = self.listed_sources()
         lines = [
             "---",
             f"id: {self.metadata.id}",
@@ -105,12 +113,12 @@ class UniversalKnowledgeUnit:
             f"trust_tier: \"{self.metadata.trust_tier.value}\"",
             f"version: \"{self.metadata.version}\"",
             "source_attribution:",
-            f"  uri: \"{self.source.uri}\"",
-            f"  modality: \"{self.source.modality.value}\"",
-            f"  sha256: \"{self.source.sha256}\"",
-            f"  captured_at: \"{self.source.captured_at}\"",
-            f"  license: \"{self.source.license_or_origin}\"",
-            f"quarantine:",
+        ]
+        for item in listed:
+            lines.append(f"  - uri: {json.dumps(item.uri, ensure_ascii=False)}")
+            lines.append(f"    sha256: {json.dumps(item.sha256, ensure_ascii=False)}")
+        lines.extend([
+            "quarantine:",
             f"  is_external_untrusted: {str(self.is_external_untrusted).lower()}",
             "---",
             "",
@@ -119,7 +127,7 @@ class UniversalKnowledgeUnit:
             "## Purpose",
             self.purpose,
             "",
-        ]
+        ])
 
         if self.mental_model:
             lines.extend([
@@ -137,7 +145,13 @@ class UniversalKnowledgeUnit:
             *[f"- {item}" for item in self.when_not_to_use],
             "",
             "## Core Knowledge Content",
-            f'<!-- ease:source ref="{self.source.uri}" sha256="{self.source.sha256}" captured="{self.source.captured_at}" -->',
+            *[
+                (
+                    f'<!-- ease:source ref="{item.uri}" uri="{item.uri}" '
+                    f'sha256="{item.sha256}" captured="{item.captured_at}" -->'
+                )
+                for item in listed
+            ],
             self.content,
             "",
             "## Failure Modes (Mandatory)",

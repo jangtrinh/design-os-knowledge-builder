@@ -21,9 +21,7 @@ keywords = [
   "stopping-conditions",
   "epistemic-ledger"
 ]
-dependencies = [
-  "pydantic>=2.0.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [

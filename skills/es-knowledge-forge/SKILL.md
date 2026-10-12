@@ -4,7 +4,7 @@ description: >
   Universal Multimodal Knowledge Pipeline.
   Ingests PDF, Video, Image, and Web into structured Universal Knowledge
   Master Contract (UKMC.v1) Markdown with cryptographic provenance tracking,
-  epistemic stopping gates, and multi-perspective audit.
+  epistemic stopping gates, and a council gap report.
 argument-hint: "[ingest <file> | verify <root> | gate | lint <file> | index --root]"
 ---
 
@@ -51,11 +51,12 @@ Every knowledge file under the external root MUST follow the schema:
 - `PAUSE_BUDGET`: Budget exhausted without completing evidence. (Never claim "sufficient").
 - `ABSTAIN_BLOCKED`: Blocked by paywall or anti-scraping without viable fallback.
 
-## 4. 5-Perspective Council Audit
+## 4. Council gap report
 
-Prior to graduation, findings are evaluated under 5 lenses:
-- **Builder**: Runnable code proof.
-- **Red-Team**: Failure modes, race conditions, edge cases.
-- **Architect**: KISS/YAGNI/DRY and license safety (quarantine GPL/AGPL).
-- **Auditor**: Resource and token overhead benchmarks.
-- **Operator**: Observability and debugging ergonomics.
+`run_council_audit` reads evidence atoms and lists gaps. It returns no pass bit, and the stopping gate does not read this report. `STOP_SUFFICIENT` comes from the ledger plus `review.json`, where `reviewer_runtime` differs from `researcher_runtime`.
+
+A gap is one of:
+
+- missing a `FAILURE_MODE` atom
+- missing a `BENCHMARK` atom
+- a `verified_by_code` atom whose `metadata.command` is missing

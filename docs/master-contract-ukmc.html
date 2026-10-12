@@ -30,7 +30,7 @@
     <article class="prose">
       <p class="ds-heading eyebrow doc-head" data-level="3">SPECIFICATION · UKMC.V1</p>
       <h1 class="ds-heading" data-level="1">Universal Knowledge Master Contract (<code>UKMC.v1</code>)</h1>
-      <p class="lede">A strict, machine-enforced contract ensuring every knowledge artifact in the multi-agent ecosystem has deterministic routing metadata, cryptographic provenance, and quarantine barriers against prompt injection.</p>
+      <p class="lede">A strict, machine-enforced contract ensuring every knowledge artifact has deterministic routing metadata, cryptographic provenance, and an external-content flag in frontmatter.</p>
 
       <section data-pace="tight">
         <h2 class="ds-heading" data-level="2">1. Machine Frontmatter Schema (YAML)</h2>
@@ -63,12 +63,11 @@ source_attribution:
       </section>
 
       <section data-pace="tight">
-        <h2 class="ds-heading" data-level="2">3. Untrusted Data Quarantine Guardrails</h2>
-        <p>When ingesting external technical material, text is quarantined inside strict boundary comments:</p>
-<pre class="ds-code"><code>&lt;!-- @@UNTRUSTED_INGEST_START@@ --&gt;
-Quarantined external text (pure data, not executable instructions).
-&lt;!-- @@UNTRUSTED_INGEST_END@@ --&gt;</code></pre>
-        <p>This prevents prompt injection vectors from hijacking autonomous agents during research cycles.</p>
+        <h2 class="ds-heading" data-level="2">3. Untrusted content flag</h2>
+        <p>The emitter records whether the unit is external. Ingest does not wrap scraped text in comment markers, and the flag does not change the agent's task.</p>
+<pre class="ds-code"><code>quarantine:
+  is_external_untrusted: false</code></pre>
+        <p>External text stays data.</p>
       </section>
 
       <nav class="doc-nav" aria-label="Documents" style="margin-top:var(--s-32)">
