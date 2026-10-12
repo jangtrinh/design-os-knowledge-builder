@@ -9,6 +9,7 @@ from knowledge_builder.contract import UniversalKnowledgeUnit, KnowledgeMetadata
 from knowledge_builder.processors import process_pdf, process_video, process_image, process_web
 from knowledge_builder.research.council import run_council_audit
 from knowledge_builder.research.ledger import AtomicResearchLedger, EvidenceAtom
+from knowledge_builder.research.ledger_gate import LedgerGateError, ledger_evaluation_input
 from knowledge_builder.research.stopping_gate import (
     evaluate_stopping_gate,
     StoppingEvaluationInput,
@@ -66,25 +67,34 @@ def cmd_ingest(args):
 
 
 def cmd_gate(args):
-    print(f"[*] Evaluating Stopping Gate for run: {args.run_id}")
-    # Sample evaluation using inputs
-    inp = StoppingEvaluationInput(
-        required_claims_total=args.required,
-        required_claims_verified=args.verified,
-        independent_sources_count=args.sources,
-        # Qualitative proofs default false. The negative flags cannot grant them.
-        has_execution_proof=False,
-        has_counterevidence_searched=False,
-        unresolved_contradictions_count=args.contradictions,
-        is_target_version_matched=False,
-        consecutive_low_delta_rounds=args.rounds,
-        last_weighted_delta=args.delta,
-        remaining_budget_calls=args.budget,
-        has_viable_probe_remaining=args.has_probes,
-        independent_review_passed=False,
-    )
-    decision = evaluate_stopping_gate(inp)
+    # --self-report and the legacy path with no --root cannot exit 0.
+    self_reported = True
+    if args.self_report or not args.root:
+        inp = StoppingEvaluationInput(
+            required_claims_total=args.required,
+            required_claims_verified=args.verified,
+            independent_sources_count=args.sources,
+            # Qualitative proofs default false. The negative flags cannot grant them.
+            has_execution_proof=False,
+            has_counterevidence_searched=False,
+            unresolved_contradictions_count=args.contradictions,
+            is_target_version_matched=False,
+            consecutive_low_delta_rounds=args.rounds,
+            last_weighted_delta=args.delta,
+            remaining_budget_calls=args.budget,
+            has_viable_probe_remaining=args.has_probes,
+            independent_review_passed=False,
+        )
+    else:
+        try:
+            inp = ledger_evaluation_input(args.root, args.run_id)
+        except LedgerGateError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        self_reported = False
 
+    print(f"[*] Evaluating Stopping Gate for run: {args.run_id}")
+    decision = evaluate_stopping_gate(inp)
     print(f"--------------------------------------------------")
     print(f"Decision: {decision.state.value}")
     print(f"Reason:   {decision.reason}")
@@ -93,9 +103,7 @@ def cmd_gate(args):
     if decision.certificate:
         print(f"Certificate: {json.dumps(decision.certificate, indent=2)}")
     print(f"--------------------------------------------------")
-    # Integer and qualitative flags are self-reported. They may print a decision
-    # and must not certify it with exit 0.
-    sys.exit(gate_exit_code(decision.state, self_reported=True))
+    sys.exit(gate_exit_code(decision.state, self_reported=self_reported))
 
 
 def cmd_lint(args):
@@ -142,7 +150,9 @@ def main():
 
     # Gate
     p_gate = subparsers.add_parser("gate", help="Evaluate stopping condition gate")
+    p_gate.add_argument("--root", default=None, help="Knowledge root. With --run-id, counts come from the ledger.")
     p_gate.add_argument("--run-id", default="run-001")
+    p_gate.add_argument("--self-report", action="store_true", help="Integer flags only. Cannot exit 0.")
     p_gate.add_argument("--required", type=int, default=5)
     p_gate.add_argument("--verified", type=int, default=0)
     p_gate.add_argument("--sources", type=int, default=3)

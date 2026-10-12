@@ -21,6 +21,17 @@ def register_run(subparsers, parser_class):
     init.add_argument("--root", required=True, help="External knowledge repository root")
     init.add_argument("--id", required=True, help="Run id (one path segment)")
     init.add_argument("--budget", required=True, type=int, help="Call budget frozen into state.json")
+    init.add_argument(
+        "--require",
+        action="append",
+        default=None,
+        help="Required claim id, frozen into state.json. Repeat for each id.",
+    )
+    init.add_argument(
+        "--researcher",
+        default=None,
+        help="Researcher runtime id, frozen into state.json",
+    )
     init.set_defaults(func=cmd_run_init)
 
     record = commands.add_parser("record", help="Append one EvidenceAtom JSON object from stdin")
@@ -37,13 +48,17 @@ def register_run(subparsers, parser_class):
 def cmd_run_init(args):
     if args.budget < 0:
         _fail("budget must be >= 0")
+    required = _required_claim_ids(getattr(args, "require", None))
+    researcher = getattr(args, "researcher", None)
+    if researcher is not None and (not isinstance(researcher, str) or researcher == ""):
+        _fail("researcher runtime must be non-empty")
     run_dir = _run_dir(args.root, args.id)
     if (run_dir / "state.json").exists() or (run_dir / "evidence.jsonl").exists():
         _fail(f"run already exists: {args.id}")
     ledger = AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence")
     (ledger.stage_dir / "sources").mkdir(parents=True, exist_ok=True)
     ledger.evidence_path.write_bytes(b"")
-    ledger.save_state(_initial_state(args.id, args.budget))
+    ledger.save_state(_initial_state(args.id, args.budget, required, researcher))
     print(f"_evidence/{args.id}")
 
 
@@ -71,7 +86,23 @@ def cmd_run_status(args):
     print(json.dumps(state, indent=2, ensure_ascii=False))
 
 
-def _initial_state(run_id, budget):
+def _required_claim_ids(raw):
+    """Repeatable --require values, in the order given."""
+    required = []
+    for claim_id in raw or []:
+        if (
+            not isinstance(claim_id, str)
+            or claim_id == ""
+            or claim_id in {".", ".."}
+            or "/" in claim_id
+            or "\\" in claim_id
+        ):
+            _fail(f"claim id is not a single token: {claim_id}")
+        required.append(claim_id)
+    return required
+
+
+def _initial_state(run_id, budget, required_claim_ids=None, researcher_runtime=None):
     """Cursor frozen at init. Later commands may add atoms; they do not rewrite these criteria."""
     return {
         "run_id": run_id,
@@ -82,10 +113,10 @@ def _initial_state(run_id, budget):
         "remaining_budget_calls": budget,
         "gaps": [],
         "resolved": [],
-        "required_claim_ids": [],
+        "required_claim_ids": list(required_claim_ids or []),
         "minimum_independent_sources": 2,
         "last_weighted_delta": None,
-        "researcher_runtime": None,
+        "researcher_runtime": researcher_runtime,
     }
 
 
