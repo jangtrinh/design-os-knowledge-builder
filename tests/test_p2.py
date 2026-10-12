@@ -453,6 +453,52 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
         self.assertIn("1", ocr_message)
         self.assertNotIn("placeholder transcript", ocr_message)
 
+    def test_whisper_mkdtemp_permission_error_raises_runtime_error(self):
+        """mkdtemp PermissionError becomes RuntimeError naming whisper, with no temp dir left."""
+        from knowledge_builder.processors.audio import process_audio
+
+        before = set(Path(tempfile.gettempdir()).glob("kb-audio-*"))
+        with tempfile.TemporaryDirectory() as tmp:
+            _install_stub(tmp, "whisper", _stub_script("known transcript\n"))
+            with patch.dict(os.environ, {"PATH": tmp}):
+                with patch("tempfile.mkdtemp", side_effect=PermissionError("denied")):
+                    with self.assertRaises(RuntimeError) as caught:
+                        process_audio("clip.wav")
+        message = str(caught.exception)
+        self.assertIn("whisper", message)
+        self.assertIn("audio extractor", message)
+        self.assertNotIsInstance(caught.exception, PermissionError)
+        after = set(Path(tempfile.gettempdir()).glob("kb-audio-*"))
+        self.assertEqual(after, before)
+
+    def test_whisper_transcript_read_oserror_raises_runtime_error_and_removes_temp_dir(self):
+        """Reading the whisper .txt as OSError becomes RuntimeError, and the temp dir is removed."""
+        from knowledge_builder.processors.audio import process_audio
+
+        created = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def spy_mkdtemp(*args, **kwargs):
+            path = real_mkdtemp(*args, **kwargs)
+            created.append(path)
+            (Path(path) / "clip.txt").write_text("hidden transcript\n", encoding="utf-8")
+            return path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            _install_stub(tmp, "whisper", _stub_script("printed transcript\n"))
+            with patch.dict(os.environ, {"PATH": tmp}):
+                with patch("tempfile.mkdtemp", side_effect=spy_mkdtemp):
+                    with patch.object(Path, "read_text", side_effect=OSError("unreadable")):
+                        with self.assertRaises(RuntimeError) as caught:
+                            process_audio("clip.wav")
+        message = str(caught.exception)
+        self.assertIn("whisper", message)
+        self.assertIn("audio extractor", message)
+        self.assertNotIn("hidden transcript", message)
+        self.assertNotIn("printed transcript", message)
+        self.assertEqual(len(created), 1)
+        self.assertFalse(Path(created[0]).exists())
+
 
 if __name__ == "__main__":
     unittest.main()

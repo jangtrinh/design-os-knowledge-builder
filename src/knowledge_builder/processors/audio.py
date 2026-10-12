@@ -21,32 +21,34 @@ def process_audio(audio_path):
     whisper = shutil.which("whisper")
     whisper_cli = shutil.which("whisper-cli")
     out_dir = None
-    if whisper:
-        label = "whisper"
-        out_dir = Path(tempfile.mkdtemp(prefix="kb-audio-"))
-        argv = [
-            whisper,
-            source,
-            "--output_format",
-            "txt",
-            "--output_dir",
-            str(out_dir),
-        ]
-    elif whisper_cli:
-        label = "whisper-cli"
-        argv = [whisper_cli, "-f", source, "-nt"]
-    else:
-        raise RuntimeError(
-            "missing optional extra 'audio' (binary 'whisper' or 'whisper-cli')"
-        )
-
+    label = "whisper"
     try:
+        if whisper:
+            out_dir = Path(tempfile.mkdtemp(prefix="kb-audio-"))
+            argv = [
+                whisper,
+                source,
+                "--output_format",
+                "txt",
+                "--output_dir",
+                str(out_dir),
+            ]
+        elif whisper_cli:
+            label = "whisper-cli"
+            argv = [whisper_cli, "-f", source, "-nt"]
+        else:
+            raise RuntimeError(
+                "missing optional extra 'audio' (binary 'whisper' or 'whisper-cli')"
+            )
+
         completed = _run_extractor(argv, f"audio extractor {label}")
         if out_dir is not None:
             written = sorted(path for path in out_dir.glob("*.txt") if path.is_file())
             if written:
                 return written[0].read_text(encoding="utf-8")
         return completed.stdout
+    except OSError as exc:
+        raise RuntimeError(f"audio extractor {label}: {exc}") from exc
     finally:
         if out_dir is not None:
             shutil.rmtree(out_dir, ignore_errors=True)

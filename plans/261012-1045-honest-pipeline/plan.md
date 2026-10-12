@@ -23,6 +23,7 @@ output, then implement until green, then run the full suite.
 | 9 | Emitter writes list-shaped `source_attribution`; council becomes a gap report; drop pydantic | P1.5 | S | done (pending controller) |
 | 10 | P2: ledger file lock + fsync; optional `entailment_notes` in review.json (data only); optional extractor extras that raise when deps are missing | P2 | M | done (pending controller) |
 | 10b | P2 fix: `whisper` / `whisper-cli` and `tesseract` adapters (raise when the binary is missing or exits non-zero); flock contention test | P2 | S | done (pending controller) |
+| 10c | P2 fix: `whisper` mkdtemp and transcript read failures raise RuntimeError naming the binary; temp dir still removed | P2 | S | done (pending controller) |
 
 Acceptance for the whole plan:
 - `python3 -m unittest discover tests` green; every phase added tests that were red before its change.
