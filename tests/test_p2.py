@@ -1,17 +1,22 @@
-"""P2: ledger lock, entailment notes as data, optional extractors that refuse.
+"""P2: ledger lock, entailment notes as data, optional extractors.
 
-Two processes appending 50 atoms each must leave 100 valid lines, and the
-append must create a sibling evidence.jsonl.lock. A malformed
-review.json entailment_notes value does not change the gate, and run status
-reports it. Audio and table-OCR processors raise RuntimeError naming the
-missing extra and binary. They import nothing from those extras.
+Two processes appending 50 atoms each must leave 100 valid lines, and an
+append blocks while another process holds the sibling evidence.jsonl.lock.
+A malformed review.json entailment_notes value does not change the gate, and
+run status reports it. Audio and table-OCR processors return text printed by
+whisper, whisper-cli, or tesseract when that binary is on PATH. They raise
+RuntimeError when the binary is missing or exits non-zero, and they import
+nothing from those extras.
 """
 
+import fcntl
 import hashlib
 import io
 import json
 import multiprocessing
+import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -43,20 +48,81 @@ def _append_atoms(base_dir, run_id, start, count):
     ledger = AtomicResearchLedger(run_id, base_dir=Path(base_dir))
     for offset in range(count):
         number = start + offset
-        ledger.record_atom(
-            EvidenceAtom(
-                id=f"atom-{number}",
-                run_id=run_id,
-                claim_type="FACT",
-                statement=f"statement {number}",
-                source_uri=f"sources/n-{number}.txt",
-                source_digest="a" * 64,
-                captured_at="2026-10-12T00:00:00Z",
-                confidence="HIGH",
-                verified_by_code=False,
-                metadata={"n": number},
-            )
-        )
+        ledger.record_atom(_fact_atom(run_id, number))
+
+
+def _fact_atom(run_id, number):
+    from knowledge_builder.research.ledger import EvidenceAtom
+
+    return EvidenceAtom(
+        id=f"atom-{number}",
+        run_id=run_id,
+        claim_type="FACT",
+        statement=f"statement {number}",
+        source_uri=f"sources/n-{number}.txt",
+        source_digest="a" * 64,
+        captured_at="2026-10-12T00:00:00Z",
+        confidence="HIGH",
+        verified_by_code=False,
+        metadata={"n": number},
+    )
+
+
+def _hold_exclusive_lock(lock_path, acquired_path, release_path):
+    """Hold LOCK_EX on the sibling ledger lock until the release file appears."""
+    fd = os.open(lock_path, os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        Path(acquired_path).write_text("held", encoding="utf-8")
+        deadline = time.time() + 30
+        while not Path(release_path).exists():
+            if time.time() > deadline:
+                break
+            time.sleep(0.05)
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def _append_one_atom(base_dir, run_id, ready_path):
+    """Signal, then append one atom. Blocks while the sibling lock is held."""
+    from knowledge_builder.research.ledger import AtomicResearchLedger
+
+    ledger = AtomicResearchLedger(run_id, base_dir=Path(base_dir))
+    atom = _fact_atom(run_id, "blocked")
+    Path(ready_path).write_text("ready", encoding="utf-8")
+    ledger.record_atom(atom)
+
+
+def _wait_for_file(path, seconds):
+    deadline = time.time() + seconds
+    while not Path(path).exists():
+        if time.time() > deadline:
+            return False
+        time.sleep(0.02)
+    return True
+
+
+def _stub_script(text, code=0):
+    """Executable stub. Absolute interpreter so an emptied PATH cannot hide it."""
+    import sys
+
+    lines = [
+        f"#!{sys.executable}",
+        "import sys",
+        f"sys.stdout.write({text!r})",
+        "sys.stdout.flush()",
+    ]
+    if code:
+        lines.append(f"raise SystemExit({code})")
+    return "\n".join(lines) + "\n"
+
+
+def _install_stub(directory, name, script):
+    path = Path(directory) / name
+    path.write_text(script, encoding="utf-8")
+    path.chmod(0o755)
+    return path
 
 
 def _sha(body):
@@ -118,6 +184,74 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
             self.assertTrue(lock.is_file(), "append must flock a sibling evidence.jsonl.lock")
             self.assertEqual(lock.parent, evidence.parent)
             self.assertTrue(lock.name.endswith(".lock"))
+
+    def test_append_blocks_while_sibling_lock_held(self):
+        """An append from another process blocks on the sibling .lock.
+
+        After ~0.3s the ledger is unchanged. After the holder releases the
+        exclusive flock, the append completes.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            run_id = "run-contend"
+            stage = base / run_id
+            stage.mkdir()
+            evidence = stage / "evidence.jsonl"
+            seed = '{"id":"seed"}\n'
+            evidence.write_text(seed, encoding="utf-8")
+            lock_path = evidence.with_name(evidence.name + ".lock")
+            lock_path.write_bytes(b"")
+
+            acquired_path = stage / "acquired"
+            release_path = stage / "release"
+            ready_path = stage / "ready"
+            ctx = multiprocessing.get_context("spawn")
+            holder = ctx.Process(
+                target=_hold_exclusive_lock,
+                args=(str(lock_path), str(acquired_path), str(release_path)),
+            )
+            appender = ctx.Process(
+                target=_append_one_atom,
+                args=(str(base), run_id, str(ready_path)),
+            )
+            holder.start()
+            try:
+                self.assertTrue(
+                    _wait_for_file(acquired_path, 5),
+                    "holder did not acquire the lock",
+                )
+                appender.start()
+                self.assertTrue(
+                    _wait_for_file(ready_path, 5),
+                    "appender did not reach record_atom",
+                )
+                time.sleep(0.3)
+                self.assertTrue(
+                    appender.is_alive(),
+                    "append must block while the sibling lock is held",
+                )
+                self.assertEqual(evidence.read_text(encoding="utf-8"), seed)
+                release_path.write_text("go", encoding="utf-8")
+                appender.join(10)
+                self.assertFalse(appender.is_alive())
+                self.assertEqual(appender.exitcode, 0)
+                lines = [
+                    line
+                    for line in evidence.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+                self.assertEqual(len(lines), 2)
+                self.assertEqual(json.loads(lines[0])["id"], "seed")
+                self.assertEqual(json.loads(lines[1])["id"], "atom-blocked")
+            finally:
+                release_path.write_text("go", encoding="utf-8")
+                if holder.pid is not None:
+                    holder.join(10)
+                if appender.pid is not None:
+                    appender.join(10)
+                    if appender.is_alive():
+                        appender.terminate()
+                        appender.join(5)
 
     def test_malformed_entailment_notes_ignored_by_gate_reported_by_status(self):
         """A bad entailment_notes value still exits 0. run status names the problem.
@@ -251,17 +385,73 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
         banned = ("whisper", "tesseract", "pytesseract", "paddleocr", "easyocr")
         self.assertFalse(any(any(token in name for token in banned) for name in added))
 
-        with self.assertRaises(RuntimeError) as caught:
-            process_audio("clip.wav")
-        message = str(caught.exception)
-        self.assertIn("audio", message)
-        self.assertIn("whisper", message)
+        with patch.dict(os.environ, {"PATH": ""}):
+            with self.assertRaises(RuntimeError) as caught:
+                process_audio("clip.wav")
+            message = str(caught.exception)
+            self.assertIn("audio", message)
+            self.assertIn("whisper", message)
 
-        with self.assertRaises(RuntimeError) as caught:
-            process_table_ocr("table.png")
-        message = str(caught.exception)
-        self.assertIn("ocr", message)
-        self.assertIn("tesseract", message)
+            with self.assertRaises(RuntimeError) as caught:
+                process_table_ocr("table.png")
+            message = str(caught.exception)
+            self.assertIn("ocr", message)
+            self.assertIn("tesseract", message)
+
+    def test_whisper_stub_on_path_returns_printed_transcript(self):
+        """A whisper executable that prints known text is the transcript."""
+        from knowledge_builder.processors.audio import process_audio
+
+        with tempfile.TemporaryDirectory() as tmp:
+            _install_stub(tmp, "whisper", _stub_script("known transcript\n"))
+            with patch.dict(os.environ, {"PATH": tmp}):
+                text = process_audio("clip.wav")
+        self.assertEqual(text, "known transcript\n")
+
+    def test_whisper_cli_stub_on_path_returns_printed_transcript(self):
+        """whisper-cli is used when whisper itself is not on PATH."""
+        from knowledge_builder.processors.audio import process_audio
+
+        with tempfile.TemporaryDirectory() as tmp:
+            _install_stub(tmp, "whisper-cli", _stub_script("cpp transcript\n"))
+            with patch.dict(os.environ, {"PATH": tmp}):
+                text = process_audio("clip.wav")
+        self.assertEqual(text, "cpp transcript\n")
+
+    def test_tesseract_stub_on_path_returns_printed_text(self):
+        """tesseract stdout is the table text for plain and tsv layouts."""
+        from knowledge_builder.processors.table_ocr import process_table_ocr
+
+        with tempfile.TemporaryDirectory() as tmp:
+            _install_stub(tmp, "tesseract", _stub_script("known table\n"))
+            with patch.dict(os.environ, {"PATH": tmp}):
+                plain = process_table_ocr("table.png")
+                tsv = process_table_ocr("table.png", layout="tsv")
+        self.assertEqual(plain, "known table\n")
+        self.assertEqual(tsv, "known table\n")
+
+    def test_extractor_nonzero_exit_raises(self):
+        """A non-zero whisper or tesseract exit raises and does not return its text."""
+        from knowledge_builder.processors.audio import process_audio
+        from knowledge_builder.processors.table_ocr import process_table_ocr
+
+        fail = _stub_script("placeholder transcript\n", code=1)
+        with tempfile.TemporaryDirectory() as tmp:
+            _install_stub(tmp, "whisper", fail)
+            _install_stub(tmp, "tesseract", fail)
+            with patch.dict(os.environ, {"PATH": tmp}):
+                with self.assertRaises(RuntimeError) as audio_caught:
+                    process_audio("clip.wav")
+                with self.assertRaises(RuntimeError) as ocr_caught:
+                    process_table_ocr("table.png")
+        audio_message = str(audio_caught.exception)
+        ocr_message = str(ocr_caught.exception)
+        self.assertIn("exited", audio_message)
+        self.assertIn("1", audio_message)
+        self.assertNotIn("placeholder transcript", audio_message)
+        self.assertIn("exited", ocr_message)
+        self.assertIn("1", ocr_message)
+        self.assertNotIn("placeholder transcript", ocr_message)
 
 
 if __name__ == "__main__":
