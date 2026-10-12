@@ -5,7 +5,7 @@ import re
 import sys
 from pathlib import Path
 
-from knowledge_builder.anchors import heading_present, parse_attributes, visible_lines
+from knowledge_builder.anchors import heading_present, parse_attributes, tokenize_document, visible_lines
 from knowledge_builder.anchors import AnchorSyntaxError
 from knowledge_builder.containment import ContainmentError, read_text_inside, require_inside
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
@@ -26,6 +26,7 @@ OPEN_ANCHOR = re.compile(r"<!--\s*ease:source\b")
 # Not external facts. Same three labels as the anchor rule in the UKMC contract.
 EXEMPT_LABELS = ("Derived:", "Lineup decision:", "Observed:")
 _LIST_MARKER = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
+_BLOCKQUOTE_LIST = re.compile(r"^(?:>\s*)+(?:[-*+]|\d+[.)])\s+")
 _H3 = re.compile(r"^#{3,}(?:\s|$)")
 _DELIM_CELL = re.compile(r":?-{3,}:?")
 
@@ -196,173 +197,139 @@ def _check_headings(text, rel, failures):
 
 
 def _uncited_blocks(text, rel):
-    """Failure lines for Core blocks with no ease:source, plus the exempt count."""
-    records = _line_records(text)
-    bounds = _core_bounds(records)
+    """Failure lines for Core blocks with no ease:source, plus the exempt count.
+
+    Tokens come from one pass. An anchor cites only the block that ended when
+    the anchor started. A later block on the anchor's closing line stays open.
+    """
+    tokens = tokenize_document(text)
+    bounds = _core_bounds(tokens)
     if bounds is None:
         return [], 0
     start, end = bounds
-    blocks = _blocks(records, start, end)
-    spans = _anchor_spans(text)
-    if end < len(records):
-        limit = records[end][0]
-    elif records:
-        limit = records[-1][0] + 1
-    else:
-        limit = 1
+    blocks, cited = _blocks(tokens, start, end)
     failures = []
     exempt = 0
-    for index, (begin, finish, lines) in enumerate(blocks):
+    for index, (begin, _finish, lines) in enumerate(blocks):
         if _is_exempt(lines):
             exempt += 1
             continue
-        nxt = blocks[index + 1][0] if index + 1 < len(blocks) else limit
-        if _is_cited(begin, finish, nxt, spans):
+        if index in cited:
             continue
         failures.append(f"{rel}:{begin}: uncited block: {_preview(lines)}")
     return failures, exempt
 
 
-def _line_records(text):
-    """Original lines with comments removed, then fenced code marked."""
-    records = []
-    in_comment = False
-    in_fence = False
-    for number, line in enumerate(text.splitlines(), 1):
-        shown, in_comment = _strip_comment(line, in_comment)
-        if in_fence:
-            if shown.startswith("```"):
-                in_fence = False
-                records.append((number, shown, "fence-close"))
-            else:
-                records.append((number, shown, "fence"))
-            continue
-        if shown.startswith("```"):
-            in_fence = True
-            records.append((number, shown, "fence-open"))
-            continue
-        records.append((number, shown, "blank" if shown == "" else "text"))
-    return records
-
-
-def _strip_comment(line, in_comment):
-    visible = []
-    index = 0
-    while index < len(line):
-        if in_comment:
-            end = line.find("-->", index)
-            if end < 0:
-                return "".join(visible).strip(), True
-            in_comment = False
-            index = end + 3
-            continue
-        start = line.find("<!--", index)
-        if start < 0:
-            visible.append(line[index:])
-            break
-        visible.append(line[index:start])
-        end = line.find("-->", start + 4)
-        if end < 0:
-            return "".join(visible).strip(), True
-        index = end + 3
-    return "".join(visible).strip(), in_comment
-
-
-def _core_bounds(records):
+def _core_bounds(tokens):
+    """Core runs from its heading through the token before the next real H2."""
     start = None
-    for index, (_number, text, kind) in enumerate(records):
-        if kind == "text" and heading_present([text], "## Core Knowledge Content"):
+    for index, tok in enumerate(tokens):
+        if tok.kind == "text" and heading_present([tok.text], "## Core Knowledge Content"):
             start = index
             break
     if start is None:
         return None
-    end = len(records)
-    for index in range(start + 1, len(records)):
-        _number, text, kind = records[index]
-        if kind == "text" and (text == "##" or text.startswith("## ")):
+    end = len(tokens)
+    for index in range(start + 1, len(tokens)):
+        tok = tokens[index]
+        if tok.kind == "text" and _is_h2(tok.text):
             end = index
             break
     return start, end
 
 
-def _blocks(records, start, end):
+def _blocks(tokens, start, end):
+    """Blocks inside Core, and the indexes an anchor directly follows."""
     blocks = []
+    cited = set()
     index = start + 1
     while index < end:
-        _number, text, kind = records[index]
-        if kind in ("blank", "fence-close"):
+        tok = tokens[index]
+        if tok.kind in ("blank", "fence-close", "code"):
             index += 1
             continue
-        if kind == "fence-open":
-            index, block = _fence_block(records, index, end)
-            blocks.append(block)
-            continue
-        if kind != "text" or _is_h3(text):
+        if tok.kind == "anchor":
+            if blocks:
+                cited.add(len(blocks) - 1)
             index += 1
             continue
-        if _starts_table(records, index, end):
-            index, block = _table_block(records, index, end)
+        if tok.kind == "fence-open":
+            index, block = _fence_block(tokens, index, end)
             blocks.append(block)
             continue
-        index, block = _text_block(records, index, end)
+        if tok.kind != "text" or _is_h3(tok.text):
+            index += 1
+            continue
+        if _starts_table(tokens, index, end):
+            index, block = _table_block(tokens, index, end)
+        else:
+            index, block = _text_block(tokens, index, end)
         blocks.append(block)
-    return blocks
+    return blocks, cited
 
 
-def _fence_block(records, index, end):
-    begin = records[index][0]
+def _fence_block(tokens, index, end):
+    begin = tokens[index].line
     lines = []
     index += 1
-    while index < end and records[index][2] != "fence-close":
-        if records[index][1]:
-            lines.append(records[index][1])
+    while index < end and tokens[index].kind == "fence-line":
+        lines.append(tokens[index].text)
         index += 1
-    if index < end and records[index][2] == "fence-close":
-        finish = records[index][0]
+    if index < end and tokens[index].kind == "fence-close":
+        finish = tokens[index].line
         index += 1
+    elif index > 0:
+        finish = tokens[index - 1].line
     else:
-        finish = records[index - 1][0]
+        finish = begin
     return index, (begin, finish, lines)
 
 
-def _table_block(records, index, end):
-    begin = records[index][0]
+def _table_block(tokens, index, end):
+    begin = tokens[index].line
     lines = []
     finish = begin
-    while index < end and records[index][2] == "text" and "|" in records[index][1]:
-        lines.append(records[index][1])
-        finish = records[index][0]
+    while index < end and tokens[index].kind == "text" and _is_table_row(tokens[index].text):
+        lines.append(tokens[index].text)
+        finish = tokens[index].line
         index += 1
     return index, (begin, finish, lines)
 
 
-def _text_block(records, index, end):
-    begin = records[index][0]
-    lines = [records[index][1]]
+def _text_block(tokens, index, end):
+    begin = tokens[index].line
+    lines = [tokens[index].text]
     finish = begin
     index += 1
-    while index < end and not _text_stops(records, index, end):
-        lines.append(records[index][1])
-        finish = records[index][0]
+    while index < end and not _text_stops(tokens, index, end):
+        lines.append(tokens[index].text)
+        finish = tokens[index].line
         index += 1
     return index, (begin, finish, lines)
 
 
-def _text_stops(records, index, end):
-    _number, text, kind = records[index]
-    if kind != "text":
+def _text_stops(tokens, index, end):
+    tok = tokens[index]
+    if tok.kind != "text":
         return True
-    return _is_h3(text) or _is_list_item(text) or _starts_table(records, index, end)
+    return _is_h3(tok.text) or _is_list_item(tok.text) or _starts_table(tokens, index, end)
 
 
-def _starts_table(records, index, end):
+def _starts_table(tokens, index, end):
     if index + 1 >= end:
         return False
-    _number, header, header_kind = records[index]
-    _next, delim, delim_kind = records[index + 1]
-    if header_kind != "text" or delim_kind != "text":
+    header = tokens[index]
+    delim = tokens[index + 1]
+    if header.kind != "text" or delim.kind != "text":
         return False
-    return "|" in header and _is_delim(delim)
+    return _is_table_row(header.text) and _is_delim(delim.text)
+
+
+def _is_table_row(text):
+    """A row contains a pipe. A list item or heading is never a row."""
+    if _is_list_item(text) or _is_h3(text) or _is_h2(text):
+        return False
+    return "|" in text
 
 
 def _is_delim(text):
@@ -370,12 +337,17 @@ def _is_delim(text):
     return bool(cells) and all(_DELIM_CELL.fullmatch(cell) for cell in cells)
 
 
+def _is_h2(text):
+    stripped = text.strip()
+    return stripped == "##" or stripped.startswith("## ") or stripped.startswith("##\t")
+
+
 def _is_h3(text):
     return _H3.match(text) is not None
 
 
 def _is_list_item(text):
-    return _LIST_MARKER.match(text) is not None
+    return _LIST_MARKER.match(text) is not None or _BLOCKQUOTE_LIST.match(text) is not None
 
 
 def _is_exempt(lines):
@@ -383,27 +355,6 @@ def _is_exempt(lines):
         return False
     text = _LIST_MARKER.sub("", lines[0], count=1)
     return text.startswith(EXEMPT_LABELS)
-
-
-def _is_cited(begin, finish, nxt, spans):
-    for span_start, span_end in spans:
-        if span_start <= finish and span_end >= begin:
-            return True
-        if finish < span_start < nxt:
-            return True
-    return False
-
-
-def _anchor_spans(text):
-    spans = []
-    for match in ANCHOR.finditer(text):
-        end = max(match.start(), match.end() - 1)
-        spans.append((_lineno(text, match.start()), _lineno(text, end)))
-    return spans
-
-
-def _lineno(text, offset):
-    return text.count("\n", 0, offset) + 1
 
 
 def _preview(lines):

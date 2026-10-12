@@ -1,11 +1,17 @@
-"""ease:source attribute grammar and visible markdown headings.
+"""ease:source attribute grammar and one markdown token pass.
 
 A quoted value ends at the first matching quote. The next attribute needs
 whitespace. Leftover text, a second copy of the same name, and an unclosed
-quote are errors. Headings count only outside HTML comments, ``` and ~~~
-fences, and four-space indented code. An unclosed comment hides the rest.
+quote are errors.
+
+tokenize_document walks each line once. The states are normal, backtick fence,
+tilde fence, indented code, and html comment. Comments are not recognised
+inside a fence or indented code. Fences are not recognised inside a comment
+or indented code. A heading is a normal-state line. An anchor is a complete
+top-level <!-- ease:source ... --> comment. An unclosed comment hides the rest.
 """
 
+from collections import namedtuple
 import re
 
 
@@ -57,28 +63,6 @@ def parse_attributes(body):
         attrs[name] = value
 
 
-def _consume_comments(line, in_comment):
-    """Return text outside HTML comments, and whether a comment is still open."""
-    visible = []
-    index = 0
-    while index < len(line):
-        if in_comment:
-            end = line.find("-->", index)
-            if end < 0:
-                return "".join(visible), True
-            in_comment = False
-            index = end + 3
-            continue
-        start = line.find("<!--", index)
-        if start < 0:
-            visible.append(line[index:])
-            break
-        visible.append(line[index:start])
-        index = start + 4
-        in_comment = True
-    return "".join(visible), in_comment
-
-
 def _is_indented_code(line):
     """A 4-space or tab indented line is a code line, not a heading."""
     if line.strip() == "":
@@ -110,33 +94,131 @@ def _closes_fence(line, char, length):
     return matched is not None and len(matched.group(1)) >= length
 
 
-def visible_lines(text):
-    """Lines outside HTML comments, fenced code, and indented code blocks.
+Token = namedtuple("Token", ["line", "kind", "text"])
 
-    An unclosed <!-- comment hides every later line. Fences are ``` or ~~~.
-    A heading indented by four spaces is code and does not count.
-    """
-    visible = []
-    in_comment = False
+_ANCHOR_BODY = re.compile(r"\s*ease:source\b")
+
+
+def tokenize_document(text):
+    """Tokenise once. kind is text, blank, code, anchor, fence-open, fence-line, or fence-close."""
+    tokens = []
+    state = "normal"
     fence_char = ""
     fence_len = 0
-    for raw in text.splitlines():
-        if fence_char:
-            if _closes_fence(raw, fence_char, fence_len):
-                fence_char = ""
-                fence_len = 0
-            continue
-        content, in_comment = _consume_comments(raw, in_comment)
-        if in_comment and content.strip() == "":
-            continue
+    comment_body = []
+    comment_line = 0
+
+    def emit(line, kind, value):
+        tokens.append(Token(line, kind, value))
+
+    def flush_text(line, parts):
+        value = "".join(parts).strip()
+        parts.clear()
+        if value:
+            emit(line, "text", value)
+
+    def scan(line, fragment):
+        nonlocal state, comment_body, comment_line
+        parts = []
+        index = 0
+        while index < len(fragment):
+            start = fragment.find("<!--", index)
+            if start < 0:
+                parts.append(fragment[index:])
+                break
+            parts.append(fragment[index:start])
+            end = fragment.find("-->", start + 4)
+            if end < 0:
+                flush_text(line, parts)
+                state = "html comment"
+                comment_body = [fragment[start + 4:]]
+                comment_line = line
+                return
+            body = fragment[start + 4:end]
+            if _ANCHOR_BODY.match(body):
+                flush_text(line, parts)
+                emit(line, "anchor", body)
+            index = end + 3
+        flush_text(line, parts)
+
+    def handle_normal(line, raw):
+        nonlocal state, fence_char, fence_len
+        if raw.strip() == "":
+            emit(line, "blank", "")
+            return
         if _is_indented_code(raw):
-            continue
-        opener = _opens_fence(content)
+            emit(line, "code", raw.strip())
+            state = "indented code"
+            return
+        opener = _opens_fence(raw)
         if opener is not None:
             fence_char, fence_len = opener
+            state = "backtick fence" if fence_char == "`" else "tilde fence"
+            emit(line, "fence-open", raw.strip())
+            return
+        scan(line, raw)
+
+    for line_no, raw in enumerate(text.splitlines(), 1):
+        if state in ("backtick fence", "tilde fence"):
+            if _closes_fence(raw, fence_char, fence_len):
+                emit(line_no, "fence-close", raw.strip())
+                state = "normal"
+                fence_char = ""
+                fence_len = 0
+            else:
+                shown = raw.strip()
+                if shown:
+                    emit(line_no, "fence-line", shown)
             continue
-        visible.append(content)
-    return visible
+        if state == "html comment":
+            end = raw.find("-->")
+            if end < 0:
+                comment_body.append("\n" + raw)
+                continue
+            comment_body.append("\n" + raw[:end])
+            body = "".join(comment_body)
+            if _ANCHOR_BODY.match(body):
+                emit(comment_line, "anchor", body)
+            comment_body = []
+            state = "normal"
+            rest = raw[end + 3:]
+            if rest.strip():
+                scan(line_no, rest)
+            continue
+        if state == "indented code":
+            if raw.strip() == "" or _is_indented_code(raw):
+                if raw.strip() == "":
+                    emit(line_no, "blank", "")
+                else:
+                    emit(line_no, "code", raw.strip())
+                continue
+            state = "normal"
+        handle_normal(line_no, raw)
+    return tokens
+
+
+def visible_lines(text):
+    """Normal-state text, one string per source line.
+
+    Fence lines, indented code, and comment text are omitted. An unclosed
+    comment hides every later line. Same-line pieces stay on one line.
+    """
+    lines = []
+    pending_line = None
+    pending = []
+    for tok in tokenize_document(text):
+        if tok.kind != "text":
+            continue
+        if pending_line is None or tok.line != pending_line:
+            if pending:
+                lines.append(" ".join(pending))
+            pending = [tok.text]
+            pending_line = tok.line
+        else:
+            pending.append(tok.text)
+    if pending:
+        lines.append(" ".join(pending))
+    return lines
 
 
 def heading_present(lines, heading):

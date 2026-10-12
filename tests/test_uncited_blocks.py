@@ -206,6 +206,105 @@ class TestUncitedBlocks(unittest.TestCase):
         self.assertIn("exempt blocks: 0", out)
         self.assertEqual(len(_uncited(out)), 1)
 
+    def test_multiline_anchor_cites_only_the_block_it_follows(self):
+        """A multi-line anchor ends the previous block. Text after --> is a new block."""
+        digest = _sha(SOURCE)
+        previous = f"The source says {QUOTE}"
+        following = "P2 has no source of its own."
+        core = (
+            f"{previous}\n\n"
+            f'<!-- ease:source uri={URI} sha256={digest} quote="{QUOTE}"\n'
+            f"-->{following}\n"
+        )
+        text, code, out, err = self._claims(core)
+        self.assertNotEqual(code, 0, out + err)
+        self.assertEqual(
+            _uncited(out),
+            [f"{REL}:{_line_of(text, following)}: uncited block: {following}"],
+        )
+        self.assertNotIn(f"uncited block: {previous}", out)
+
+    def test_hidden_headings_do_not_end_core(self):
+        """An indented or fenced H2 is not the end of Core. Later prose is still checked."""
+        digest = _sha(SOURCE)
+        supported = f"The source says {QUOTE}"
+        cases = {
+            "indent": (
+                f"{supported}\n{_anchor(digest)}\n\n    ## Hidden\n\n"
+                "Unsupported escapes the indented heading.\n"
+            ),
+            "tilde": (
+                f"~~~\n{_anchor(digest)}\n## Hidden\n~~~\n\n"
+                "Unsupported escapes the tilde fence.\n"
+            ),
+        }
+        for name, core in cases.items():
+            with self.subTest(name=name):
+                _text, code, out, err = self._claims(core)
+                self.assertNotEqual(code, 0, out + err)
+                self.assertTrue(
+                    any("Unsupported escapes" in line for line in _uncited(out)),
+                    out + err,
+                )
+                self.assertNotIn(f"uncited block: {supported}", out)
+
+    def test_comment_inside_a_fence_stays_inside_the_fence(self):
+        """A fence is literal. An unclosed <!-- inside it must not hide later prose or labels."""
+        digest = _sha(SOURCE)
+        later = "Unsupported stays visible after the fence."
+        swallowed = f"```html\n<!--\n```\n{_anchor(digest)}\n\n{later}\n"
+        text, code, out, err = self._claims(swallowed)
+        self.assertNotEqual(code, 0, out + err)
+        self.assertEqual(
+            _uncited(out),
+            [f"{REL}:{_line_of(text, later)}: uncited block: {later}"],
+        )
+
+        cited = f"The source says {QUOTE}\n{_anchor(digest)}\n"
+        decoy = f"{cited}\n```\n<!-- literal code -->\nDerived: decoy\n```\n"
+        text, code, out, err = self._claims(decoy)
+        preview = "<!-- literal code --> Derived: decoy"
+        self.assertNotEqual(code, 0, out + err)
+        self.assertIn(f"{REL}:{_line_of(text, '```')}: uncited block: {preview}", out)
+        self.assertIn("exempt blocks: 0", out)
+
+    def test_anchor_nested_in_a_comment_does_not_cite(self):
+        """An ease:source marker inside another comment is comment text, not a citation."""
+        digest = _sha(SOURCE)
+        sentence = "Unsupported stands alone."
+        core = f"{sentence}\n<!-- outer\n{_anchor(digest)}\n"
+        text, code, out, err = self._claims(core)
+        self.assertNotEqual(code, 0, out + err)
+        self.assertEqual(
+            _uncited(out),
+            [f"{REL}:{_line_of(text, sentence)}: uncited block: {sentence}"],
+        )
+
+    def test_table_stops_before_a_list_item(self):
+        """A list item is not a table row, even when the item contains a pipe."""
+        digest = _sha(SOURCE)
+        item = "- Unsupported | claim"
+        core = f"| a | b |\n| --- | --- |\n| 1 | 2 | {_anchor(digest)}\n{item}\n"
+        text, code, out, err = self._claims(core)
+        self.assertNotEqual(code, 0, out + err)
+        self.assertEqual(
+            _uncited(out),
+            [f"{REL}:{_line_of(text, item)}: uncited block: {item}"],
+        )
+
+    def test_blockquoted_list_items_are_separate_blocks(self):
+        """Each blockquoted list item is its own block. One trailing anchor cites the last."""
+        digest = _sha(SOURCE)
+        first = "> - Unsupported A"
+        second = "> - Unsupported B"
+        core = f"{first}\n{second}\n{_anchor(digest)}\n"
+        text, code, out, err = self._claims(core)
+        self.assertNotEqual(code, 0, out + err)
+        self.assertEqual(
+            _uncited(out),
+            [f"{REL}:{_line_of(text, first)}: uncited block: {first}"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
