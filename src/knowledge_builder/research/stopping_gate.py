@@ -57,6 +57,21 @@ def _require_minimum_sources(value):
     return value
 
 
+def bool_or_absent(source, name, *, absent):
+    """Keep a real bool. Missing, None, and every other type take absent.
+
+    Version match uses absent=False, so only True certifies.
+    Probe status uses absent=True, so only False means no probe remains.
+    """
+    if isinstance(source, dict):
+        value = source[name] if name in source else None
+    else:
+        value = getattr(source, name, None)
+    if isinstance(value, bool):
+        return value
+    return absent
+
+
 def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     """Evaluate whether an auto-research loop must STOP, DEEPEN, PAUSE, or ABSTAIN.
     
@@ -67,9 +82,11 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     STOP_sufficient = Gt ∧ St ∧ DecisionStable ∧ NoMaterialProbeRemaining ∧ ValidIndependentReview
     """
     minimum_sources = _require_minimum_sources(inp.minimum_independent_sources)
+    version_ok = bool_or_absent(inp, "is_target_version_matched", absent=False)
+    probe_remaining = bool_or_absent(inp, "has_viable_probe_remaining", absent=True)
 
     # 1. Check if blocked
-    if inp.is_blocked or (not inp.has_viable_probe_remaining and inp.required_claims_verified < inp.required_claims_total):
+    if inp.is_blocked or (not probe_remaining and inp.required_claims_verified < inp.required_claims_total):
         if inp.is_blocked:
             return StoppingDecision(
                 state=TerminationState.ABSTAIN_BLOCKED,
@@ -83,7 +100,6 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     sources_ok = inp.independent_sources_count >= minimum_sources
     execution_ok = inp.has_execution_proof
     counterevidence_ok = inp.has_counterevidence_searched
-    version_ok = inp.is_target_version_matched
     no_contradiction_ok = inp.unresolved_contradictions_count == 0
 
     hard_gates_passed = (
@@ -105,7 +121,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     if (
         hard_gates_passed
         and saturation_passed
-        and not inp.has_viable_probe_remaining
+        and not probe_remaining
         and inp.independent_review_passed
     ):
         parts = [
@@ -157,7 +173,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         reasons.append(f"Unresolved contradictions ({inp.unresolved_contradictions_count})")
     if not saturation_passed:
         reasons.append(f"Saturation not yet reached (round {inp.consecutive_low_delta_rounds}/3, delta {inp.last_weighted_delta:.1%})")
-    if inp.has_viable_probe_remaining:
+    if probe_remaining:
         reasons.append("A viable probe remains")
     if not inp.independent_review_passed:
         reasons.append("Independent review has not passed")

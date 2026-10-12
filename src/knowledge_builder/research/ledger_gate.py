@@ -9,7 +9,7 @@ from pathlib import Path
 from knowledge_builder.containment import ContainmentError, file_identity, read_text_nofollow, require_inside
 from knowledge_builder.quote_check import file_contains_quote
 from knowledge_builder.research.ledger import AtomicResearchLedger, require_relative_source_uri
-from knowledge_builder.research.stopping_gate import StoppingEvaluationInput
+from knowledge_builder.research.stopping_gate import StoppingEvaluationInput, bool_or_absent
 
 
 class LedgerGateError(Exception):
@@ -180,22 +180,14 @@ def _unresolved_contradictions(state, atoms):
     return count
 
 
-def _explicit_bool(state, key):
-    if key not in state or not isinstance(state[key], bool):
-        return None
-    return state[key]
-
-
 def _version_matched(state):
     """Missing or non-boolean version evidence cannot certify."""
-    value = _explicit_bool(state, "is_target_version_matched")
-    return False if value is None else value
+    return bool_or_absent(state, "is_target_version_matched", absent=False)
 
 
 def _probe_remaining(state):
     """Unknown probe status must not look like 'no probe left'."""
-    value = _explicit_bool(state, "has_viable_probe_remaining")
-    return True if value is None else value
+    return bool_or_absent(state, "has_viable_probe_remaining", absent=True)
 
 
 def _delta(state):
