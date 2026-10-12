@@ -173,6 +173,19 @@ class TestGateExitCodes(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertNotIn("STOP_SUFFICIENT", out)
 
+    def test_bare_gate_saturation_is_not_observed(self):
+        """No measured rounds and no measured delta means saturation was not observed."""
+        code, out, _err = self._run(["knowledge-builder", "gate"])
+        self.assertIn("Saturation Passed: False", out)
+        self.assertNotEqual(code, 0)
+
+    def test_measured_saturation_still_prints_true(self):
+        """Rounds at the required count and a measured delta under the threshold still pass."""
+        _code, out, _err = self._run(
+            ["knowledge-builder", "gate", "--rounds", "3", "--delta", "0.01"]
+        )
+        self.assertIn("Saturation Passed: True", out)
+
     def test_budget_zero_exits_pause(self):
         code, out, _err = self._run(["knowledge-builder", "gate", "--budget", "0"])
         self.assertEqual(code, 3)

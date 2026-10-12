@@ -28,9 +28,9 @@ class StoppingEvaluationInput:
     unresolved_contradictions_count: int
     is_target_version_matched: bool
     
-    # Saturation metrics
-    consecutive_low_delta_rounds: int  # Threshold: >= 3
-    last_weighted_delta: float         # Threshold: <= 0.02 (2%)
+    # Saturation metrics. None means the value was not measured.
+    consecutive_low_delta_rounds: Optional[int]  # Threshold: >= 3
+    last_weighted_delta: Optional[float]         # Threshold: <= 0.02 (2%)
     
     # Budget & operational state
     remaining_budget_calls: int
@@ -72,6 +72,17 @@ def bool_or_absent(source, name, *, absent):
     return absent
 
 
+def saturation_from_measurement(rounds, delta):
+    """True only when both measurements exist and meet the saturation rule.
+
+    Required rounds are 3 and the delta threshold is 2%. A missing round
+    count or a missing delta was not observed, so it is not saturated.
+    """
+    if rounds is None or delta is None:
+        return False
+    return rounds >= 3 and delta <= 0.02
+
+
 def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     """Evaluate whether an auto-research loop must STOP, DEEPEN, PAUSE, or ABSTAIN.
     
@@ -111,10 +122,10 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         no_contradiction_ok
     )
 
-    # 3. Saturation Evaluation (3 rounds with delta <= 2%)
-    saturation_passed = (
-        inp.consecutive_low_delta_rounds >= 3 and
-        inp.last_weighted_delta <= 0.02
+    # 3. Saturation Evaluation (measured rounds >= 3 and measured delta <= 2%)
+    saturation_passed = saturation_from_measurement(
+        inp.consecutive_low_delta_rounds,
+        inp.last_weighted_delta,
     )
 
     # 4. STOP_SUFFICIENT only when every conjunct holds (fail closed).
@@ -172,7 +183,15 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     if not no_contradiction_ok:
         reasons.append(f"Unresolved contradictions ({inp.unresolved_contradictions_count})")
     if not saturation_passed:
-        reasons.append(f"Saturation not yet reached (round {inp.consecutive_low_delta_rounds}/3, delta {inp.last_weighted_delta:.1%})")
+        rounds_text = (
+            "missing" if inp.consecutive_low_delta_rounds is None else inp.consecutive_low_delta_rounds
+        )
+        delta_text = (
+            "missing" if inp.last_weighted_delta is None else f"{inp.last_weighted_delta:.1%}"
+        )
+        reasons.append(
+            f"Saturation not yet reached (round {rounds_text}/3, delta {delta_text})"
+        )
     if probe_remaining:
         reasons.append("A viable probe remains")
     if not inp.independent_review_passed:
