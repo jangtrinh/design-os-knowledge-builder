@@ -1,26 +1,42 @@
-"""Packaged starter files: templates/ontology.starter.yaml and templates/_templates/*.md.tmpl.
+"""Packaged starter files: knowledge_builder/templates/ontology.starter.yaml and _templates/*.md.tmpl.
 
-They sit beside pyproject.toml, so they are found in a source checkout or an editable install.
+Read through importlib.resources, so they work from a checkout, an editable install and a wheel.
 """
 
-from pathlib import Path
+from importlib.resources import files
 
 STARTER_ONTOLOGY = "ontology.starter.yaml"
 TEMPLATE_SUBDIR = "_templates"
 
 
 class TemplateError(FileNotFoundError):
-    """The packaged templates directory cannot be found."""
+    """A packaged template is missing."""
 
 
-def templates_dir():
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "templates"
-        if (parent / "pyproject.toml").is_file() and (candidate / STARTER_ONTOLOGY).is_file():
-            return candidate
-    raise TemplateError("templates/ontology.starter.yaml not found beside pyproject.toml; install with `pip install -e .` from the repository")
+def _base():
+    return files("knowledge_builder") / "templates"
+
+
+def starter_ontology():
+    return _read(_base() / STARTER_ONTOLOGY)
+
+
+def template_names():
+    """File names under _templates/, sorted."""
+    return sorted(item.name for item in (_base() / TEMPLATE_SUBDIR).iterdir() if item.name.endswith(".md.tmpl"))
 
 
 def packaged_template(name):
-    """Text of templates/_templates/<name>.md.tmpl."""
-    return (templates_dir() / TEMPLATE_SUBDIR / f"{name}.md.tmpl").read_text(encoding="utf-8")
+    """Text of _templates/<name>.md.tmpl."""
+    return _read(_base() / TEMPLATE_SUBDIR / f"{name}.md.tmpl")
+
+
+def packaged_template_file(file_name):
+    return _read(_base() / TEMPLATE_SUBDIR / file_name)
+
+
+def _read(resource):
+    try:
+        return resource.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise TemplateError(f"packaged template missing: {resource}") from exc

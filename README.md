@@ -210,7 +210,7 @@ python3 -m knowledge_builder.cli action deprecate --root <knowledge-root> --para
 Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier` (to `verified` it also needs the stopping gate to return STOP_SUFFICIENT for every `_evidence/<run>` the file cites). Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default.
 
 ### 8. Ontology-first packs (claims, sources, `pack` commands)
-`pack init` scaffolds a root from `templates/ontology.starter.yaml`: document types (`concept`, `guide`, `comparison`, `decision-record`), `claim` objects in `claims/`, `source` objects in `sources/`, an opt-in `entity` type in `entities/`, and link types `cites`, `supported-by`, `contradicts`, `compares`, `depends-on`, `about`. The templates ship beside `pyproject.toml`, so use `pip install -e .` from a checkout.
+`pack init` scaffolds a root from `src/knowledge_builder/templates/ontology.starter.yaml` (package data, so it also works from an installed wheel): document types (`concept`, `guide`, `comparison`, `decision-record`), `claim` objects in `claims/`, `source` objects in `sources/`, an opt-in `entity` type in `entities/`, and link types `cites`, `supported-by`, `contradicts`, `compares`, `depends-on`, `about`.
 ```bash
 # new or empty root only; writes ontology.yaml, _templates/, claims/, sources/, pack.json and opens the research run
 python3 -m knowledge_builder.cli pack init --root <pack-root> --topic "my topic" --run my-run --require some-claim-id
@@ -223,6 +223,8 @@ python3 -m knowledge_builder.cli action promote-claim --root <pack-root> --batch
 python3 -m knowledge_builder.cli pack status --root <pack-root>
 python3 -m knowledge_builder.cli pack check --root <pack-root>
 ```
+Pass `--param id=<short-kebab-id>` to `promote-claim`: it is the recommended way to name a claim. Without it the id is the first words of the statement, cut at a word boundary within 60 characters (a suffix `-2`, `-3` resolves collisions), which is long for statements copied from sources.
+
 A document cites a claim with `<!-- ease:claim id=<claim-id> -->` under the block it supports and a `cites` link to that claim; the quote lives only in the claim, and `verify --claims` checks it against the frozen capture. Every anchor id must be in the document's `cites` links and every `cites` target must be used by an anchor. `promote-claim` refuses an atom whose frozen file hash or quote does not verify, and an atom that is already promoted (it names the claim). Promoting a `CONTRADICTION` atom also promotes the atom named in its `metadata.contradicts` and links the two with `contradicts`. Every action runs under one lock per root (`_actions/.root.lock`).
 
 ---

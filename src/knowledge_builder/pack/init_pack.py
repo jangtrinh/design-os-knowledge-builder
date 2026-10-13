@@ -7,7 +7,9 @@ from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
-from knowledge_builder.ontology.template_files import STARTER_ONTOLOGY, TEMPLATE_SUBDIR, templates_dir
+from knowledge_builder.ontology.template_files import (
+    TEMPLATE_SUBDIR, packaged_template_file, starter_ontology, template_names,
+)
 
 PACK_FILE = "pack.json"
 
@@ -34,9 +36,10 @@ def init_pack(root, topic, run=None, budget=400, require=(), researcher=None):
     created_root = not root.exists()
     root.mkdir(parents=True, exist_ok=True)
     try:
-        source = templates_dir()
-        shutil.copy2(source / STARTER_ONTOLOGY, root / "ontology.yaml")
-        shutil.copytree(source / TEMPLATE_SUBDIR, root / TEMPLATE_SUBDIR)
+        (root / "ontology.yaml").write_text(starter_ontology(), encoding="utf-8")
+        (root / TEMPLATE_SUBDIR).mkdir()
+        for file_name in template_names():
+            (root / TEMPLATE_SUBDIR / file_name).write_text(packaged_template_file(file_name), encoding="utf-8")
         (root / "claims").mkdir()
         (root / "sources").mkdir()
         (root / PACK_FILE).write_text(json.dumps({"topic": topic, "run": run}, indent=2) + "\n", encoding="utf-8")

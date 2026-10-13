@@ -37,7 +37,7 @@ class TestInit(PackInitCase):
 
     def test_starter_yaml_is_copied_byte_for_byte(self):
         self.init()
-        starter = Path(__file__).resolve().parent.parent / "templates" / "ontology.starter.yaml"
+        starter = Path(__file__).resolve().parent.parent / "src" / "knowledge_builder" / "templates" / "ontology.starter.yaml"
         self.assertEqual(self.read("ontology.yaml"), starter.read_text())
 
     def test_refuses_a_non_empty_root_and_changes_nothing(self):

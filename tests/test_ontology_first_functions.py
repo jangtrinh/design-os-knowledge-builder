@@ -101,6 +101,9 @@ class TestRunsStopSufficientThroughClaims(PackCase):
         write_source(self.root, "src-1", self.uri, self.digest)
         write_claim(self.root, "c1", "src-1", self.uri, "Alpha facts live here.", atom="atom-c1", run="run-1")
         write_document(self.root, "doc-1", ["c1"], ["Alpha facts live here.", "<!-- ease:claim id=c1 -->"], self.uri, self.digest)
+        fail_uri = "_evidence/run-1/sources/failure.txt"  # the run's second atom, from a second publisher
+        write_source(self.root, "src-fail", fail_uri, hashlib.sha256((self.root / fail_uri).read_bytes()).hexdigest(), publisher="other.org")
+        write_claim(self.root, "c-fail", "src-fail", fail_uri, "known failure mode", atom="atom-fail", claim_type="FAILURE_MODE", run="run-1")
 
     def test_stopped_run_behind_the_claim_passes(self):
         self.assertEqual(self.verify(), [])

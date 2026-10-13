@@ -132,17 +132,25 @@ def _atom_verifies_claim(root, run_id, atom, claim_id):
 
 
 def _independent_sources(root, run_id, atoms):
-    """Distinct inodes under this run's sources/. Aliases do not add a source."""
-    found = set()
+    """Distinct inodes under this run's sources/ (aliases do not add a source).
+
+    In a pack (ontology.yaml with a frozen-source type) it is the distinct publishers of the Source objects the
+    verified atoms map to, so two pages of one publisher count once.
+    """
+    found, verified = set(), []
     for atom in atoms:
         real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
         if real is None:
             continue
+        verified.append(atom.id)
         try:
             found.add(file_identity(real))
         except OSError:
             continue
-    return len(found)
+    from knowledge_builder.ontology.claim_publishers import publisher_count
+
+    publishers = publisher_count(root, run_id, verified)
+    return len(found) if publishers is None else publishers
 
 
 def _has_execution_proof(root, run_id, atoms):

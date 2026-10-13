@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tests.test_ontology_support import run_cli
 
-TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
+TEMPLATES = Path(__file__).resolve().parent.parent / "src" / "knowledge_builder" / "templates"
 RUN = "r1"
 FETCHED = "2026-10-13T05:00:00+00:00"
 

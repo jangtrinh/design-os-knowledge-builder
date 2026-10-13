@@ -15,7 +15,14 @@ def normal_url(url):
 
 
 def slug(text, limit):
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:limit].strip("-")
+    """Lowercase kebab text of at most `limit` characters, cut at a word boundary (an overlong single word is hard-cut)."""
+    full = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    if len(full) <= limit:
+        return full
+    head = full[:limit]
+    if full[limit] != "-" and "-" in head:
+        head = head.rsplit("-", 1)[0]
+    return head.strip("-")
 
 
 def host_of(url):
