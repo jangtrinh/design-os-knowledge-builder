@@ -106,3 +106,23 @@ A link to a `deprecated` target is an error that names `superseded_by`. A duplic
 
 `action` runs one typed write: parameters, criteria (built-in functions), edit verbs `create-object`, `set`, `add-link`, `remove-link`, atomic write, `verify` on the root, then index rebuild and an appended line in `_actions/actions.jsonl`. The action is rejected, and every touched file (and `index.json`) is restored byte-for-byte, if `verify` reports any failure that was not already present before the action. `create-object` reads `_templates/<object_type>.md.tmpl` when present, else a built-in stub with the four mandatory headings.
 
+### 5.4 Interface-scoped checks and folders
+
+The `UKMC.v1` document checks (seven keys, non-empty `source_attribution`, the four headings, and under `--claims` the anchor and uncited-block checks) apply to every file in legacy mode and, in ontology mode, to objects whose type implements `sourced-document` (and to files with no readable `object_type`). Objects of other types are checked by their own interface; `claims/` and `sources/` are never skipped by the walk.
+
+An interface may list `rules:`; the only known rule is `anchors-match-cited-claims`. An object type may set `folder: <dir>`: `create-object` and `promote-claim` write there, and `verify` fails an object of that type that lives anywhere else. A link type's `from` / `to` may be an object type, an interface (any type implementing it) or a list of either.
+
+### 5.5 Claims, sources and claim anchors (starter ontology)
+
+| object | interface | keys |
+|---|---|---|
+| `claim` (`claims/`) | `evidence-claim`, sections `## Statement`, `## Evidence` | `statement`, `claim_type` (FACT, FAILURE_MODE, BENCHMARK, CONTRADICTION, INFERENCE), `confidence`, `atom_ids`, `evidence` = list of `{atom, run, source, evidence_uri, quote}`, `link_types` |
+| `source` (`sources/`) | `frozen-source`, section `## Capture` | `url`, `kind` (official, academic, vendor, practitioner, community), `publisher`, `captures` = list of `{evidence_uri, sha256, fetched}` |
+
+A source is a page or publisher, not one file: it may hold several captures. Checks (structural): every capture file exists under `_evidence/<run>/sources/` and matches its sha256; every claim evidence entry names a source object, a `supported-by` link to it, and one of its captures; `atom_ids` lists the evidence atoms in order; the `## Statement` section repeats `statement`; a `CONTRADICTION` claim has a `contradicts` link. Under `--claims`: each quote occurs in its capture file and each atom is in the run ledger with that capture.
+
+Documents that implement `sourced-document` in the starter ontology cite with `<!-- ease:claim id=<claim-id> -->` (the only attribute is `id`). The rule `anchors-match-cited-claims` requires set equality between the anchor ids and the `cites` links, and rejects `ease:source` anchors in such a document. Outside ontology mode, and in ontology roots whose `sourced-document` lists no rule, `ease:source` anchors work as before.
+
+Functions follow the chain document -> `cites` -> claim -> `supported-by` -> source -> captures: `evidence-age-days` is the age of the oldest capture the cited claims rest on, `source-count` is the number of distinct source publishers behind them (not files), `claims-verified` also covers the cited claims and their sources, and `runs-stop-sufficient` includes the runs of those captures. A `CONTRADICTION` atom counts as resolved for the stopping gate when a live claim records it and links the claim it contradicts; `state.json` `resolved` is still honoured.
+
+`promote-claim` is an action implemented in code (parameters `atom`, `run`, `into`, `id`, `kind`, `publisher`, `contradicted_kind`; `--batch <file.jsonl>` runs several with one verify). `deprecate` works on a claim; while a document still cites it, `verify` rejects the deprecation and names every such document, and `pack status` / `pack check` list the documents to re-link or re-word.
