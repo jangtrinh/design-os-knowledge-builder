@@ -89,6 +89,16 @@ def _write(root, core):
     return text
 
 
+def _claims_for(core):
+    """Run verify --claims on a one-note root whose Core section is `core`."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write(root, core)
+        return _run(["knowledge-builder", "verify", "--claims", str(root)])
+
+
 def _line_of(text, needle):
     for number, line in enumerate(text.splitlines(), 1):
         if needle in line:

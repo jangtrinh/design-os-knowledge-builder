@@ -210,14 +210,30 @@ def _uncited_blocks(text, rel):
     blocks, cited = _blocks(tokens, start, end)
     failures = []
     exempt = 0
-    for index, (begin, _finish, lines) in enumerate(blocks):
-        if _is_exempt(lines):
+    previous = None
+    for index, (begin, finish, lines, kind) in enumerate(blocks):
+        labeled = kind == "text" and _is_exempt(lines)
+        if labeled or _labeled_above(previous, begin, kind):
             exempt += 1
+            previous = (finish, kind, labeled)
             continue
+        previous = (finish, kind, labeled)
         if index in cited:
             continue
         failures.append(f"{rel}:{begin}: uncited block: {_preview(lines)}")
     return failures, exempt
+
+
+def _labeled_above(previous, begin, kind):
+    """A table or fence whose first line follows a label line directly is exempt.
+
+    previous is (last line, kind, is a label block). A blank line between them
+    breaks it, and the label exempts only the one block beneath it.
+    """
+    if previous is None or kind not in ("table", "fence"):
+        return False
+    finish, _prev_kind, labeled = previous
+    return labeled and begin == finish + 1
 
 
 def _core_bounds(tokens):
@@ -282,7 +298,7 @@ def _fence_block(tokens, index, end):
         finish = tokens[index - 1].line
     else:
         finish = begin
-    return index, (begin, finish, lines)
+    return index, (begin, finish, lines, "fence")
 
 
 def _table_block(tokens, index, end):
@@ -293,7 +309,7 @@ def _table_block(tokens, index, end):
         lines.append(tokens[index].text)
         finish = tokens[index].line
         index += 1
-    return index, (begin, finish, lines)
+    return index, (begin, finish, lines, "table")
 
 
 def _text_block(tokens, index, end):
@@ -305,7 +321,7 @@ def _text_block(tokens, index, end):
         lines.append(tokens[index].text)
         finish = tokens[index].line
         index += 1
-    return index, (begin, finish, lines)
+    return index, (begin, finish, lines, "text")
 
 
 def _text_stops(tokens, index, end):
