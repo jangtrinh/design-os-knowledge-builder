@@ -63,6 +63,15 @@ class TestLabelExemptsBlock(unittest.TestCase):
                 self.assertNotEqual(code, 0, out + err)
                 self.assertEqual(len(_uncited(out)), 1, out)
 
+    def test_the_line_immediately_above_must_be_the_label(self):
+        """A label two lines up, with an unlabeled line between, exempts nothing."""
+        for block in (TABLE, FENCE):
+            with self.subTest(block=block):
+                code, out, err = _claims_for(f"{CITED}\nDerived: ours.\nan unlabeled line\n{block}")
+                self.assertNotEqual(code, 0, out + err)
+                self.assertEqual(len(_uncited(out)), 1, out)
+                self.assertIn("exempt blocks: 1", out)
+
     def test_mid_sentence_label_does_not_exempt(self):
         code, out, err = _claims_for(f"{CITED}\nThe note mentions Derived: here.\n{TABLE}")
         self.assertNotEqual(code, 0, out + err)

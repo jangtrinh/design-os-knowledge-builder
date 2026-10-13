@@ -179,6 +179,31 @@ class TestVersionNotApplicable(unittest.TestCase):
             self.assertEqual(decision.state, TerminationState.DEEPEN)
             self.assertFalse(decision.hard_gates_passed)
 
+    def test_declared_not_applicable_never_falls_back_to_the_matched_flag(self):
+        """Declared not_applicable passes only through a reason, even if matched is true."""
+        for reason in (None, "", "  "):
+            decision = evaluate_stopping_gate(
+                _passing(is_target_version_matched=True, version_not_applicable=True, version_reason=reason)
+            )
+            self.assertEqual(decision.state, TerminationState.DEEPEN)
+            self.assertFalse(decision.hard_gates_passed)
+            self.assertIn("version_reason is missing", decision.reason)
+
+    def test_ledger_declared_not_applicable_without_reason_ignores_matched_true(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _fixture(
+                root,
+                version_applicability="not_applicable",
+                is_target_version_matched=True,
+                consecutive_low_delta_rounds=3,
+                last_weighted_delta=0.01,
+                has_viable_probe_remaining=False,
+            )
+            code, out, err = _gate(root)
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("version_reason is missing", out)
+
     def test_saturation_label_names_low_delta_rounds(self):
         decision = evaluate_stopping_gate(
             _passing(consecutive_low_delta_rounds=0, last_weighted_delta=0.0949)

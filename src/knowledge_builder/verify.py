@@ -212,15 +212,14 @@ def _uncited_blocks(text, rel):
     exempt = 0
     previous = None
     for index, (begin, finish, lines, kind) in enumerate(blocks):
-        labeled = kind == "text" and _is_exempt(lines)
-        if labeled or _labeled_above(previous, begin, kind):
+        own_label = kind == "text" and _is_exempt(lines)
+        last_is_label = kind == "text" and _is_exempt(lines[-1:])
+        previous_next = (finish, kind, last_is_label)
+        if own_label or _labeled_above(previous, begin, kind):
             exempt += 1
-            previous = (finish, kind, labeled)
-            continue
-        previous = (finish, kind, labeled)
-        if index in cited:
-            continue
-        failures.append(f"{rel}:{begin}: uncited block: {_preview(lines)}")
+        elif index not in cited:
+            failures.append(f"{rel}:{begin}: uncited block: {_preview(lines)}")
+        previous = previous_next
     return failures, exempt
 
 

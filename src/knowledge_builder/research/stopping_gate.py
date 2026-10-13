@@ -112,7 +112,11 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     """
     minimum_sources = _require_minimum_sources(inp.minimum_independent_sources)
     na_reason = version_not_applicable_reason(inp)
-    version_ok = na_reason is not None or bool_or_absent(inp, "is_target_version_matched", absent=False)
+    if getattr(inp, "version_not_applicable", False) is True:
+        # A declaration is judged by its reason alone; the matched flag cannot rescue it.
+        version_ok = na_reason is not None
+    else:
+        version_ok = bool_or_absent(inp, "is_target_version_matched", absent=False)
     version_note = f"not applicable: {na_reason}" if na_reason is not None else None
     probe_remaining = bool_or_absent(inp, "has_viable_probe_remaining", absent=True)
 
