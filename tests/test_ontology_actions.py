@@ -85,7 +85,6 @@ class TestRollback(ActionCase):
         self.assertFalse((self.root / "_actions").exists())
 
     def test_index_failure_after_write_rolls_back(self):
-        before = snapshot(self.root)
         (self.root / "index.json").write_text("[]", encoding="utf-8")  # stale but valid
         before = snapshot(self.root)
         from unittest.mock import patch
