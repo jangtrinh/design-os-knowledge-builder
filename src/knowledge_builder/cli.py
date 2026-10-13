@@ -192,6 +192,9 @@ def main():
     p_index.set_defaults(func=cmd_index)
 
     register_run(subparsers, _Parser)
+    from knowledge_builder.cli_ontology import register_ontology
+
+    register_ontology(subparsers, _Parser)
 
     args = parser.parse_args()
     args.func(args)
