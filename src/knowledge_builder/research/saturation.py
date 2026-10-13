@@ -8,7 +8,6 @@ module under the root, so it changed a claim, a failure mode, or a Decision.
 """
 
 import re
-import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -124,7 +123,7 @@ def cmd_run_measure(args):
     if not args.write_state:
         return
     if last is None:
-        print("nothing to write: only a baseline round is recorded", file=sys.stderr)
+        print("nothing to write: only a baseline round is recorded")
         return
     state = dict(state)
     state["consecutive_low_delta_rounds"] = trailing
