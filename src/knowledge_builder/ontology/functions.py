@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from knowledge_builder.ontology.cited_paths import resolve_inside
 from knowledge_builder.ontology.objects import message_file
 from knowledge_builder.ontology.run_gate import runs_stop_sufficient as _runs_stop_sufficient
 
@@ -53,11 +54,21 @@ def source_count(ctx, ident):
 _FETCHED = re.compile(r"^Fetched:\s*(\S+)", re.MULTILINE)
 
 
-def _cited_moment(path):
-    """When a cited source was captured: its `Fetched:` header line, else the file mtime."""
+def _capture_header(path):
+    """Lines before the first blank line: where the freeze tools write Source-URL: and Fetched:."""
     with path.open("rb") as handle:
-        head = handle.read(4096).decode("utf-8", errors="replace")
-    match = _FETCHED.search(head)
+        text = handle.read(8192).decode("utf-8", errors="replace")
+    header = []
+    for line in text.splitlines():
+        if not line.strip():
+            break
+        header.append(line)
+    return "\n".join(header)
+
+
+def _cited_moment(path):
+    """When a cited source was captured: `Fetched:` in its leading capture header, else the file mtime."""
+    match = _FETCHED.search(_capture_header(path))
     if match:
         try:
             moment = datetime.datetime.fromisoformat(match.group(1).replace("Z", "+00:00"))
@@ -74,7 +85,7 @@ def evidence_age_days(ctx, ident):
     moments = []
     for item in sources if isinstance(sources, list) else []:
         uri = item.get("uri") if isinstance(item, dict) else None
-        path = (ctx.root / uri) if isinstance(uri, str) and not uri.startswith("/") else None
+        path = resolve_inside(ctx.root, uri)
         if path is not None and path.is_file():
             moments.append(_cited_moment(path))
     if not moments:
