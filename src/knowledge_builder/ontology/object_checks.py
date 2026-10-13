@@ -1,6 +1,7 @@
 """Per-object checks: object_type, interface contract, property rules, closed key set, unique id."""
 
 import re
+from pathlib import PurePosixPath
 
 from knowledge_builder.anchors import heading_present, visible_lines
 from knowledge_builder.ontology.objects import format_error
@@ -32,9 +33,17 @@ def _one(ontology, obj):
         return [format_error(obj.rel, f"object_type '{kind}' is an interface, not an object type", "/object_type")]
     if kind not in ontology.object_types:
         return [format_error(obj.rel, f"object_type '{kind}' is not declared in ontology.yaml", "/object_type")]
-    failures = _interface(ontology, obj, kind)
+    failures = _folder(ontology, obj, kind)
+    failures += _interface(ontology, obj, kind)
     failures += _properties(ontology, obj, kind)
     return failures + _closed_keys(ontology, obj, kind)
+
+
+def _folder(ontology, obj, kind):
+    folder = ontology.folder_of(kind)
+    if folder is None or PurePosixPath(obj.rel).parent.as_posix() == folder:
+        return []
+    return [format_error(obj.rel, f"object_type '{kind}' must live in the '{folder}/' folder", "/object_type")]
 
 
 def _interface(ontology, obj, kind):

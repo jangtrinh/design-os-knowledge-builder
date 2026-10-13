@@ -71,6 +71,10 @@ def cited_quotes(root):
             quote = attrs.get("quote")
             if isinstance(quote, str) and quote.strip():
                 quotes.add(normalise_newlines(quote))
+    if (root / "ontology.yaml").is_file():
+        from knowledge_builder.ontology.claim_quotes import cited_claim_quotes
+
+        quotes |= cited_claim_quotes(root)
     return quotes
 
 

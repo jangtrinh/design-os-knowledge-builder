@@ -31,6 +31,14 @@ DEFAULT_ACTIONS = {
             {"set": {"object": "target", "key": "superseded_by", "value": "$replacement"}},
         ],
     },
+    "resolve-contradiction": {
+        "parameters": {"claim": OBJECT, "resolution": STRING},
+        "criteria": [
+            {"function": "claim-type-is", "args": ["claim", "CONTRADICTION"]},
+            {"function": "non-blank", "args": ["resolution"]},
+        ],
+        "edits": [{"set": {"object": "claim", "key": "resolution", "value": "$resolution"}}],
+    },
     "promote-trust-tier": {
         "parameters": {"target": OBJECT, "tier": STRING},
         "criteria": [

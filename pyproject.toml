@@ -35,3 +35,6 @@ knowledge-builder = "knowledge_builder.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+knowledge_builder = ["templates/*.yaml", "templates/_templates/*.tmpl"]

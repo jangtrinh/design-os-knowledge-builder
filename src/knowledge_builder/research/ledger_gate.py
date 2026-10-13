@@ -38,7 +38,7 @@ def ledger_evaluation_input(root, run_id):
         independent_sources_count=_independent_sources(root, run_id, atoms),
         has_execution_proof=_has_execution_proof(root, run_id, atoms),
         has_counterevidence_searched=_has_failure_mode(root, run_id, atoms),
-        unresolved_contradictions_count=_unresolved_contradictions(state, atoms),
+        unresolved_contradictions_count=_unresolved_contradictions(state, atoms, _claim_resolved(root, run_id)),
         is_target_version_matched=_version_matched(state),
         consecutive_low_delta_rounds=_nonneg_int(state.get("consecutive_low_delta_rounds"), 0),
         last_weighted_delta=_delta(state),
@@ -132,17 +132,25 @@ def _atom_verifies_claim(root, run_id, atom, claim_id):
 
 
 def _independent_sources(root, run_id, atoms):
-    """Distinct inodes under this run's sources/. Aliases do not add a source."""
-    found = set()
+    """Distinct inodes under this run's sources/ (aliases do not add a source).
+
+    In a pack (ontology.yaml with a frozen-source type) it is the distinct publishers of the Source objects the
+    verified atoms map to, so two pages of one publisher count once.
+    """
+    found, verified = set(), []
     for atom in atoms:
         real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
         if real is None:
             continue
+        verified.append(atom.id)
         try:
             found.add(file_identity(real))
         except OSError:
             continue
-    return len(found)
+    from knowledge_builder.ontology.claim_publishers import publisher_count
+
+    publishers = publisher_count(root, run_id, verified)
+    return len(found) if publishers is None else publishers
 
 
 def _has_execution_proof(root, run_id, atoms):
@@ -164,9 +172,16 @@ def _has_failure_mode(root, run_id, atoms):
     return False
 
 
-def _unresolved_contradictions(state, atoms):
+def _claim_resolved(root, run_id):
+    """Contradiction atoms an ontology root has recorded as live claims with a contradicts link."""
+    from knowledge_builder.ontology.claim_resolution import resolved_atoms
+
+    return resolved_atoms(root, run_id)
+
+
+def _unresolved_contradictions(state, atoms, claim_resolved=frozenset()):
     raw = state.get("resolved") or []
-    listed = {item for item in raw if isinstance(item, str)} if isinstance(raw, list) else set()
+    listed = ({item for item in raw if isinstance(item, str)} if isinstance(raw, list) else set()) | set(claim_resolved)
     count = 0
     for atom in atoms:
         if atom.claim_type != "CONTRADICTION":

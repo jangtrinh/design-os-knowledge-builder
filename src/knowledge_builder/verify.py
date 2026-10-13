@@ -9,6 +9,10 @@ from knowledge_builder.anchors import heading_present, parse_attributes, tokeniz
 from knowledge_builder.anchors import AnchorSyntaxError
 from knowledge_builder.containment import ContainmentError, read_text_inside, require_inside
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
+from knowledge_builder.ontology.checks import ontology_failures
+from knowledge_builder.ontology.claim_anchors import well_formed_ids
+from knowledge_builder.ontology.schema import OntologyError, load_ontology
+from knowledge_builder.ontology.scope import claim_anchor_kinds, v1_applies
 from knowledge_builder.quote_check import file_contains_quote
 
 
@@ -60,6 +64,7 @@ def verify_root(root, claims=False):
     failures = []
     found, walk_errors = _markdown_files(root)
     failures.extend(walk_errors)
+    ontology = _load_ontology(root)
     for path in found:
         files += 1
         rel = path.relative_to(root).as_posix()
@@ -79,10 +84,12 @@ def verify_root(root, claims=False):
         except FrontmatterError as exc:
             failures.append(f"{rel}: {exc}")
             data = None
-        if data is not None:
+        v1 = v1_applies(ontology, data)
+        if data is not None and v1:
             _check_metadata(data, rel, failures)
             _check_sources(root, rel, data.get("source_attribution"), failures)
-        _check_headings(text, rel, failures)
+        if v1:
+            _check_headings(text, rel, failures)
         checked = 0
         for index, attrs in enumerate(parsed_anchors):
             if attrs is None:
@@ -91,16 +98,24 @@ def verify_root(root, claims=False):
             _check_ref(root, rel, attrs.get("uri"), attrs.get("sha256"), failures, where)
             if claims and _check_anchor_quote(root, rel, attrs, failures, where):
                 checked += 1
-        if claims:
-            block_failures, exempt_here = _uncited_blocks(text, rel)
+        claim_ids = well_formed_ids(text) if ontology is not None and v1 else []
+        anchors += len(claim_ids)
+        if claims and v1:
+            block_failures, exempt_here = _uncited_blocks(text, rel, claim_anchor_kinds(ontology))
             failures.extend(block_failures)
             exempt_blocks += exempt_here
-        if claims and checked == 0:
-            failures.append(f"{rel}: no claim was checked")
-    from knowledge_builder.ontology.checks import ontology_failures
-
-    failures.extend(ontology_failures(root))
+            if checked + len(claim_ids) == 0:
+                failures.append(f"{rel}: no claim was checked")
+    failures.extend(ontology_failures(root, claims=claims))
     return files, anchors, failures, exempt_blocks
+
+
+def _load_ontology(root):
+    """The ontology, or None in legacy mode or when ontology.yaml is broken (reported by ontology_failures)."""
+    try:
+        return load_ontology(root)
+    except OntologyError:
+        return None
 
 
 def _markdown_files(root):
@@ -199,13 +214,13 @@ def _check_headings(text, rel, failures):
             failures.append(f"{rel}: missing heading {heading}")
 
 
-def _uncited_blocks(text, rel):
+def _uncited_blocks(text, rel, kinds=("source",)):
     """Failure lines for Core blocks with no ease:source, plus the exempt count.
 
     Tokens come from one pass. An anchor cites only the block that ended when
     the anchor started. A later block on the anchor's closing line stays open.
     """
-    tokens = tokenize_document(text)
+    tokens = tokenize_document(text, kinds)
     bounds = _core_bounds(tokens)
     if bounds is None:
         return [], 0
