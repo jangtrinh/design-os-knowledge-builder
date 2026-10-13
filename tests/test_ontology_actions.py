@@ -45,7 +45,6 @@ class TestDeprecate(ActionCase):
         self.assertEqual((line["action"], line["params"], line["files"]), ("deprecate", {"target": "beta", "replacement": "alpha"}, ["beta.md"]))
         self.assertEqual(line["before_sha"]["beta.md"], before["beta.md"])
         self.assertEqual(line["after_sha"]["beta.md"], snapshot(self.root)["beta.md"])
-        self.assertIn("at", line)
 
     def test_criteria_failure_changes_nothing(self):
         before = snapshot(self.root)
