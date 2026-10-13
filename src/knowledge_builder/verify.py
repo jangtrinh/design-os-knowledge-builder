@@ -97,6 +97,9 @@ def verify_root(root, claims=False):
             exempt_blocks += exempt_here
         if claims and checked == 0:
             failures.append(f"{rel}: no claim was checked")
+    from knowledge_builder.ontology.checks import ontology_failures
+
+    failures.extend(ontology_failures(root))
     return files, anchors, failures, exempt_blocks
 
 

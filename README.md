@@ -195,6 +195,20 @@ python3 -m knowledge_builder.cli gate --root <knowledge-root> --run-id <run>
 - A quote that contains `"` is written with single quotes: `<!-- ease:source uri=... sha256=... quote='He said "go".' -->`. A quote holding both `"` and `'` cannot be written in either form; verify reports a malformed anchor, so cite a shorter fragment.
 - A `Derived:`, `Observed:`, or `Decision:` line directly above a table or code fence (the very next line, no blank line) exempts that one block. A blank line in between, or the label below the block, does not.
 
+### 7. Ontology layer (optional, per knowledge root)
+A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
+```bash
+# verify also checks object_type, interface contract, closed keys, links and lifecycle
+python3 -m knowledge_builder.cli verify <knowledge-root>
+# index adds object_type, status, links_out, links_in and derived source_count / evidence_age_days / links_in_count
+python3 -m knowledge_builder.cli index --root <knowledge-root>
+# read-only object sets over index.json (refuses a stale index: run index)
+python3 -m knowledge_builder.cli query --root <knowledge-root> --object-type concept --status active --fields id,links_in_count
+# typed local write: criteria, atomic edit, verify, rollback on failure, index rebuild, log line in _actions/actions.jsonl
+python3 -m knowledge_builder.cli action deprecate --root <knowledge-root> --param target=old-id --param replacement=new-id
+```
+Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier` (to `verified` it also needs the stopping gate to return STOP_SUFFICIENT for every `_evidence/<run>` the file cites). Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default.
+
 ---
 
 ## 🌐 Ecosystem & Cross-Marketing
