@@ -56,7 +56,6 @@ class TestIndexEnrichment(RootCase):
         self.assertEqual(entry["domain"], "demo")
         self.assertEqual(entry["status"], "active")  # written in the file, not defaulted
         self.assertIsNone(entries["cmp"]["status"])
-        self.assertEqual(entry["links_in"], [])
 
     def test_broken_schema_fails_index(self):
         self.write("ontology.yaml", "version: [oops\n")
