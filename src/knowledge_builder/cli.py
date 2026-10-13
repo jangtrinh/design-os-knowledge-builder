@@ -226,6 +226,9 @@ def main():
     from knowledge_builder.cli_ontology import register_ontology
 
     register_ontology(subparsers, _Parser)
+    from knowledge_builder.pack.cli_pack import register_pack
+
+    register_pack(subparsers, _Parser)
 
     args = parser.parse_args()
     args.func(args)
