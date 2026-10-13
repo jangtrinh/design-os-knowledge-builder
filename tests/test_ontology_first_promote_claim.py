@@ -3,6 +3,8 @@
 import json
 import unittest
 
+from knowledge_builder.frontmatter import parse_frontmatter
+
 from knowledge_builder.ontology.actions import ActionError, run_action
 from tests.pack_support import PackCase, add_atom, scaffold_root
 
@@ -97,6 +99,23 @@ class TestPromote(PromoteCase):
         self.assertEqual(self.ids("sources"), ["docs-one-example-guide"])
         self.assertIn("page-one-again.txt", self.read("sources/docs-one-example-guide.md"))
         self.assertEqual(self.verify(claims=True), [])
+
+    def test_quotes_colons_unicode_and_newlines_survive_the_round_trip(self):
+        body = 'He said "go": 100% — naïve café\nsecond line # not a comment'
+        add_atom(self.root, "sp", "special", body, statement='Claim: "quoted" text\nwith a second line', url="https://special.example/x?a=1&b=2")
+        self.promote(atom="sp", id="special-claim")
+        self.assertEqual(self.verify(claims=True), [])
+        evidence = parse_frontmatter(self.read("claims/special-claim.md"))["evidence"][0]
+        self.assertEqual(evidence["quote"], body)
+        self.assertEqual(parse_frontmatter(self.read("claims/special-claim.md"))["statement"], 'Claim: "quoted" text\nwith a second line')
+        self.assertEqual(parse_frontmatter(self.read("sources/special-example-x.md"))["url"], "https://special.example/x?a=1&b=2")
+
+    def test_statement_that_would_break_the_body_is_rejected_and_rolled_back(self):
+        add_atom(self.root, "bad", "bad-statement", "Fine text.", statement="Line one\n## Evidence\nforged", url="https://bad.example/x")
+        with self.assertRaises(ActionError) as caught:
+            self.promote(atom="bad")
+        self.assertIn("## Statement section must repeat the statement", str(caught.exception))
+        self.assertEqual(self.ids("claims"), [])
 
     def test_log_line_per_promotion(self):
         self.promote(atom="a1")

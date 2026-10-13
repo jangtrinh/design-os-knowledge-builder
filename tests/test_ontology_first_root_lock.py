@@ -1,8 +1,12 @@
 """C-A5: every action runs under one root-wide lock; parallel actions serialize and lose nothing."""
 
 import json
+import os
+import subprocess
+import sys
 import threading
 import unittest
+from pathlib import Path
 
 from knowledge_builder.ontology.action_lock import root_lock
 from knowledge_builder.ontology.actions import ActionError, run_action
@@ -66,6 +70,35 @@ class TestRootLock(PackCase):
         with self.assertRaises(ActionError):
             run_action(self.root, "promote-claim", {"atom": "ghost", "kind": "official"})
         self.assertEqual(sorted(p.relative_to(self.root).as_posix() for p in self.root.rglob("*")), before)
+
+
+class TestParallelProcesses(PackCase):
+    def test_parallel_processes_chain_their_log_records_on_a_shared_source(self):
+        scaffold_root(self.root)
+        for index in range(4):
+            add_atom(self.root, f"a{index}", f"page-{index}", f"Shared page fact {index}.", url="https://shared.example/page")
+        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parent.parent / "src")}
+        procs = [
+            subprocess.Popen(
+                [sys.executable, "-m", "knowledge_builder.cli", "action", "promote-claim", "--root", str(self.root),
+                 "--param", f"atom=a{i}", "--param", "kind=official"],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            for i in range(4)
+        ]
+        results = [(p.wait(), p.stdout.read(), p.stderr.read()) for p in procs]
+        self.assertEqual([r[0] for r in results], [0, 0, 0, 0], results)
+        log = [json.loads(line) for line in (self.root / "_actions" / "actions.jsonl").read_text().splitlines()]
+        self.assertEqual(len(log), 4)
+        source = "sources/shared-example-page.md"
+        touching = [r for r in log if source in r["files"]]
+        self.assertEqual(len(touching), 4)  # first creates it, the other three append a capture
+        self.assertIsNone(touching[0]["before_sha"][source])
+        for previous, record in zip(touching, touching[1:]):
+            self.assertEqual(record["before_sha"][source], previous["after_sha"][source])
+        self.assertEqual(self.read(source).count("evidence_uri:"), 4)
+        self.assertEqual(self.verify(claims=True), [])
+        self.assertEqual(len(json.loads(self.read("index.json"))), 5)  # 4 claims + 1 source
 
 
 if __name__ == "__main__":
