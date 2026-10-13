@@ -40,7 +40,7 @@ class TestScopedVerify(PackCase):
 
     def test_document_still_gets_v1_checks(self):
         build_basic(self.root)
-        self.replace("doc-1.md", "## Purpose", "## Purpose Gone")
+        self.replace("doc-1.md", "## Purpose", "## Intro")
         failures = self.verify(claims=False)
         self.assertTrue(any("doc-1.md" in f and "missing heading ## Purpose" in f for f in failures), failures)
 
