@@ -88,7 +88,7 @@ def _create_claim(root, state, stage, run, atom, wanted_id, kind, publisher, lin
         text = add_link(text, link_type, target)
     stage.files[rel] = text
     state.add_claim(ident, rel, {
-        "claim_type": atom.claim_type, "atom_ids": [atom.id], "evidence": [entry],
+        "claim_type": atom.claim_type, "status": "active", "atom_ids": [atom.id], "evidence": [entry],
         "link_types": [{"link_type": t, "target_id": i} for t, i in [("supported-by", source_id), *links]],
     })
     state.promoted[(run, atom.id)] = ident

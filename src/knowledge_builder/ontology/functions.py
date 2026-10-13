@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from knowledge_builder.ontology.cited_paths import resolve_inside
+from knowledge_builder.ontology.claim_chain import traverse
 from knowledge_builder.ontology.objects import message_file
 from knowledge_builder.ontology.run_gate import runs_stop_sufficient as _runs_stop_sufficient
 
@@ -41,12 +42,19 @@ def claims_verified(ctx, ident):
     obj = ctx.graph.get(ident)
     if obj is None:
         return False
+    chain = traverse(ctx.graph, obj)
+    watched = {obj.rel} | (chain.rels if chain else set())
     _files, _anchors, failures, _exempt = verify_root(ctx.root, claims=True)
-    return not any(message_file(message) == obj.rel for message in failures)
+    return not any(message_file(message) in watched for message in failures)
 
 
 def source_count(ctx, ident):
+    """Independent sources: distinct publishers behind a document's cited claims (or a claim's evidence);
+    the length of source_attribution for any object that cites no claim."""
     obj = ctx.graph.get(ident)
+    chain = traverse(ctx.graph, obj)
+    if chain is not None and chain.sources:
+        return len(chain.publishers())
     sources = obj.data.get("source_attribution") if obj and obj.data else None
     return len(sources) if isinstance(sources, list) else 0
 
@@ -78,9 +86,25 @@ def _cited_moment(path):
     return datetime.datetime.fromtimestamp(path.stat().st_mtime, datetime.timezone.utc)
 
 
+def _fetched(capture, path):
+    try:
+        moment = datetime.datetime.fromisoformat(str(capture.get("fetched")).replace("Z", "+00:00"))
+        return moment if moment.tzinfo else moment.replace(tzinfo=datetime.timezone.utc)
+    except ValueError:
+        return _cited_moment(path) if path is not None and path.is_file() else None
+
+
 def evidence_age_days(ctx, ident):
-    """Whole days since the OLDEST cited source was captured; None when no cited file resolves."""
+    """Whole days since the OLDEST cited source was captured; None when no cited file resolves.
+
+    A document that cites claims, a claim, and a source are aged by the captures the claims rest on.
+    """
     obj = ctx.graph.get(ident)
+    chain = traverse(ctx.graph, obj)
+    if chain is not None and chain.captures:
+        moments = [m for _s, c in chain.captures if (m := _fetched(c, resolve_inside(ctx.root, c.get("evidence_uri")))) is not None]
+        if moments:
+            return max(0, (datetime.datetime.now(datetime.timezone.utc) - min(moments)).days)
     sources = obj.data.get("source_attribution") if obj and obj.data else None
     moments = []
     for item in sources if isinstance(sources, list) else []:
@@ -95,7 +119,7 @@ def evidence_age_days(ctx, ident):
 
 def runs_stop_sufficient(ctx, ident, tier):
     obj = ctx.graph.get(ident)
-    return obj is not None and _runs_stop_sufficient(ctx.root, obj, tier)
+    return obj is not None and _runs_stop_sufficient(ctx.root, obj, tier, ctx.graph)
 
 
 def links_in_count(ctx, ident):
