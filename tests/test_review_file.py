@@ -117,7 +117,7 @@ class TestReviewFileSeparateDuty(unittest.TestCase):
                 "last_weighted_delta": 0.01,
                 "has_viable_probe_remaining": False,
                 "is_target_version_matched": True,
-                "researcher_runtime": "grok",
+                "researcher_runtime": "researcher-a",
             }
             state_path = run / "state.json"
             _write_json(state_path, state)
@@ -135,17 +135,17 @@ class TestReviewFileSeparateDuty(unittest.TestCase):
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("STOP_SUFFICIENT", out)
 
-            _write_json(review_path, {"passed": True, "reviewer_runtime": "grok"})
+            _write_json(review_path, {"passed": True, "reviewer_runtime": "researcher-a"})
             code, out, err = _run(argv)
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("STOP_SUFFICIENT", out)
 
-            _write_json(review_path, {"passed": False, "reviewer_runtime": "codex"})
+            _write_json(review_path, {"passed": False, "reviewer_runtime": "reviewer-b"})
             code, out, err = _run(argv)
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("STOP_SUFFICIENT", out)
 
-            _write_json(review_path, {"passed": True, "reviewer_runtime": "codex"})
+            _write_json(review_path, {"passed": True, "reviewer_runtime": "reviewer-b"})
             code, out, err = _run(argv)
             self.assertEqual(code, 0, out + err)
             self.assertIn("STOP_SUFFICIENT", out)
@@ -162,7 +162,7 @@ class TestReviewFileSeparateDuty(unittest.TestCase):
                 json.dumps(claim) + "\n" + json.dumps(failure) + "\n",
                 encoding="utf-8",
             )
-            state["researcher_runtime"] = "grok"
+            state["researcher_runtime"] = "researcher-a"
             _write_json(state_path, state)
             code, out, err = _run(argv)
             self.assertNotEqual(code, 0, out + err)

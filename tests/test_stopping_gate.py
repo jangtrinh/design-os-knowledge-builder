@@ -65,7 +65,7 @@ class TestStoppingGateScenarios(unittest.TestCase):
         res = evaluate_stopping_gate(_passing(has_counterevidence_searched=False))
         self.assertEqual(res.state, TerminationState.DEEPEN)
 
-    def test_f13_only_a_remaining_probe_blocks_stop(self):
+    def test_only_a_remaining_probe_blocks_stop(self):
         """A passing ledger with one probe left must not stop."""
         res = evaluate_stopping_gate(_passing(has_viable_probe_remaining=True))
         self.assertNotEqual(res.state, TerminationState.STOP_SUFFICIENT)

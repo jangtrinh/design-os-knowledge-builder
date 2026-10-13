@@ -1,4 +1,7 @@
-"""Round-3 reproductions. Each case starts from a passing fixture and breaks one thing."""
+"""Minimum sources, attribute parsing, headings, and contained writes.
+
+Each case starts from a passing fixture and breaks one thing.
+"""
 
 import json
 import os
@@ -11,7 +14,7 @@ from knowledge_builder.anchors import AnchorSyntaxError, heading_present, parse_
 from knowledge_builder.containment import ContainmentError, atomic_write
 from knowledge_builder.research.ledger import AtomicResearchLedger, EvidenceAtom
 from knowledge_builder.research.stopping_gate import TerminationState, evaluate_stopping_gate
-from .test_review_findings import _gate, _knowledge, _run, _sha, _write_sufficient
+from .test_ledger_index_and_anchor_guards import _gate, _knowledge, _run, _sha, _write_sufficient
 from .test_stopping_gate import _passing
 
 
@@ -32,8 +35,8 @@ def _short_once(real):
     return fake
 
 
-class TestRound3Findings(unittest.TestCase):
-    def test_f06_missing_minimum_blocks_stop(self):
+class TestWriteContainmentAndParseRules(unittest.TestCase):
+    def test_missing_minimum_blocks_stop(self):
         """Deleting minimum_independent_sources must not default to 2 and STOP."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -49,7 +52,7 @@ class TestRound3Findings(unittest.TestCase):
             self.assertNotIn("STOP_SUFFICIENT", out)
             self.assertIn("minimum_independent_sources", out + err)
 
-    def test_f16_evaluator_rejects_invalid_minimum_sources(self):
+    def test_evaluator_rejects_invalid_minimum_sources(self):
         """minimum_independent_sources below 1 or non-int must not STOP."""
         self.assertEqual(evaluate_stopping_gate(_passing()).state, TerminationState.STOP_SUFFICIENT)
         for bad in (0, -1, True, False, 1.0, "2", None):
@@ -61,7 +64,7 @@ class TestRound3Findings(unittest.TestCase):
                 self.assertNotEqual(decision.state, TerminationState.STOP_SUFFICIENT)
                 self.assertIsNone(decision.certificate)
 
-    def test_f15_short_write_is_not_success(self):
+    def test_short_write_is_not_success(self):
         """A half-length os.write must not publish truncated bytes."""
         payload = b'{"phase":"complete","pad":"0123456789"}\n'
         with tempfile.TemporaryDirectory() as tmp:
@@ -114,7 +117,7 @@ class TestRound3Findings(unittest.TestCase):
                     atomic_write(directory, "state.json", payload)
             self.assertFalse((directory / "state.json").exists())
 
-    def test_f10_glued_attributes_are_rejected(self):
+    def test_glued_attributes_are_rejected(self):
         """quote="a" uri="b" parses. quote="a"uri="b" does not."""
         self.assertEqual(parse_attributes('quote="a" uri="b"'), {"quote": "a", "uri": "b"})
         with self.assertRaises(AnchorSyntaxError):
@@ -139,7 +142,7 @@ class TestRound3Findings(unittest.TestCase):
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("failures: 0", out)
 
-    def test_f11_hidden_headings_do_not_count(self):
+    def test_hidden_headings_do_not_count(self):
         """Headings in ~~~ fences, 4-space code, or an unclosed comment do not count."""
         self.assertTrue(_shows("## Purpose\n"))
         cases = {
@@ -184,7 +187,7 @@ class TestRound3Findings(unittest.TestCase):
                     self.assertNotEqual(code, 0, out + err)
                     self.assertIn("heading", out.lower())
 
-    def test_f14_directory_swap_does_not_publish_outside(self):
+    def test_directory_swap_does_not_publish_outside(self):
         """Renaming the dir and planting an outside symlink must not publish outside."""
         payload = b'{"kept": true}\n'
         with tempfile.TemporaryDirectory() as tmp:
@@ -220,7 +223,7 @@ class TestRound3Findings(unittest.TestCase):
             self.assertEqual((outside / "index.json").read_bytes(), b"OUTSIDE")
             self.assertEqual((renamed / "index.json").read_bytes(), payload)
 
-    def test_f01_reused_ledger_revalidates_on_write(self):
+    def test_reused_ledger_revalidates_on_write(self):
         """Replacing _evidence after construction must not redirect later writes."""
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -263,7 +266,7 @@ class TestRound3Findings(unittest.TestCase):
             self.assertFalse((outside / "run-1" / "state.json").exists())
             self.assertNotIn("hijack", (real_evidence / "run-1" / "state.json").read_text(encoding="utf-8"))
 
-    def test_f12_markdown_reread_stays_inside_root(self):
+    def test_markdown_reread_stays_inside_root(self):
         """Swapping a discovered markdown file for an outside symlink must fail closed."""
         uri = "_evidence/run-1/sources/note.txt"
         source = b'He said "no".\n'

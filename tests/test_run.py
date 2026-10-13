@@ -1,6 +1,6 @@
 """P1.1 run driver: init, record, status. Relative URIs only. No model calls.
 
-record of an atom whose source_uri is file:///Users/... exits non-zero and
+record of an atom whose source_uri is file:///home/example/notes.txt exits non-zero and
 leaves evidence.jsonl unchanged. A relative uri appends one line that
 load_atoms can round-trip.
 """
@@ -49,7 +49,7 @@ def _atom(source_uri, run_id="run-1"):
 
 class TestRunDriver(unittest.TestCase):
     def test_record_rejects_absolute_file_uri_and_round_trips_relative(self):
-        """file:///Users/... is refused. A relative uri appends one load_atoms line."""
+        """file:///home/example/notes.txt is refused. A relative uri appends one load_atoms line."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             code, out, err = _run(
@@ -69,7 +69,7 @@ class TestRunDriver(unittest.TestCase):
             evidence = root / "_evidence" / "run-1" / "evidence.jsonl"
             before = evidence.read_bytes()
 
-            bad = _atom("file:///Users/jangtrinh/secret.txt")
+            bad = _atom("file:///home/example/notes.txt")
             code, out, err = _run(
                 [
                     "knowledge-builder",

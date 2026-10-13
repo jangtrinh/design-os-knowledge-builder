@@ -19,7 +19,7 @@ from knowledge_builder.processors.video import process_video
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTERNAL_ROOT = "~/Products/jang-knowledge/<domain>/<topic>"
+EXTERNAL_ROOT = "<knowledge-root>/<domain>/<topic>"
 
 
 def _run(argv):

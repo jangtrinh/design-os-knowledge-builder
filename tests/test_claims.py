@@ -9,9 +9,6 @@ quote is UNCHECKED and does not increment required_claims_verified.
 import hashlib
 import io
 import json
-import shutil
-import subprocess
-import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -100,20 +97,6 @@ def _populate(root, source_body, *, quote=REAL):
     md.parent.mkdir(parents=True, exist_ok=True)
     md.write_text(_knowledge(digest, source_body, quote=quote), encoding="utf-8")
     return digest
-
-
-def export_committed_head(repo, dest):
-    """Extract `git archive HEAD` of repo into dest. The working tree is ignored."""
-    completed = subprocess.run(
-        ["git", "-C", str(repo), "archive", "HEAD"],
-        check=True,
-        capture_output=True,
-    )
-    with tarfile.open(fileobj=io.BytesIO(completed.stdout), mode="r:") as archive:
-        if hasattr(tarfile, "data_filter"):
-            archive.extractall(dest, filter="data")
-        else:
-            archive.extractall(dest)
 
 
 def _count(testcase, out, label):
@@ -211,7 +194,7 @@ def _ledger(root, atoms, required):
         "required_claim_ids": required,
         "minimum_independent_sources": 2,
         "last_weighted_delta": None,
-        "researcher_runtime": "grok",
+        "researcher_runtime": "researcher-a",
     }
     (run / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
@@ -299,96 +282,6 @@ class TestAtomQuotes(unittest.TestCase):
             atoms = AtomicResearchLedger("run-1", base_dir=root / "_evidence").load_atoms()
             self.assertEqual(len(atoms), 1)
             self.assertEqual(atoms[0].quote, REAL)
-
-
-class TestArchiveHeadExcludesUntracked(unittest.TestCase):
-    def test_copy_excludes_untracked_invalid_markdown(self):
-        """git archive HEAD keeps the committed note and drops an untracked .md."""
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = Path(tmp) / "repo"
-            repo.mkdir()
-            _populate(repo, REAL.encode("utf-8") + b"\n")
-            subprocess.run(
-                ["git", "-C", str(repo), "init"],
-                check=True,
-                capture_output=True,
-            )
-            subprocess.run(
-                ["git", "-C", str(repo), "add", "--", REL, URI],
-                check=True,
-                capture_output=True,
-            )
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(repo),
-                    "-c",
-                    "user.email=kb-test@example.com",
-                    "-c",
-                    "user.name=kb-test",
-                    "-c",
-                    "commit.gpgsign=false",
-                    "commit",
-                    "-m",
-                    "add note",
-                ],
-                check=True,
-                capture_output=True,
-            )
-            invalid = repo / "topic" / "invalid.md"
-            invalid.write_text("# invalid\n\nno frontmatter\n", encoding="utf-8")
-            self.assertTrue(invalid.is_file())
-
-            with tempfile.TemporaryDirectory() as copy:
-                dest = Path(copy)
-                export_committed_head(repo, dest)
-                self.assertTrue((dest / REL).is_file())
-                self.assertFalse((dest / "topic" / "invalid.md").exists())
-                self.assertEqual(list(dest.rglob("invalid.md")), [])
-
-
-class TestLiveKnowledgeRoot(unittest.TestCase):
-    def setUp(self):
-        repo = Path.home() / "Products" / "jang-knowledge"
-        if not repo.is_dir() or not (repo / ".git").exists() or shutil.which("git") is None:
-            self.skipTest("jang-knowledge repo or git is missing")
-        self._copy = tempfile.TemporaryDirectory()
-        self.addCleanup(self._copy.cleanup)
-        self.root = Path(self._copy.name)
-        try:
-            export_committed_head(repo, self.root)
-        except FileNotFoundError:
-            self.skipTest("jang-knowledge repo or git is missing")
-        except subprocess.CalledProcessError as exc:
-            detail = (exc.stderr or b"").decode("utf-8", "replace").lower()
-            if "not a git repository" in detail:
-                self.skipTest("jang-knowledge repo or git is missing")
-            raise
-
-    def test_verify_without_claims_stays_green_on_jang_knowledge(self):
-        """Structural verify of the committed knowledge root does not require quotes."""
-        code, out, err = _run(["knowledge-builder", "verify", str(self.root)])
-        self.assertNotIn("unrecognized arguments", err)
-        self.assertEqual(code, 0, out + err)
-        self.assertEqual(_count(self, out, "failures"), 0)
-        self.assertGreater(_count(self, out, "files"), 0)
-        self.assertGreater(_count(self, out, "anchors"), 0)
-
-    def test_verify_claims_stays_green_on_committed_jang_knowledge(self):
-        """Claim verify reads the committed tree, not untracked working-tree files."""
-        code, out, err = _run(["knowledge-builder", "verify", "--claims", str(self.root)])
-        self.assertNotIn("unrecognized arguments", err)
-        self.assertEqual(code, 0, out + err)
-        self.assertEqual(_count(self, out, "failures"), 0)
-        self.assertGreater(_count(self, out, "files"), 0)
-        self.assertGreater(_count(self, out, "anchors"), 0)
-
-    def test_index_stays_green_on_committed_jang_knowledge(self):
-        """index writes into the archive copy and leaves the knowledge repo untouched."""
-        code, out, err = _run(["knowledge-builder", "index", "--root", str(self.root)])
-        self.assertNotIn("unrecognized arguments", err)
-        self.assertEqual(code, 0, out + err)
 
 
 if __name__ == "__main__":

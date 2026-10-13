@@ -24,7 +24,7 @@ HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 ANCHOR = re.compile(r"<!--\s*ease:source\b(.*?)-->", re.DOTALL)
 OPEN_ANCHOR = re.compile(r"<!--\s*ease:source\b")
 # Not external facts. Same three labels as the anchor rule in the UKMC contract.
-EXEMPT_LABELS = ("Derived:", "Lineup decision:", "Observed:")
+EXEMPT_LABELS = ("Derived:", "Decision:", "Observed:")
 _LIST_MARKER = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
 _BLOCKQUOTE_LIST = re.compile(r"^(?:>\s*)+(?:[-*+]|\d+[.)])\s+")
 _H3 = re.compile(r"^#{3,}(?:\s|$)")

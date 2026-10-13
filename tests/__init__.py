@@ -1,7 +1,7 @@
 """Make `src/` importable so `python3 -m unittest discover -s tests -t .` needs no PYTHONPATH.
 
-Headless agent runtimes (Grok Build 1.0.50) cannot pre-approve env-prefixed commands such as
-`PYTHONPATH=src python3 ...`, so the test entry point must work without one.
+The test entry point works without an environment prefix on the command,
+such as `PYTHONPATH=src python3 ...`.
 """
 
 import sys

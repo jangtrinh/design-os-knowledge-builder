@@ -1,6 +1,6 @@
-"""Reproductions for the 13 findings in review-codex-p1-9.
+"""Ledger writes, index output, source identity, and anchor checks.
 
-Each test uses the review's input. A symlink is created with os.symlink.
+A symlink is created with os.symlink.
 Negative cases start from a ledger or document that would otherwise pass.
 """
 
@@ -74,7 +74,7 @@ def _sufficient_state(**overrides):
         "last_weighted_delta": 0.01,
         "has_viable_probe_remaining": False,
         "is_target_version_matched": True,
-        "researcher_runtime": "grok",
+        "researcher_runtime": "researcher-a",
     }
     state.update(overrides)
     return state
@@ -120,7 +120,7 @@ def _write_sufficient(root, *, alias=False):
     )
     (run / "state.json").write_text(json.dumps(_sufficient_state()), encoding="utf-8")
     (run / "review.json").write_text(
-        json.dumps({"passed": True, "reviewer_runtime": "codex"}),
+        json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}),
         encoding="utf-8",
     )
     return run
@@ -177,8 +177,8 @@ He said "no".
 """
 
 
-class TestReviewFindings(unittest.TestCase):
-    def test_f01_ledger_writes_do_not_escape_the_run_directory(self):
+class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
+    def test_ledger_writes_do_not_escape_the_run_directory(self):
         """_evidence symlink, evidence.jsonl symlink, and state.json symlink stay inside."""
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -240,7 +240,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertTrue(os.path.islink(state))
             self.assertEqual(outside_state.read_text(encoding="utf-8"), "SECRET")
 
-    def test_f02_unknown_version_or_probe_state_cannot_stop(self):
+    def test_unknown_version_or_probe_state_cannot_stop(self):
         """Missing booleans, and probe status "true", must not certify."""
         variants = (
             "drop-version",
@@ -266,7 +266,7 @@ class TestReviewFindings(unittest.TestCase):
                     self.assertNotEqual(code, 0, out + err)
                     self.assertNotIn("STOP_SUFFICIENT", out)
 
-    def test_f03_index_symlink_does_not_overwrite_an_outside_file(self):
+    def test_index_symlink_does_not_overwrite_an_outside_file(self):
         """index.json -> /outside/target.json must not be opened for writing."""
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -283,7 +283,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertEqual(target.read_text(encoding="utf-8"), "ORIGINAL")
             self.assertTrue(os.path.islink(root / "index.json"))
 
-    def test_f04_source_alias_does_not_inflate_independence(self):
+    def test_source_alias_does_not_inflate_independence(self):
         """sources/b.txt -> sources/a.txt is one file, not two independent sources."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -293,7 +293,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertNotIn("STOP_SUFFICIENT", out)
             self.assertIn("1 < 2", out)
 
-    def test_f05_malformed_required_ids_and_delta_cannot_stop(self):
+    def test_malformed_required_ids_and_delta_cannot_stop(self):
         """A non-string required id, a negative delta, and -Infinity must not certify."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -321,7 +321,7 @@ class TestReviewFindings(unittest.TestCase):
                         encoding="utf-8",
                     )
 
-    def test_f06_frozen_source_minimum_is_enforced(self):
+    def test_frozen_source_minimum_is_enforced(self):
         """minimum_independent_sources=3 with two files must not exit 0."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -342,7 +342,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("STOP_SUFFICIENT", out)
 
-    def test_f07_atom_identity_and_claim_type_are_checked(self):
+    def test_atom_identity_and_claim_type_are_checked(self):
         """Wrong run_id, disallowed claim_type, and a bad record are not verified."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -414,7 +414,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertNotEqual(code, 0, out + err)
             self.assertEqual(evidence.read_bytes(), before)
 
-    def test_f08_symlinked_review_is_not_accepted(self):
+    def test_symlinked_review_is_not_accepted(self):
         """review.json -> /outside/old-review.json must not certify this run."""
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -427,7 +427,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertEqual(code, 0, out + err)
             outside_review = outside / "old-review.json"
             outside_review.write_text(
-                json.dumps({"passed": True, "reviewer_runtime": "codex"}),
+                json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}),
                 encoding="utf-8",
             )
             review = run / "review.json"
@@ -437,7 +437,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("STOP_SUFFICIENT", out)
 
-    def test_f09_claims_mode_rejects_zero_anchors_and_uncited_core(self):
+    def test_claims_mode_rejects_zero_anchors_and_uncited_core(self):
         """No anchors plus an unsupported sentence is not a successful claim check."""
         uri = "_evidence/run-1/sources/note.txt"
         source = b'He said "no".\n'
@@ -458,7 +458,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertNotIn("failures: 0", out)
             self.assertIn("uncited", out.lower())
 
-    def test_f10_malformed_quote_attributes_do_not_match_a_prefix(self):
+    def test_malformed_quote_attributes_do_not_match_a_prefix(self):
         """Truncated quotes and duplicate quote attributes are rejected."""
         uri = "_evidence/run-1/sources/note.txt"
         source = b'He said "no".\n'
@@ -483,7 +483,7 @@ class TestReviewFindings(unittest.TestCase):
                     self.assertNotEqual(code, 0, out + err)
                     self.assertNotIn("failures: 0", out)
 
-    def test_f11_id_tier_must_be_strings_and_headings_must_be_real(self):
+    def test_id_tier_must_be_strings_and_headings_must_be_real(self):
         """id: [] and trust_tier: [] fail. Headings inside a comment or fence do not count."""
         uri = "_evidence/run-1/sources/note.txt"
         source = b'He said "no".\n'
@@ -551,7 +551,7 @@ class TestReviewFindings(unittest.TestCase):
             self.assertNotEqual(code, 0, out + err)
             self.assertIn("heading", out.lower())
 
-    def test_f12_markdown_symlink_outside_the_root_is_rejected(self):
+    def test_markdown_symlink_outside_the_root_is_rejected(self):
         """note.md -> /outside/note.md is not verified or indexed as a local file."""
         uri = "_evidence/run-1/sources/note.txt"
         source = b'He said "no".\n'

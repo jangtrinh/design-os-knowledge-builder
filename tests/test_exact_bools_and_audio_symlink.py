@@ -1,4 +1,7 @@
-"""Round-4 reproductions. Each case starts from a passing fixture and breaks one thing."""
+"""Exact booleans on the stopping gate, and audio output that is not followed.
+
+Each case starts from a passing fixture and breaks one thing.
+"""
 
 import os
 import subprocess
@@ -33,7 +36,7 @@ def _ffmpeg_follows(args, **kwargs):
     return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr=b"")
 
 
-class TestRound4StoppingGate(unittest.TestCase):
+class TestExactBoolsBlockStop(unittest.TestCase):
     def test_probe_none_cannot_stop(self):
         """A passing ledger stops. The same ledger with probe None must not."""
         self.assertEqual(
@@ -88,7 +91,7 @@ class TestRound4StoppingGate(unittest.TestCase):
         _not_stop(self, inp)
 
 
-class TestRound4VideoContainment(unittest.TestCase):
+class TestSymlinkedAudioOutputIsNotFollowed(unittest.TestCase):
     def test_symlinked_audio_output_is_not_followed(self):
         """A real output dir receives audio. audio.mp3 -> outside must not be followed."""
         with tempfile.TemporaryDirectory() as tmp:

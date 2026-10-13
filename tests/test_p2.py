@@ -304,7 +304,7 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
                 "last_weighted_delta": 0.01,
                 "has_viable_probe_remaining": False,
                 "is_target_version_matched": True,
-                "researcher_runtime": "grok",
+                "researcher_runtime": "researcher-a",
             }
             state_path = run / "state.json"
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -313,7 +313,7 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
                 json.dumps(
                     {
                         "passed": True,
-                        "reviewer_runtime": "codex",
+                        "reviewer_runtime": "reviewer-b",
                         "entailment_notes": "not-a-list",
                     }
                 ),
@@ -349,7 +349,7 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
                 json.dumps(
                     {
                         "passed": True,
-                        "reviewer_runtime": "codex",
+                        "reviewer_runtime": "reviewer-b",
                         "entailment_notes": notes,
                     }
                 ),

@@ -96,7 +96,7 @@ class TestGateLedger(unittest.TestCase):
                     "--require",
                     "c2",
                     "--researcher",
-                    "grok",
+                    "researcher-a",
                 ]
             )
             self.assertEqual(code, 0, out + err)
@@ -104,7 +104,7 @@ class TestGateLedger(unittest.TestCase):
                 (root / "_evidence" / "run-1" / "state.json").read_text(encoding="utf-8")
             )
             self.assertEqual(state["required_claim_ids"], ["c1", "c2"])
-            self.assertEqual(state["researcher_runtime"], "grok")
+            self.assertEqual(state["researcher_runtime"], "researcher-a")
 
     def test_partial_ledger_deepens_then_exhausted_budget_pauses(self):
         """1 of 2 required ids -> exit 2. Complete claims and budget 0 -> exit 3.
@@ -147,7 +147,7 @@ class TestGateLedger(unittest.TestCase):
                 "required_claim_ids": ["c1", "c2"],
                 "minimum_independent_sources": 2,
                 "last_weighted_delta": None,
-                "researcher_runtime": "grok",
+                "researcher_runtime": "researcher-a",
                 "independent_source_uris": 41,
             }
             (run / "state.json").write_text(json.dumps(state), encoding="utf-8")

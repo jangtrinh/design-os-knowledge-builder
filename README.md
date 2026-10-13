@@ -51,7 +51,7 @@ Every knowledge file produced by the pipeline adheres to a strict contract:
 
 ### 2. Ingest, verify, and index
 
-This repository stores no topic files. Point `--root` at `~/Products/jang-knowledge/<domain>/<topic>`.
+This repository stores no topic files. The knowledge root is a separate repository you choose. Point `--root` at `<knowledge-root>/<domain>/<topic>`.
 
 1. **Asset gate**: SHA-256 of the file bytes. A missing extractor raises `RuntimeError` and does not fill in replacement text.
 2. **Processors**:
@@ -143,7 +143,7 @@ python3 -m knowledge_builder.cli ingest ./system-diagram.png
 
 ### 2. Verify an external knowledge root
 ```bash
-python3 -m knowledge_builder.cli verify ~/Products/jang-knowledge/<domain>/<topic>
+python3 -m knowledge_builder.cli verify <knowledge-root>/<domain>/<topic>
 ```
 
 ### 3. Evaluate Stopping Gate
@@ -153,12 +153,12 @@ python3 -m knowledge_builder.cli gate --run-id run-001 --required 5 --verified 5
 
 ### 4. Lint Knowledge Markdown
 ```bash
-python3 -m knowledge_builder.cli lint ~/Products/jang-knowledge/<domain>/<topic>/note.md
+python3 -m knowledge_builder.cli lint <knowledge-root>/<domain>/<topic>/note.md
 ```
 
 ### 5. Compile Machine-Readable Index
 ```bash
-python3 -m knowledge_builder.cli index --root ~/Products/jang-knowledge/<domain>/<topic>
+python3 -m knowledge_builder.cli index --root <knowledge-root>/<domain>/<topic>
 ```
 
 ---

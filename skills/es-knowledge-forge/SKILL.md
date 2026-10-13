@@ -10,7 +10,7 @@ argument-hint: "[ingest <file> | verify <root> | gate | lint <file> | index --ro
 
 # es:knowledge-forge — Universal Multimodal Knowledge Pipeline
 
-This repository stores no topic files. Run commands against `~/Products/jang-knowledge/<domain>/<topic>`.
+This repository stores no topic files. The knowledge root is a separate repository you choose. Run commands against `<knowledge-root>/<domain>/<topic>`.
 
 ## 1. Commands
 
@@ -22,7 +22,7 @@ python3 -m knowledge_builder.cli ingest <file_or_url>
 python3 -m knowledge_builder.cli ingest <video> --out <directory>
 
 # Check frontmatter, list-shaped source_attribution, hashes, anchors, and the four headings.
-python3 -m knowledge_builder.cli verify ~/Products/jang-knowledge/<domain>/<topic>
+python3 -m knowledge_builder.cli verify <knowledge-root>/<domain>/<topic>
 
 # Print a stopping-gate decision from self-reported flags. This mode does not exit 0.
 python3 -m knowledge_builder.cli gate --run-id <run_id>
@@ -31,7 +31,7 @@ python3 -m knowledge_builder.cli gate --run-id <run_id>
 python3 -m knowledge_builder.cli lint <markdown_file>
 
 # Write index.json with the sha256 of each file. Skips _evidence/**.
-python3 -m knowledge_builder.cli index --root ~/Products/jang-knowledge/<domain>/<topic>
+python3 -m knowledge_builder.cli index --root <knowledge-root>/<domain>/<topic>
 ```
 
 ## 2. Universal Knowledge Master Contract (UKMC.v1)

@@ -2,7 +2,7 @@
 
 A block is a paragraph, one list item, a markdown table, or a fenced code
 block. An ease:source anchor inside the block, or on the lines after it and
-before the next block, cites it. Derived, Lineup decision, and Observed
+before the next block, cites it. Derived, Decision, and Observed
 labels are exempt.
 """
 
@@ -180,7 +180,7 @@ class TestUncitedBlocks(unittest.TestCase):
         """Labels that name a non-external fact are exempt, including after a list marker."""
         digest = _sha(SOURCE)
         cited = f"The source says {QUOTE}\n{_anchor(digest)}\n"
-        labels = ("Derived:", "Lineup decision:", "Observed:")
+        labels = ("Derived:", "Decision:", "Observed:")
         for label in labels:
             with self.subTest(label=label):
                 core = f"{label} this is not an external fact.\n\n{cited}"
