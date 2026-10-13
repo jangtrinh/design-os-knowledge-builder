@@ -1,0 +1,16 @@
+version: "1"
+interfaces:
+  sourced-document:
+    properties: [title, description, when, source_attribution]
+    sections: ["## Purpose", "## When to Use / When NOT", "## Core Knowledge Content", "## Failure Modes (Mandatory)"]
+object_types:
+  concept:
+    implements: [sourced-document]
+    properties:
+      - {name: domain, type: enum, values: [demo]}
+  comparison:
+    implements: [sourced-document]
+link_types:
+  - {link_type: compares, from: comparison, to: concept, cardinality: many-to-many}
+  - {link_type: depends-on, from: concept, to: concept}
+extra_keys: []
