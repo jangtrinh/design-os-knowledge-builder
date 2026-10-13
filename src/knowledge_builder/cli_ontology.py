@@ -3,6 +3,7 @@
 import json
 import sys
 
+from knowledge_builder.ontology.actions import ActionError, run_action
 from knowledge_builder.ontology.query import QueryError, run_query
 from knowledge_builder.ontology.schema import OntologyError
 
@@ -19,6 +20,22 @@ def cmd_query(args):
     print(json.dumps(rows, indent=2))
 
 
+def cmd_action(args):
+    params = {}
+    for pair in args.param or []:
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            print(f"[-] --param needs key=value, got {pair!r}", file=sys.stderr)
+            sys.exit(1)
+        params[key] = value
+    try:
+        record = run_action(args.root, args.name, params)
+    except ActionError as exc:
+        print(f"[-] action {args.name} rejected, nothing changed: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(f"[✓] action {args.name}: {', '.join(record['files'])}")
+
+
 def register_ontology(subparsers, parser_class):
     query = subparsers.add_parser("query", help="Filter objects from index.json (read-only)")
     query.add_argument("--root", required=True, help="External knowledge repository root")
@@ -30,3 +47,9 @@ def register_ontology(subparsers, parser_class):
     query.add_argument("--where", action="append", help="key=value on an index field (repeatable)")
     query.add_argument("--fields", help="Comma list of index fields to return")
     query.set_defaults(func=cmd_query)
+
+    action = subparsers.add_parser("action", help="Run a typed, verified, logged local write")
+    action.add_argument("name", help="Action type from ontology.yaml (or a default)")
+    action.add_argument("--root", required=True, help="External knowledge repository root")
+    action.add_argument("--param", action="append", help="key=value (repeatable)")
+    action.set_defaults(func=cmd_action)
