@@ -39,6 +39,10 @@ class StoppingEvaluationInput:
     block_reason: Optional[str] = None
     independent_review_passed: bool = False
     minimum_independent_sources: int = 2
+    # A pack with no target library declares the version gate not applicable.
+    # It passes only with a non-empty reason, which the gate prints.
+    version_not_applicable: bool = False
+    version_reason: Optional[str] = None
 
 
 @dataclass
@@ -48,6 +52,7 @@ class StoppingDecision:
     hard_gates_passed: bool
     saturation_passed: bool
     certificate: Optional[Dict[str, Any]] = None
+    version_note: Optional[str] = None
 
 
 def _require_minimum_sources(value):
@@ -72,6 +77,19 @@ def bool_or_absent(source, name, *, absent):
     return absent
 
 
+def version_not_applicable_reason(inp):
+    """The stated reason when the version gate is declared not applicable, else None.
+
+    A declaration without a non-empty string reason is not a declaration.
+    """
+    if getattr(inp, "version_not_applicable", False) is not True:
+        return None
+    reason = getattr(inp, "version_reason", None)
+    if isinstance(reason, str) and reason.strip():
+        return reason.strip()
+    return None
+
+
 def saturation_from_measurement(rounds, delta):
     """True only when both measurements exist and meet the saturation rule.
 
@@ -93,7 +111,9 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     STOP_sufficient = Gt ∧ St ∧ DecisionStable ∧ NoMaterialProbeRemaining ∧ ValidIndependentReview
     """
     minimum_sources = _require_minimum_sources(inp.minimum_independent_sources)
-    version_ok = bool_or_absent(inp, "is_target_version_matched", absent=False)
+    na_reason = version_not_applicable_reason(inp)
+    version_ok = na_reason is not None or bool_or_absent(inp, "is_target_version_matched", absent=False)
+    version_note = f"not applicable: {na_reason}" if na_reason is not None else None
     probe_remaining = bool_or_absent(inp, "has_viable_probe_remaining", absent=True)
 
     # 1. Check if blocked
@@ -104,6 +124,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
                 reason=f"Blocked by upstream environment: {inp.block_reason or 'No viable probe available.'}",
                 hard_gates_passed=False,
                 saturation_passed=False,
+                version_note=version_note,
             )
 
     # 2. Hard Gate Evaluation (Score cannot compensate for a broken hard gate)
@@ -155,6 +176,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
             hard_gates_passed=True,
             saturation_passed=True,
             certificate=certificate,
+            version_note=version_note,
         )
 
     # 5. Check Budget
@@ -164,6 +186,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
             reason="Research budget exhausted while required evidence is still incomplete. Stopping without certifying sufficiency.",
             hard_gates_passed=hard_gates_passed,
             saturation_passed=saturation_passed,
+            version_note=version_note,
         )
 
     # 6. Default: Deepen targeted probe
@@ -179,7 +202,10 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     if not counterevidence_ok:
         reasons.append("Counterevidence and failure modes not yet searched")
     if not version_ok:
-        reasons.append("Target library/framework version mismatch")
+        if getattr(inp, "version_not_applicable", False) is True:
+            reasons.append("Version declared not applicable but version_reason is missing")
+        else:
+            reasons.append("Target library/framework version mismatch")
     if not no_contradiction_ok:
         reasons.append(f"Unresolved contradictions ({inp.unresolved_contradictions_count})")
     if not saturation_passed:
@@ -190,7 +216,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
             "missing" if inp.last_weighted_delta is None else f"{inp.last_weighted_delta:.1%}"
         )
         reasons.append(
-            f"Saturation not yet reached (round {rounds_text}/3, delta {delta_text})"
+            f"Saturation not yet reached (low-delta rounds {rounds_text}/3, delta {delta_text})"
         )
     if probe_remaining:
         reasons.append("A viable probe remains")
@@ -202,4 +228,5 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         reason=f"Deficiencies detected: {', '.join(reasons)}. Probing further.",
         hard_gates_passed=hard_gates_passed,
         saturation_passed=saturation_passed,
+        version_note=version_note,
     )

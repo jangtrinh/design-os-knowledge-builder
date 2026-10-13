@@ -100,6 +100,8 @@ def cmd_gate(args):
     print(f"Reason:   {decision.reason}")
     print(f"Hard Gates Passed: {decision.hard_gates_passed}")
     print(f"Saturation Passed: {decision.saturation_passed}")
+    if decision.version_note:
+        print(f"Version:  {decision.version_note}")
     if decision.certificate:
         print(f"Certificate: {json.dumps(decision.certificate, indent=2)}")
     print(f"--------------------------------------------------")
