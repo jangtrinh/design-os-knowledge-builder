@@ -10,12 +10,12 @@ import hashlib
 import html
 import os
 import re
+import stat
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from pathlib import Path
 
-from knowledge_builder.containment import ContainmentError, ensure_real_dir, require_inside
 
 MIN_CHARS = 200
 STEM = re.compile(r"[a-z0-9][a-z0-9-]*")
@@ -61,6 +61,16 @@ def page_text(raw_html):
     return "\n".join(line for line in lines if line)
 
 
+class _HttpOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    """Check the scheme of every redirect before it is followed."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        scheme = urllib.parse.urlsplit(newurl).scheme.lower()
+        if scheme not in ("http", "https"):
+            raise FreezeError(f"refusing redirect to a non-http(s) url: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def fetch_html(url):
     if not url.startswith(("http://", "https://")):
         raise FreezeError(f"--freeze needs an http or https url: {url}")
@@ -72,7 +82,7 @@ def fetch_html(url):
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.build_opener(_HttpOnlyRedirect).open(req, timeout=30) as resp:
             blob = resp.read()
     except OSError as exc:
         raise FreezeError(f"could not fetch {url}: {exc}") from exc
@@ -84,34 +94,85 @@ def fetch_html(url):
     return blob.decode("utf-8", errors="replace")
 
 
-def freeze_web_source(url, root, run_id, stem, run_dir):
-    """Write <run_dir>/sources/<stem>.txt and return (relative path, sha256, chars)."""
+def _open_dir(name, dir_fd=None):
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_DIRECTORY", 0)
+    return os.open(name, flags, dir_fd=dir_fd)
+
+
+def _open_run_sources(root, run_id):
+    """Descriptor of _evidence/<run>/sources, walked one name at a time with no symlink followed.
+
+    The returned descriptor names the directory inode itself, so a later swap
+    of any path component cannot redirect a write made through it.
+    """
+    if run_id in {"", ".", ".."} or "/" in run_id or "\\" in run_id:
+        raise FreezeError(f"run id is not a single path segment: {run_id}")
+    fds = []
+    try:
+        try:
+            fds.append(_open_dir(os.path.realpath(root)))
+            fds.append(_open_dir("_evidence", fds[-1]))
+            fds.append(_open_dir(run_id, fds[-1]))
+            info = os.stat("state.json", dir_fd=fds[-1], follow_symlinks=False)
+        except FileNotFoundError:
+            raise FreezeError(f"run is not initialized: {run_id}") from None
+        except OSError as exc:
+            raise FreezeError(f"refusing symlinked or non-directory output for run {run_id}: {exc}") from exc
+        if not stat.S_ISREG(info.st_mode):
+            raise FreezeError(f"run is not initialized: {run_id}")
+        return fds.pop(), fds
+    except BaseException:
+        for fd in fds:
+            os.close(fd)
+        raise
+
+
+def _open_sources(run_fd):
+    try:
+        try:
+            return _open_dir("sources", run_fd)
+        except FileNotFoundError:
+            os.mkdir("sources", 0o755, dir_fd=run_fd)
+            return _open_dir("sources", run_fd)
+    except OSError as exc:
+        raise FreezeError(f"refusing sources directory: {exc}") from exc
+
+
+def freeze_web_source(url, root, run_id, stem):
+    """Write _evidence/<run>/sources/<stem>.txt and return (relative path, sha256, chars).
+
+    The run directory is pinned before the fetch and written through that
+    descriptor, so the destination cannot move while the page downloads.
+    """
     if STEM.fullmatch(stem or "") is None:
         raise FreezeError("--stem must be kebab-case: lowercase letters, digits, hyphens")
-    body = page_text(fetch_html(url))
-    if len(body) < MIN_CHARS:
-        raise FreezeError(
-            f"extracted only {len(body)} chars from {url}; page is likely client-rendered, pick another source"
-        )
-    fetched = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    payload = f"Source-URL: {url}\nFetched: {fetched}\n\n{body}\n".encode("utf-8")
+    run_fd, extra = _open_run_sources(root, run_id)
+    sources_fd = None
     try:
-        sources = ensure_real_dir(Path(run_dir) / "sources")
-        require_inside(sources, Path(root))
-    except ContainmentError as exc:
-        raise FreezeError(str(exc)) from exc
-    target = sources / f"{stem}.txt"
-    try:
-        fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o644)
-    except FileExistsError:
-        raise FreezeError(f"refusing to overwrite frozen source {target}") from None
-    except OSError as exc:
-        raise FreezeError(f"refusing output {target}: {exc}") from exc
-    try:
-        view = memoryview(payload)
-        while view:
-            view = view[os.write(fd, view):]
-        os.fsync(fd)
+        body = page_text(fetch_html(url))
+        if len(body) < MIN_CHARS:
+            raise FreezeError(
+                f"extracted only {len(body)} chars from {url}; page is likely client-rendered, pick another source"
+            )
+        fetched = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        payload = f"Source-URL: {url}\nFetched: {fetched}\n\n{body}\n".encode("utf-8")
+        sources_fd = _open_sources(run_fd)
+        name = f"{stem}.txt"
+        try:
+            fd = os.open(name, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o644, dir_fd=sources_fd)
+        except FileExistsError:
+            raise FreezeError(f"refusing to overwrite frozen source {name}") from None
+        except OSError as exc:
+            raise FreezeError(f"refusing output {name}: {exc}") from exc
+        try:
+            view = memoryview(payload)
+            while view:
+                view = view[os.write(fd, view):]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
-    return f"_evidence/{run_id}/sources/{stem}.txt", hashlib.sha256(payload).hexdigest(), len(body)
+        for descriptor in [run_fd, sources_fd, *extra]:
+            if descriptor is not None:
+                os.close(descriptor)
+    return f"_evidence/{run_id}/sources/{name}", hashlib.sha256(payload).hexdigest(), len(body)

@@ -8,6 +8,7 @@ never overwritten, and the printed sha256 is the digest of the file written.
 import gzip
 import hashlib
 import io
+import socket
 import tempfile
 import threading
 import unittest
@@ -28,6 +29,11 @@ SEEN = {}
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         SEEN["accept-encoding"] = self.headers.get("Accept-Encoding")
+        if self.path.startswith("/redirect-to/"):
+            self.send_response(302)
+            self.send_header("Location", self.path[len("/redirect-to/"):])
+            self.end_headers()
+            return
         if self.path == "/small":
             body = b"<html><body>tiny</body></html>"
             gz = False
@@ -59,7 +65,7 @@ def _run(argv):
     return code, stdout.getvalue(), stderr.getvalue()
 
 
-class TestIngestFreeze(unittest.TestCase):
+class _FreezeBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.server = HTTPServer(("127.0.0.1", 0), _Handler)
@@ -83,6 +89,8 @@ class TestIngestFreeze(unittest.TestCase):
              "--root", str(root), "--run", run, "--stem", stem]
         )
 
+
+class TestIngestFreeze(_FreezeBase):
     def test_freeze_writes_plain_text_and_prints_matching_sha256(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -171,6 +179,69 @@ class TestIngestFreeze(unittest.TestCase):
             )
         self.assertEqual(code, 1)
         self.assertIn("http", err)
+
+
+class TestFreezeHardening(_FreezeBase):
+    """Same loopback server. Redirect schemes and directory pinning."""
+
+    def test_redirect_to_a_non_http_scheme_is_refused_before_it_is_followed(self):
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.setblocking(False)
+        port = listener.getsockname()[1]
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self._init(root)
+                for target in (f"ftp://127.0.0.1:{port}/x", "file:///etc/passwd"):
+                    with self.subTest(target=target):
+                        code, out, err = self._freeze(root, f"/redirect-to/{target}")
+                        self.assertEqual(code, 1, out + err)
+                        # urllib rejects file: itself; our handler rejects ftp: and the rest.
+                        if target.startswith("ftp:"):
+                            self.assertIn("refusing redirect to a non-http(s) url", err)
+                        else:
+                            self.assertIn("is not allowed", err)
+                        self.assertEqual(list((root / "_evidence/run-1/sources").iterdir()), [])
+            with self.assertRaises(BlockingIOError):
+                listener.accept()
+        finally:
+            listener.close()
+
+    def test_redirect_to_http_is_followed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init(root)
+            code, out, err = self._freeze(root, f"/redirect-to/{self.base}/page")
+            self.assertEqual(code, 0, out + err)
+
+    def test_run_dir_swapped_for_a_symlink_during_fetch_cannot_redirect_the_write(self):
+        import knowledge_builder.processors.web_freeze as wf
+
+        real_fetch = wf.fetch_html
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init(root)
+            other = root / "_evidence" / "other-run"
+            (other / "sources").mkdir(parents=True)
+            run = root / "_evidence" / "run-1"
+
+            def swapping_fetch(url):
+                text = real_fetch(url)
+                run.rename(root / "_evidence" / "moved-run")
+                run.symlink_to(other)
+                return text
+
+            with patch.object(wf, "fetch_html", swapping_fetch):
+                code, out, err = self._freeze(root, "/page")
+            self.assertEqual(list((other / "sources").iterdir()), [], out + err)
+            # The write stays in the directory that was pinned before the fetch.
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual(
+                [p.name for p in (root / "_evidence" / "moved-run" / "sources").iterdir()],
+                ["page-one.txt"],
+            )
 
 
 if __name__ == "__main__":

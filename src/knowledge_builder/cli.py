@@ -3,7 +3,6 @@
 import argparse
 from pathlib import Path
 import json
-import os
 import sys
 
 from knowledge_builder.containment import ContainmentError
@@ -49,10 +48,8 @@ def cmd_freeze(args):
         print("[-] --freeze needs --root, --run and --stem", file=sys.stderr)
         sys.exit(1)
     try:
-        run_dir = _contained_run(args.root, args.run)
-        if os.path.islink(run_dir / "state.json") or not (run_dir / "state.json").is_file():
-            raise FreezeError(f"run is not initialized: {args.run}")
-        rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem, run_dir)
+        _contained_run(args.root, args.run)
+        rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem)
     except (FreezeError, ContainmentError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         sys.exit(1)
