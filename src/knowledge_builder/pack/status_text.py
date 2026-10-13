@@ -1,5 +1,7 @@
 """One-screen text rendering of a pack status report."""
 
+from knowledge_builder.pack.publisher_kinds import warning_lines
+
 
 def status_text(report):
     objects, claims, gate = report["objects"], report["claims"], report["gate"]
@@ -18,6 +20,7 @@ def status_text(report):
     ]
     for item in report["deprecated_claims_cited"]:
         lines.append(f"deprecated claim {item['claim']} (use {item['superseded_by']}) still cited by: {', '.join(item['documents'])}  (re-link or re-word)")
+    lines.extend(warning_lines(report["publisher_kind_conflicts"]))
     lines.append(f"gate: {_value(gate['decision'])} - {gate['reason']}")
     saturation = report["saturation"]
     if saturation is None:

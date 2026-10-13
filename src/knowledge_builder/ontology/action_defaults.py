@@ -1,4 +1,4 @@
-"""Actions that ship when ontology.yaml declares no action_types, plus the stub object template."""
+"""Actions that ship when ontology.yaml declares no action_types, plus the stub object templates."""
 
 STRING, ID, OBJECT = {"type": "string"}, {"type": "id"}, {"type": "object_id"}
 
@@ -79,4 +79,15 @@ Pending.
 ## Failure Modes (Mandatory)
 
 Pending.
+'''
+
+MINIMAL_TEMPLATE = '''---
+id: "{{id}}"
+title: "{{title}}"
+object_type: "{{object_type}}"
+status: "active"
+---
+
+## Notes
+
 '''

@@ -57,7 +57,10 @@ def cmd_action(args):
         if not sep or not key:
             print(f"[-] --param needs key=value, got {pair!r}", file=sys.stderr)
             sys.exit(1)
-        params[key] = value
+        if key in params:
+            params[key] = [*params[key], value] if isinstance(params[key], list) else [params[key], value]
+        else:
+            params[key] = value
     try:
         record = run_action(args.root, args.name, params)
     except ActionError as exc:
@@ -81,6 +84,6 @@ def register_ontology(subparsers, parser_class):
     action = subparsers.add_parser("action", help="Run a typed, verified, logged local write")
     action.add_argument("name", help="Action type from ontology.yaml (or a default)")
     action.add_argument("--root", required=True, help="External knowledge repository root")
-    action.add_argument("--param", action="append", help="key=value (repeatable)")
+    action.add_argument("--param", action="append", help="key=value (repeat a key only where the action takes several values, e.g. create-object when/source)")
     action.add_argument("--batch", help="JSONL file, one parameter object per line (promote-claim): one verify for the whole batch")
     action.set_defaults(func=cmd_action)
