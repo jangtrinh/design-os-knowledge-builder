@@ -1,77 +1,118 @@
 ---
-name: es:knowledge-forge
-description: >
-  Universal Multimodal Knowledge Pipeline.
-  Ingests PDF, Video, Image, and Web into structured Universal Knowledge
-  Master Contract (UKMC.v1) Markdown with cryptographic provenance tracking,
-  epistemic stopping gates, and a council gap report.
-argument-hint: "[ingest <file> | verify <root> | gate | lint <file> | index --root]"
+name: es-knowledge-forge
+description: "Use when building, checking or extending an ontology-first knowledge pack: frozen sources, quoted claims, cited documents, independent review, stopping gate."
+metadata:
+  author: DESIGN:OS
 ---
 
-# es:knowledge-forge — Universal Multimodal Knowledge Pipeline
+# Knowledge Forge
 
-This repository stores no topic files. The knowledge root is a separate repository you choose. Run commands against `<knowledge-root>/<domain>/<topic>`.
+One workflow: Concept → Build → Check → Hand over → Adjust. Python ≥3.10, stdlib only. The product is
+`design-os-knowledge-builder`; scripts find it in this checkout, via `--repo-root <checkout>`, `KNOWLEDGE_BUILDER_REPO`,
+or an installed package. `K` = `python3 -m knowledge_builder.cli`, `P` = the pack root, `R` = the run id.
+The pack lives apart from the tool (rule R16) at `<knowledge-root>/<domain>/<topic>`: `<project>/knowledge/<topic>/` or `~/Products/jang-knowledge/<domain>/<topic>/`.
 
-## 1. Commands
+## 1. Concept
 
-```bash
-# Fingerprint a PDF, image, or web URL. A missing pdftotext raises RuntimeError.
-python3 -m knowledge_builder.cli ingest <file_or_url>
+Read [concepts.md](concepts.md) and turn the request into one buildable pack. Propose the schema as
+`ontology.proposal.yaml` with a rationale, then ask the owner through AskUserQuestion (≤4 questions per round,
+recommended option first). Do not build before the answer. Read the numbered [rules.md](rules.md) before the first write.
 
-# Video extracts are written only under --out. A missing ffmpeg raises RuntimeError.
-python3 -m knowledge_builder.cli ingest <video> --out <directory>
+| Need | Choose | Limit |
+| --- | --- | --- |
+| New topic | Starter ontology + proposed additions | Owner approves the schema |
+| Extend a pack | Keep its `ontology.yaml`; add atoms, claims, documents | No schema change without approval |
+| Facts for one document | One document type, claims cited by anchor | 1-8 documents per pack |
+| Legacy root (no `ontology.yaml`) | `ingest`, `verify`, `gate`, `lint`, `index`; see [references/ukmc-v2-summary.md](references/ukmc-v2-summary.md) | No claims, entities or `pack` commands |
 
-# Check frontmatter, list-shaped source_attribution, hashes, anchors, and the four headings.
-python3 -m knowledge_builder.cli verify <knowledge-root>/<domain>/<topic>
+When NOT to use: summarising without quotes, topics with no public or frozen source, storing knowledge inside the tool repo.
 
-# Print a stopping-gate decision from self-reported flags. This mode does not exit 0.
-python3 -m knowledge_builder.cli gate --run-id <run_id>
+## 2. Build
 
-# Check the four headings and an ease:source anchor.
-python3 -m knowledge_builder.cli lint <markdown_file>
+The real pipeline, step by step, with closing conditions, is in
+[references/ontology-first-workflow.md](references/ontology-first-workflow.md). Flags and parameters come from the generated
+[contract.txt](contract.txt); never edit it. In order:
 
-# Write index.json with the sha256 of each file. Skips _evidence/**.
-python3 -m knowledge_builder.cli index --root <knowledge-root>/<domain>/<topic>
-
-# Freeze a web page as plain text into a run's sources/ (never overwrites). Prints sha256 + path.
-python3 -m knowledge_builder.cli ingest --freeze <url> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
-
-# Per-round novelty from the ledger. --material counts only novel atoms whose quote an anchor cites.
-# Writes nothing unless --write-state.
-python3 -m knowledge_builder.cli run measure --root <knowledge-root> --id <run> --material [--write-state]
-
-# Typed state writes: round, consecutive_low_delta_rounds, last_weighted_delta,
-# has_viable_probe_remaining, is_target_version_matched, version_applicability, version_reason, resolved.
-python3 -m knowledge_builder.cli run state set --root <knowledge-root> --id <run> --key <key> --value <value>
+```sh
+K pack init --root P --topic "<topic>" --run R --researcher <runtime>     # then proposal -> owner approval
+K ingest --freeze <url> --root P --run R --stem <stem>                    # freeze before quoting
+echo '<atom json>' | K run record --root P --id R                         # round + novel on every atom
+K run measure --root P --id R --material --write-state                    # after each round
+K action promote-claim --root P --param atom=<id> --param id=<claim-id>   # --into / --batch / publisher= / kind=
+K action create-object --root P --param id=<id> --param object_type=<type> --param title=<t> ...
+K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>
+K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"
+K run state set --root P --id R --key version_applicability --value not_applicable   # + version_reason
 ```
 
-Version gate for a pack with no target library: set `version_applicability=not_applicable` and a non-empty `version_reason`; the gate prints the reason. Without the reason it does not pass.
+Document bodies carry `<!-- ease:claim id=<claim> -->` anchors, written between create-object and add-link, then
+`K index --root P`. A different runtime writes `_evidence/R/review.json` (rule R12).
+For fixtures and tiny packs, [build.py](build.py) runs the same CLI from a JSON spec
+([references/build-spec.md](references/build-spec.md), [examples/tiny-document-pack.json](examples/tiny-document-pack.json),
+[examples/tiny-entity-pack.json](examples/tiny-entity-pack.json)) into a new directory and prints its path:
 
-Anchor rules under `verify --claims`: a quote containing `"` uses single quotes (`quote='He said "go".'`); a quote with both quote characters is a malformed anchor. A `Derived:`/`Observed:`/`Decision:` line on the line directly above a table or fence exempts that block.
+```sh
+python3 skills/es-knowledge-forge/build.py --spec skills/es-knowledge-forge/examples/tiny-entity-pack.json --output-dir /absolute/new-pack
+```
 
-## 2. Universal Knowledge Master Contract (UKMC.v1)
+## 3. Check
 
-Every knowledge file under the external root MUST follow the schema:
-- **Frontmatter**: `id`, `title`, `domain`, `description`, `when`, `trust_tier`, `version`, and `source_attribution` as a list of `{uri, sha256}`. `uri` is repo-relative.
-- **Mandatory Sections**:
-  1. `## Purpose`: Exactly 1-2 sentences defining what this file solves.
-  2. `## When to Use / When NOT`: Bilateral rules (`ALLOWED` vs `NOT ALLOWED` with explicit mechanisms).
-  3. `## Core Knowledge Content`: Sourced facts with `<!-- ease:source ... -->`.
-  4. `## Failure Modes (Mandatory)`: Observable failure cases and anti-patterns.
+```sh
+K pack check --root P
+python3 skills/es-knowledge-forge/validate.py --root P
+python3 skills/es-knowledge-forge/look.py --root P --sheet /absolute/look-sheet.png
+```
 
-## 3. Epistemic Stopping Gate (4 Termination States)
+[validate.py](validate.py): offline, deterministic; one `<check>: <what to fix>` line per failure; exit 0 ok, 1 reject,
+2 could not run. Checks: contract, verify, index, uncited-claims, documents-without-claims, hosting-publisher,
+publisher-kind, contradictions, review. It rejects facts, never taste. On `ok` it also prints the gate line.
+The council report lists gaps (no FAILURE_MODE or BENCHMARK atom, a `verified_by_code` atom without `metadata.command`) and grants nothing.
+[look.py](look.py) (sheet markup in [look_sheet.py](look_sheet.py), shared helpers in [forge_common.py](forge_common.py))
+renders one sheet with headless Chrome/Chromium and measures L1-L4; read [look.md](look.md) and judge L5-L8 on the PNG.
+Neither installs anything or uses the network. Machine checks do not grade whether the knowledge is right.
 
-- `STOP_SUFFICIENT`: 100% required claims verified, $\ge 2$ independent sources, code execution proof, saturation achieved ($\le 2\%$ delta across 3 rounds).
-- `DEEPEN`: Missing claims, single-source bias, version drift, or untested failure modes.
-- `PAUSE_BUDGET`: Budget exhausted without completing evidence. (Never claim "sufficient").
-- `ABSTAIN_BLOCKED`: Blocked by paywall or anti-scraping without viable fallback.
+## 4. Hand over
 
-## 4. Council gap report
+Use these fields, keeping failures and missing checks:
 
-`run_council_audit` reads evidence atoms and lists gaps. It returns no pass bit, and the stopping gate does not read this report. `STOP_SUFFICIENT` comes from the ledger plus `review.json`, where `reviewer_runtime` differs from `researcher_runtime`.
+```text
+PACK: <absolute pack root>   RUN: <run id>
+APPROVAL: <who approved ontology.yaml and when, or NOT ASKED>
+VALIDATE: <exit and actual lines, or ok>
+LOOK: <exit, sheet path, L1-L4 lines, your L5-L8 reading>
+GATE: <gate line of pack check as printed; never "sufficient" unless it says STOP_SUFFICIENT>
+REVIEW: <reviewer_runtime vs researcher_runtime, or MISSING>
+LIMITS: <checks not run, sources single-publisher, open frictions>
+```
 
-A gap is one of:
+Without a browser use exactly: `LOOK: NOT RUN — no browser (Chrome/Chromium) available.`
+Never write "should work". Report checks run after the last edit only.
 
-- missing a `FAILURE_MODE` atom
-- missing a `BENCHMARK` atom
-- a `verified_by_code` atom whose `metadata.command` is missing
+## 5. Adjust
+
+Edit the schema proposal, sources or atoms, rerun build steps for the affected objects, rerun check. Do not hand-edit
+claims, sources, captures, the [contract](contract.txt) or `index.json`.
+
+| What goes wrong | Do this instead |
+| --- | --- |
+| `verify:` line | Fix what it names; rules R2, R5, R9, R15 |
+| `hosting-publisher` / `publisher-kind` | Re-promote with `publisher=<author org>` and one `kind`; R6, R7 |
+| `uncited-claims` / `documents-without-claims` | Anchor + `cites` link, or deprecate the claim; R9 |
+| `contradictions` | `resolve-contradiction` with a reason; R11 |
+| `review` | Another runtime writes review.json; R12 |
+| `index` | `K index --root P`; R14 |
+| promote-claim: no `metadata.url` and no `Source-URL:` header (open) | Put `metadata.url=local-execution` on the atom, pass `publisher=local-execution` and `kind=practitioner` (no kind exists for first-party runs) |
+| Rejected action leaves no line in `_actions/actions.jsonl` (open) | Keep your own friction log of rejected commands and why |
+| `query --linked-to <unknown id>` prints `[]`, exit 0 (open) | Confirm the id first: `K query --root P --fields id` |
+| Saturation `0/N novel`, `delta 100.0%` (open) | Set `round` + `novel` when recording, never re-record to rebuild; `run measure --material --write-state` |
+| 200+ add-link calls, no body action (open) | Shell loop one call per link; hand-write the body, then `K index` |
+| Many arXiv/W3C papers count as one publisher | Pass `publisher=<authors' organisation>` per source; R6 |
+| No browser | Record NOT RUN; look.md "Without a browser" |
+
+## Files
+
+| File | Read when |
+| --- | --- |
+| [rules.md](rules.md), [concepts.md](concepts.md), [look.md](look.md) | before building, planning, and checking |
+| [references/ontology-first-workflow.md](references/ontology-first-workflow.md), [references/ukmc-v2-summary.md](references/ukmc-v2-summary.md) | commands in order; the contract in one page |
+| [ATTRIBUTION.md](ATTRIBUTION.md) | sources and licences |

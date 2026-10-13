@@ -233,6 +233,24 @@ A document cites a claim with `<!-- ease:claim id=<claim-id> -->` under the bloc
 
 ---
 
+## Use with your AI agent
+
+The repository ships one skill, `skills/es-knowledge-forge/`, that teaches an agent the ontology-first workflow
+(concept, build, check, hand over, adjust). It is a plain folder: copy or link it into your agent's skills directory by hand.
+There is no plugin, MCP server or per-host bundle yet.
+
+```bash
+python3 skills/es-knowledge-forge/build.py --spec skills/es-knowledge-forge/examples/tiny-entity-pack.json --output-dir /absolute/new-pack
+python3 skills/es-knowledge-forge/validate.py --root /absolute/new-pack          # exit 0 ok, 1 reject, 2 could not run
+python3 skills/es-knowledge-forge/look.py --root /absolute/new-pack --sheet /absolute/look-sheet.png   # needs Chrome or Chromium
+python3 scripts/generate-skill-contract.py --check                                # skill's CLI contract is current
+```
+
+`validate.py` and `look.py` find this checkout automatically; elsewhere pass `--repo-root <checkout>` or install the package.
+CI runs the full test suite, including the skill tests, on Python 3.10 and 3.12.
+
+---
+
 ## 🌐 Ecosystem & Cross-Marketing
 
 `design-os-knowledge-builder` is part of the **`DESIGN:OS`** suite of autonomous multi-agent developer tools. Explore companion toolchains designed to work together:
