@@ -10,7 +10,7 @@ from unittest.mock import patch
 from knowledge_builder.containment import atomic_write as real_atomic_write
 from knowledge_builder.ontology.action_edits import EditError, add_link, set_key
 from knowledge_builder.ontology.actions import ActionError, run_action
-from tests.test_ontology_support import RootCase, run_cli
+from tests.test_ontology_support import RootCase, make_stop_run, run_cli
 
 
 def snapshot(root):
@@ -114,6 +114,7 @@ class TestLogAppend(WriteCase):
         run_action(self.root, "deprecate", {"target": "beta", "replacement": "alpha"})
         log = self.root / "_actions" / "actions.jsonl"
         good = log.read_bytes()
+        make_stop_run(self.root)
         before = snapshot(self.root)
 
         def partial(fd, data):

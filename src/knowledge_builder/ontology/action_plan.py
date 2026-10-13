@@ -21,7 +21,7 @@ class ActionError(ValueError):
 
 
 def action_spec(ontology, name):
-    actions = ontology.action_types if ontology.action_types is not None else DEFAULT_ACTIONS
+    actions = {**DEFAULT_ACTIONS, **(ontology.action_types or {})}
     if name not in actions:
         raise ActionError(f"unknown action '{name}'; available: {', '.join(sorted(actions))}")
     return actions[name]

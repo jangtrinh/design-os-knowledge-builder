@@ -173,7 +173,7 @@ python3 -m knowledge_builder.cli query --root <knowledge-root> --object-type con
 # typed local write: criteria, atomic edit, verify, rollback on failure, index rebuild, log line in _actions/actions.jsonl
 python3 -m knowledge_builder.cli action deprecate --root <knowledge-root> --param target=old-id --param replacement=new-id
 ```
-Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`. An `action_types` map in `ontology.yaml` replaces them.
+Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier` (to `verified` it also needs the stopping gate to return STOP_SUFFICIENT for every `_evidence/<run>` the file cites). Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default.
 
 ---
 

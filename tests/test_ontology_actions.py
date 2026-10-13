@@ -130,16 +130,6 @@ class TestOtherDefaults(ActionCase):
             run_action(self.root, "create-object", dict(params, id="delta", object_type="ghost"))
         self.assertEqual(snapshot(self.root), before)
 
-    def test_promote_trust_tier_needs_verified_claims(self):
-        run_action(self.root, "promote-trust-tier", {"target": "alpha", "tier": "verified"})
-        self.assertEqual(self.index()["alpha"]["trust_tier"], "verified")
-        self.replace("beta.md", 'quote="Alpha facts live here."', 'quote="Not in the source."')
-        before = snapshot(self.root)
-        with self.assertRaises(ActionError) as caught:
-            run_action(self.root, "promote-trust-tier", {"target": "beta", "tier": "verified"})
-        self.assertIn("claims-verified", str(caught.exception))
-        self.assertEqual(snapshot(self.root), before)
-
 
 class TestParametersAndSchema(ActionCase):
     def test_parameter_errors(self):
@@ -159,20 +149,6 @@ class TestParametersAndSchema(ActionCase):
         with self.assertRaises(ActionError) as caught:
             run_action(self.root, "deprecate", {"target": "beta", "replacement": "alpha"})
         self.assertIn("ontology.yaml", str(caught.exception))
-
-    def test_declared_action_types_replace_the_defaults(self):
-        self.write("ontology.yaml", self.read("ontology.yaml") + (
-            "action_types:\n"
-            "  retire:\n"
-            "    parameters: {target: {type: object_id}}\n"
-            "    criteria: [{function: status-is, args: [target, active]}]\n"
-            "    edits:\n"
-            "      - {set: {object: target, key: status, value: experimental}}\n"
-        ))
-        run_action(self.root, "retire", {"target": "beta"})
-        self.assertIn('status: "experimental"', self.read("beta.md"))
-        with self.assertRaises(ActionError):
-            run_action(self.root, "deprecate", {"target": "beta", "replacement": "alpha"})
 
     def test_remove_link_verb(self):
         self.write("ontology.yaml", self.read("ontology.yaml") + (

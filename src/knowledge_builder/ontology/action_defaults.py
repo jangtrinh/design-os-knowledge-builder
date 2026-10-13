@@ -33,7 +33,10 @@ DEFAULT_ACTIONS = {
     },
     "promote-trust-tier": {
         "parameters": {"target": OBJECT, "tier": STRING},
-        "criteria": [{"function": "claims-verified", "args": ["target"]}],
+        "criteria": [
+            {"function": "claims-verified", "args": ["target"]},
+            {"function": "runs-stop-sufficient", "args": ["target", "tier"]},
+        ],
         "edits": [{"set": {"object": "target", "key": "trust_tier", "value": "$tier"}}],
     },
 }

@@ -81,10 +81,10 @@ object_types:                    # closed list; implements has at most one paren
 link_types:                      # cardinality is documentation only, never enforced
   - {link_type: compares, from: comparison, to: concept, cardinality: many-to-many}
 extra_keys: []                   # frontmatter keys allowed beyond the closed set
-action_types: {}                 # optional; omit to get the default actions
+action_types: {}                 # optional; merged with the default actions, same name overrides
 ```
 
-Names are kebab-case. Property types: `string`, `enum` (needs `values`), `integer` (`min`/`max`), `boolean`. The file uses a small YAML subset (block maps and lists, flow `[..]` and `{..}`); anything else is a load error with the line number. Functions named in `action_types` come from the built-in registry only: `object-exists`, `status-is`, `has-link`, `claims-verified`, `source-count`, `evidence-age-days`, `links-in-count`. Nothing is imported or executed from a knowledge root.
+Names are kebab-case. Property types: `string`, `enum` (needs `values`), `integer` (`min`/`max`), `boolean`. The file uses a small YAML subset (block maps and lists, flow `[..]` and `{..}`); anything else is a load error with the line number. Functions named in `action_types` come from the built-in registry only: `object-exists`, `status-is`, `has-link`, `claims-verified`, `source-count`, `evidence-age-days`, `links-in-count`, `runs-stop-sufficient` (read-only stopping-gate check over every `_evidence/<run>` the file cites). Nothing is imported or executed from a knowledge root.
 
 ### 5.2 Frontmatter additions
 
@@ -100,7 +100,7 @@ A link to a `deprecated` target is an error that names `superseded_by`. A duplic
 
 ### 5.3 Index, query, actions
 
-`index.json` keeps `id`, `path`, `sha256` and adds `object_type`, `status`, `superseded_by`, `domain`, `trust_tier`, `when`, `description`, `links_out`, `links_in` (derived from the other side), and derived `source_count`, `evidence_age_days` (age of the oldest cited source file), `links_in_count`.
+`index.json` keeps `id`, `path`, `sha256` and adds `object_type`, `status`, `superseded_by`, `domain`, `trust_tier`, `when`, `description`, `links_out`, `links_in` (derived from the other side), and derived `source_count`, `evidence_age_days` (age of the oldest cited source, read from its `Fetched:` header line, else its file mtime), `links_in_count`.
 
 `query` filters `index.json` only (`--object-type --status --linked-to [--link-type] --implements --where k=v --fields`) and fails with "run index" when any file's sha256 differs from the index.
 
