@@ -3,8 +3,10 @@
 import argparse
 from pathlib import Path
 import json
+import os
 import sys
 
+from knowledge_builder.containment import ContainmentError
 from knowledge_builder.contract import UniversalKnowledgeUnit, KnowledgeMetadata, SourceAttribution, ModalityType, TrustTier
 from knowledge_builder.processors import process_pdf, process_video, process_image, process_web
 from knowledge_builder.research.council import run_council_audit
@@ -39,7 +41,29 @@ def gate_exit_code(state, *, self_reported=False):
     return code
 
 
+def cmd_freeze(args):
+    from knowledge_builder.processors.web_freeze import FreezeError, freeze_web_source
+    from knowledge_builder.research.run_driver import _contained_run
+
+    if not args.root or not args.run or not args.stem:
+        print("[-] --freeze needs --root, --run and --stem", file=sys.stderr)
+        sys.exit(1)
+    try:
+        run_dir = _contained_run(args.root, args.run)
+        if os.path.islink(run_dir / "state.json") or not (run_dir / "state.json").is_file():
+            raise FreezeError(f"run is not initialized: {args.run}")
+        rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem, run_dir)
+    except (FreezeError, ContainmentError) as exc:
+        print(f"[-] {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(f"[✓] Frozen {chars} chars of text from {args.target}")
+    print(f"[✓] Source SHA256: {digest}")
+    print(f"[✓] Path: {rel}")
+
+
 def cmd_ingest(args):
+    if args.freeze:
+        return cmd_freeze(args)
     raw = args.target
     target = Path(raw) if Path(raw).exists() else raw
     print(f"[*] Ingesting: {target}")
@@ -148,6 +172,14 @@ def main():
         default=None,
         help="Directory for video extracts. Required for video; writes nowhere else.",
     )
+    p_ingest.add_argument(
+        "--freeze",
+        action="store_true",
+        help="Web url only: write its plain text to _evidence/<run>/sources/<stem>.txt (needs --root, --run, --stem)",
+    )
+    p_ingest.add_argument("--root", default=None, help="With --freeze: knowledge root")
+    p_ingest.add_argument("--run", default=None, help="With --freeze: run id")
+    p_ingest.add_argument("--stem", default=None, help="With --freeze: kebab-case file stem")
     p_ingest.set_defaults(func=cmd_ingest)
 
     # Gate
