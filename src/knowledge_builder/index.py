@@ -13,6 +13,8 @@ from knowledge_builder.containment import (
     require_inside,
 )
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
+from knowledge_builder.ontology.index_enrich import enrich_entries
+from knowledge_builder.ontology.schema import OntologyError
 
 
 DEFAULT_EXCLUDE = "_evidence/**"
@@ -39,6 +41,12 @@ def cmd_index(args):
     if errors:
         for error in errors:
             print(f"[-] {error}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        enrich_entries(root, entries)
+    except OntologyError as exc:
+        print(f"[-] {exc}", file=sys.stderr)
         sys.exit(1)
 
     out_file = root / "index.json"
