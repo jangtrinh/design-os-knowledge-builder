@@ -35,6 +35,7 @@ object_types:
     properties:
       - {name: claim_type, type: enum, values: [FACT, FAILURE_MODE, BENCHMARK, CONTRADICTION, INFERENCE]}
       - {name: confidence, type: enum, values: [HIGH, MEDIUM, LOW]}
+      - {name: resolution, type: string}
   source:
     implements: [frozen-source]
     folder: sources

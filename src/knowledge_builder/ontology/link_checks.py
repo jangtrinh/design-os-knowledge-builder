@@ -7,6 +7,9 @@ from knowledge_builder.ontology.link_scope import describe, matches
 from knowledge_builder.ontology.objects import format_error
 
 
+HISTORICAL_LINK = "contradicts"  # a contradiction with a since-deprecated claim stays on record
+
+
 def link_failures(ontology, graph):
     failures = []
     for obj in graph.all:
@@ -41,7 +44,7 @@ def _one(ontology, graph, obj, item, pointer):
     if not matches(declared["to"], target.object_type, types):
         actual = f"a '{target.object_type}'" if target.object_type else "untyped (no object_type)"
         failures.append(format_error(obj.rel, f"target '{target_id}' is {actual}, link_type '{name}' needs '{describe(declared['to'])}'", path))
-    if target.status == "deprecated":
+    if target.status == "deprecated" and name != HISTORICAL_LINK:
         replacement = (target.data or {}).get("superseded_by")
         hint = f"use '{replacement}'" if replacement else "no replacement is recorded"
         failures.append(format_error(obj.rel, f"target '{target_id}' is deprecated: {hint}", path))

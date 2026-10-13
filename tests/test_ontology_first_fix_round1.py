@@ -1,5 +1,7 @@
 """Fix round 1: publisher independence for the gate, templates inside the package, claim id slugs."""
 
+import importlib.metadata
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -79,6 +81,16 @@ class TestSlug(unittest.TestCase):
         self.assertEqual(slug("x" * 80, 60), "x" * 60)
 
 
+def _setuptools_can_read_pyproject():
+    """setuptools >= 61 reads [project] from pyproject.toml; older ones build an `UNKNOWN` package."""
+    if importlib.util.find_spec("wheel") is None:
+        return False
+    try:
+        return int(importlib.metadata.version("setuptools").split(".")[0]) >= 61
+    except (importlib.metadata.PackageNotFoundError, ValueError):
+        return False
+
+
 class TestPackaging(unittest.TestCase):
     def test_templates_live_in_the_package_and_load_through_importlib_resources(self):
         from importlib.resources import files
@@ -89,15 +101,23 @@ class TestPackaging(unittest.TestCase):
         self.assertFalse((REPO / "templates").exists())
 
     def test_built_wheel_contains_the_starter_and_every_template(self):
-        with tempfile.TemporaryDirectory() as out:
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation", "-w", out, str(REPO)],
-                capture_output=True, text=True,
-            )
-            if result.returncode != 0:  # no setuptools in this interpreter: let uv build in isolation
-                result = subprocess.run(["uv", "build", "--wheel", "--out-dir", out, str(REPO)], capture_output=True, text=True)
+        have_setuptools = _setuptools_can_read_pyproject()
+        if not have_setuptools and shutil.which("uv") is None:
+            self.skipTest("cannot build a wheel here: neither setuptools+wheel nor uv is available")
+        with tempfile.TemporaryDirectory() as scratch:
+            # Build from a copy: an in-tree build would leave build/ behind and reuse a stale one.
+            tree, out = Path(scratch) / "tree", Path(scratch) / "out"
+            tree.mkdir()
+            for name in ("pyproject.toml", "README.md", "LICENSE"):
+                shutil.copy(REPO / name, tree / name)
+            shutil.copytree(REPO / "src", tree / "src", ignore=shutil.ignore_patterns("*.egg-info", "__pycache__"))
+            if have_setuptools:
+                command = [sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation", "-w", str(out), str(tree)]
+            else:
+                command = ["uv", "build", "--wheel", "--out-dir", str(out), str(tree)]
+            result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            (wheel,) = Path(out).glob("*.whl")
+            (wheel,) = out.glob("*.whl")
             names = set(zipfile.ZipFile(wheel).namelist())
         want = {"knowledge_builder/templates/ontology.starter.yaml"} | {
             f"knowledge_builder/templates/_templates/{k}.md.tmpl" for k in ("concept", "guide", "comparison", "decision-record", "claim", "source")

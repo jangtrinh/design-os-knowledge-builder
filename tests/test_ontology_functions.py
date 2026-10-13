@@ -17,7 +17,7 @@ class TestFunctions(RootCase):
     def test_registry_is_exactly_the_designed_set(self):
         self.assertEqual(
             sorted(FUNCTIONS),
-            ["claims-verified", "evidence-age-days", "has-link", "links-in-count", "object-exists", "runs-stop-sufficient", "source-count", "status-is"],
+            ["claim-type-is", "claims-verified", "evidence-age-days", "has-link", "links-in-count", "non-blank", "object-exists", "runs-stop-sufficient", "source-count", "status-is"],
         )
 
     def test_predicates(self):

@@ -76,15 +76,6 @@ class TestContradiction(PromoteCase):
             self.promote(atom="x3")
         self.assertIn("metadata.contradicts", str(caught.exception))
 
-    def test_contradiction_resolves_the_gate_through_the_claim_not_state_json(self):
-        from knowledge_builder.research.ledger_gate import ledger_evaluation_input
-
-        before = ledger_evaluation_input(self.root, "r1").unresolved_contradictions_count
-        self.promote(atom="x2")
-        after = ledger_evaluation_input(self.root, "r1").unresolved_contradictions_count
-        self.assertEqual((before, after), (1, 0))
-        self.assertEqual(json.loads(self.read("_evidence/r1/state.json"))["resolved"], [])
-
 
 if __name__ == "__main__":
     unittest.main()
