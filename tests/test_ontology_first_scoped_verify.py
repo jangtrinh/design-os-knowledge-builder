@@ -1,13 +1,13 @@
 """C-A1 / C-A2: interface-scoped verify, folder routing, and the starter template."""
 
 import shutil
-import tempfile
 import unittest
 from pathlib import Path
 
 from knowledge_builder.ontology.schema import OntologyError, load_ontology
+from knowledge_builder.verify import verify_root
 from tests.pack_support import PackCase, build_basic, scaffold_root
-from tests.test_ontology_support import FIXTURE, run_cli
+from tests.test_ontology_support import FIXTURE
 
 
 class TestStarterTemplate(PackCase):
@@ -51,7 +51,7 @@ class TestScopedVerify(PackCase):
 
     def test_claim_is_not_excluded_from_the_walk(self):
         build_basic(self.root)
-        files, _anchors, _failures, _exempt = __import__("knowledge_builder.verify", fromlist=["verify_root"]).verify_root(self.root)
+        files, _anchors, _failures, _exempt = verify_root(self.root)
         self.assertEqual(files, 3)  # doc-1, claims/c1, sources/s1
 
     def test_legacy_root_has_no_scoping(self):
@@ -59,8 +59,6 @@ class TestScopedVerify(PackCase):
         shutil.copytree(FIXTURE, legacy)
         (legacy / "ontology.yaml").unlink()
         (legacy / "alpha.md").write_text("---\nid: \"alpha\"\n---\nbody\n", encoding="utf-8")
-        from knowledge_builder.verify import verify_root
-
         failures = verify_root(legacy)[2]
         self.assertTrue(any("alpha.md: missing title" in f for f in failures), failures)
         self.assertTrue(any("alpha.md: missing heading ## Purpose" in f for f in failures), failures)

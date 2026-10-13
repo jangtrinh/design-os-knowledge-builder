@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from knowledge_builder.verify import verify_root
-from tests.pack_support import PackCase, add_atom, build_basic, write_claim, write_document, write_source
+from tests.pack_support import PackCase, build_basic, write_claim
 from tests.test_ontology_support import FIXTURE, run_cli
 
 

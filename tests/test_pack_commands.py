@@ -62,6 +62,20 @@ class TestInit(PackInitCase):
         self.assertEqual(list(self.root.iterdir()) if self.root.exists() else [], [])
 
 
+class TestDocumentTemplates(PackInitCase):
+    def test_every_document_type_can_be_created_from_its_packaged_template(self):
+        self.init()
+        self.add_atoms()
+        for kind in ("concept", "guide", "comparison", "decision-record"):
+            code, out, err = run_cli([
+                "knowledge-builder", "action", "create-object", "--root", str(self.root), "--param", f"id=doc-{kind}",
+                "--param", f"object_type={kind}", "--param", "domain=demo", "--param", "title=T", "--param", "description=D",
+                "--param", "when=w", "--param", "source=_evidence/demo-1/sources/p1.txt",
+            ])
+            self.assertEqual(code, 0, out + err)
+        self.assertEqual(self.verify(claims=False), [])
+
+
 class TestStatusAndCheck(PackInitCase):
     def setUp(self):
         super().setUp()
