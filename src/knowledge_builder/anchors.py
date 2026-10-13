@@ -96,11 +96,21 @@ def _closes_fence(line, char, length):
 
 Token = namedtuple("Token", ["line", "kind", "text"])
 
-_ANCHOR_BODY = re.compile(r"\s*ease:source\b")
+_ANCHOR_BODIES = {}
 
 
-def tokenize_document(text):
-    """Tokenise once. kind is text, blank, code, anchor, fence-open, fence-line, or fence-close."""
+def _anchor_body(kinds):
+    if kinds not in _ANCHOR_BODIES:
+        _ANCHOR_BODIES[kinds] = re.compile(r"\s*ease:(?:" + "|".join(kinds) + r")\b")
+    return _ANCHOR_BODIES[kinds]
+
+
+def tokenize_document(text, kinds=("source",)):
+    """Tokenise once. kind is text, blank, code, anchor, fence-open, fence-line, or fence-close.
+
+    kinds names the anchor grammars that count: ("source",) everywhere, plus "claim" in ontology mode.
+    """
+    _ANCHOR_BODY = _anchor_body(tuple(kinds))
     tokens = []
     state = "normal"
     fence_char = ""

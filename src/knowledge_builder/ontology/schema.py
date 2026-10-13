@@ -4,18 +4,18 @@ import re
 from pathlib import Path
 
 from knowledge_builder.containment import ContainmentError, read_text_inside
+from knowledge_builder.ontology.errors import OntologyError
 from knowledge_builder.ontology.functions import FUNCTIONS
+from knowledge_builder.ontology.link_scope import valid_side
+from knowledge_builder.ontology.schema_properties import properties_of
 from knowledge_builder.ontology.schema_yaml import SchemaSyntaxError, parse_schema_yaml
 
 SCHEMA_FILE = "ontology.yaml"
 KEBAB = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-PROPERTY_TYPES = {"string", "enum", "integer", "boolean"}
 EDIT_VERBS = {"create-object", "set", "add-link", "remove-link"}
 PARAMETER_TYPES = {"string", "id", "object_id"}
-
-
-class OntologyError(ValueError):
-    """ontology.yaml is missing required structure or references something undeclared."""
+INTERFACE_RULES = {"anchors-match-cited-claims"}
+FOLDER = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class Ontology:
@@ -33,6 +33,15 @@ class Ontology:
 
     def implementing(self, interface):
         return sorted(name for name, spec in self.object_types.items() if interface in spec.get("implements", []))
+
+    def implements(self, object_type, interface):
+        return interface in (self.object_types.get(object_type) or {}).get("implements", [])
+
+    def folder_of(self, object_type):
+        return (self.object_types.get(object_type) or {}).get("folder")
+
+    def rules_of(self, object_type):
+        return {rule for spec in self.interface_of(object_type) for rule in spec["rules"]}
 
     def declared_properties(self, object_type):
         return {prop["name"]: prop for prop in (self.object_types.get(object_type) or {}).get("properties", [])}
@@ -62,7 +71,7 @@ def _build(raw):
         "extra_keys": _strings(raw.get("extra_keys"), "extra_keys"),
     }
     data["object_types"] = _object_types(raw.get("object_types"), data["interfaces"])
-    data["link_types"] = _link_types(raw.get("link_types"), data["object_types"])
+    data["link_types"] = _link_types(raw.get("link_types"), data["object_types"], data["interfaces"])
     data["action_types"] = _action_types(raw.get("action_types"))
     return Ontology(data)
 
@@ -88,8 +97,25 @@ def _interfaces(raw):
         result[_name(name, "interface name")] = {
             "properties": _strings(spec.get("properties"), f"interfaces.{name}.properties"),
             "sections": _strings(spec.get("sections"), f"interfaces.{name}.sections"),
+            "rules": _rules(spec.get("rules"), name),
         }
     return result
+
+
+def _rules(raw, owner):
+    rules = _strings(raw, f"interfaces.{owner}.rules")
+    for rule in rules:
+        if rule not in INTERFACE_RULES:
+            raise OntologyError(f"ontology.yaml: interfaces.{owner}.rules has unknown rule {rule!r}; known: {sorted(INTERFACE_RULES)}")
+    return rules
+
+
+def _folder(value, owner):
+    if value is None:
+        return None
+    if not isinstance(value, str) or FOLDER.fullmatch(value) is None or value.startswith("_"):
+        raise OntologyError(f"ontology.yaml: object_types.{owner}.folder must be one plain directory name: {value!r}")
+    return value
 
 
 def _object_types(raw, interfaces):
@@ -107,44 +133,15 @@ def _object_types(raw, interfaces):
         for parent in implements:
             if parent not in interfaces:
                 raise OntologyError(f"ontology.yaml: {name} implements undeclared interface {parent}")
-        result[name] = {"implements": implements, "properties": _properties(spec.get("properties"), name)}
+        result[name] = {
+            "implements": implements,
+            "properties": properties_of(spec.get("properties"), name),
+            "folder": _folder(spec.get("folder"), name),
+        }
     return result
 
 
-def _properties(raw, owner):
-    props = []
-    for item in raw or []:
-        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
-            raise OntologyError(f"ontology.yaml: {owner} property needs a name")
-        kind = item.get("type", "string")
-        if kind not in PROPERTY_TYPES:
-            raise OntologyError(f"ontology.yaml: {owner}.{item['name']} has unknown type {kind}")
-        if kind == "enum" and not _strings(item.get("values"), f"{owner}.{item['name']}.values"):
-            raise OntologyError(f"ontology.yaml: {owner}.{item['name']} enum needs values")
-        prop = dict(item, type=kind, required=_boolean(item.get("required", "false"), item["name"]))
-        for bound in ("min", "max"):
-            if bound in item:
-                prop[bound] = _integer(item[bound], f"{owner}.{item['name']}.{bound}")
-        props.append(prop)
-    return props
-
-
-def _boolean(value, label):
-    if value in ("true", True):
-        return True
-    if value in ("false", False):
-        return False
-    raise OntologyError(f"ontology.yaml: {label}.required must be true or false")
-
-
-def _integer(value, label):
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        raise OntologyError(f"ontology.yaml: {label} must be an integer") from None
-
-
-def _link_types(raw, object_types):
+def _link_types(raw, object_types, interfaces):
     seen = set()
     for item in raw or []:
         if not isinstance(item, dict):
@@ -154,7 +151,7 @@ def _link_types(raw, object_types):
             raise OntologyError(f"ontology.yaml: duplicate link_type {name}")
         seen.add(name)
         for side in ("from", "to"):
-            if item.get(side) not in object_types:
+            if not valid_side(item.get(side), object_types, interfaces):
                 raise OntologyError(f"ontology.yaml: link_type {name} {side} {item.get(side)!r} is not an object type")
     return list(raw or [])
 

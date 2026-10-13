@@ -1,0 +1,52 @@
+# Starter ontology for an ontology-first knowledge pack (copied by `pack init`).
+# Documents cite claims; claims rest on sources; sources point at frozen captures.
+version: "1"
+interfaces:
+  sourced-document:
+    properties: [title, description, when, source_attribution]
+    sections: ["## Purpose", "## When to Use / When NOT", "## Core Knowledge Content", "## Failure Modes (Mandatory)"]
+    rules: [anchors-match-cited-claims]
+  evidence-claim:
+    properties: [title, statement, claim_type, confidence, atom_ids, evidence]
+    sections: ["## Statement", "## Evidence"]
+  frozen-source:
+    properties: [title, url, kind, publisher, captures]
+    sections: ["## Capture"]
+object_types:
+  concept:
+    implements: [sourced-document]
+    properties:
+      - {name: domain, type: string}
+  guide:
+    implements: [sourced-document]
+    properties:
+      - {name: domain, type: string}
+  comparison:
+    implements: [sourced-document]
+    properties:
+      - {name: domain, type: string}
+  decision-record:
+    implements: [sourced-document]
+    properties:
+      - {name: domain, type: string}
+  claim:
+    implements: [evidence-claim]
+    folder: claims
+    properties:
+      - {name: claim_type, type: enum, values: [FACT, FAILURE_MODE, BENCHMARK, CONTRADICTION, INFERENCE]}
+      - {name: confidence, type: enum, values: [HIGH, MEDIUM, LOW]}
+  source:
+    implements: [frozen-source]
+    folder: sources
+    properties:
+      - {name: kind, type: enum, values: [official, academic, vendor, practitioner, community]}
+  entity:
+    folder: entities
+link_types:
+  - {link_type: cites, from: sourced-document, to: claim, cardinality: many-to-many}
+  - {link_type: supported-by, from: claim, to: source, cardinality: many-to-many}
+  - {link_type: contradicts, from: claim, to: claim, cardinality: many-to-many}
+  - {link_type: compares, from: sourced-document, to: sourced-document, cardinality: many-to-many}
+  - {link_type: depends-on, from: sourced-document, to: sourced-document, cardinality: many-to-many}
+  - {link_type: about, from: [sourced-document, claim], to: entity, cardinality: many-to-many}
+extra_keys: []
