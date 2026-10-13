@@ -161,6 +161,20 @@ python3 -m knowledge_builder.cli lint <knowledge-root>/<domain>/<topic>/note.md
 python3 -m knowledge_builder.cli index --root <knowledge-root>/<domain>/<topic>
 ```
 
+### 6. Ontology layer (optional, per knowledge root)
+A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
+```bash
+# verify also checks object_type, interface contract, closed keys, links and lifecycle
+python3 -m knowledge_builder.cli verify <knowledge-root>
+# index adds object_type, status, links_out, links_in and derived source_count / evidence_age_days / links_in_count
+python3 -m knowledge_builder.cli index --root <knowledge-root>
+# read-only object sets over index.json (refuses a stale index: run index)
+python3 -m knowledge_builder.cli query --root <knowledge-root> --object-type concept --status active --fields id,links_in_count
+# typed local write: criteria, atomic edit, verify, rollback on failure, index rebuild, log line in _actions/actions.jsonl
+python3 -m knowledge_builder.cli action deprecate --root <knowledge-root> --param target=old-id --param replacement=new-id
+```
+Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`. An `action_types` map in `ontology.yaml` replaces them.
+
 ---
 
 ## 🌐 Ecosystem & Cross-Marketing

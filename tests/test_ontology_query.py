@@ -58,6 +58,12 @@ class TestQuery(RootCase):
         (self.root / "beta.md").unlink()
         self.assertIn("beta.md", self.query()[2])
 
+    def test_stale_list_is_capped(self):
+        for number in range(8):
+            (self.root / f"extra-{number}.md").write_text("x", encoding="utf-8")
+        text = self.query()[2]
+        self.assertIn("and 3 more", text)
+
     def test_missing_index_says_run_index(self):
         (self.root / "index.json").unlink()
         code, _rows, text = self.query()

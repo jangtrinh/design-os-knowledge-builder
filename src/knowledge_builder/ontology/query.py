@@ -21,7 +21,8 @@ def load_fresh_index(root):
         raise QueryError(f"index.json is missing or unreadable ({exc}): run index") from exc
     stale = _stale_paths(root, entries)
     if stale:
-        raise QueryError(f"index.json is stale for {', '.join(stale)}: run index")
+        shown = ", ".join(stale[:5]) + (f" and {len(stale) - 5} more" if len(stale) > 5 else "")
+        raise QueryError(f"index.json is stale for {shown}: run index")
     return entries
 
 
