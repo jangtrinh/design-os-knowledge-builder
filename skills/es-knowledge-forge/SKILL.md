@@ -32,7 +32,22 @@ python3 -m knowledge_builder.cli lint <markdown_file>
 
 # Write index.json with the sha256 of each file. Skips _evidence/**.
 python3 -m knowledge_builder.cli index --root <knowledge-root>/<domain>/<topic>
+
+# Freeze a web page as plain text into a run's sources/ (never overwrites). Prints sha256 + path.
+python3 -m knowledge_builder.cli ingest --freeze <url> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
+
+# Per-round novelty from the ledger. --material counts only novel atoms whose quote an anchor cites.
+# Writes nothing unless --write-state.
+python3 -m knowledge_builder.cli run measure --root <knowledge-root> --id <run> --material [--write-state]
+
+# Typed state writes: round, consecutive_low_delta_rounds, last_weighted_delta,
+# has_viable_probe_remaining, is_target_version_matched, version_applicability, version_reason, resolved.
+python3 -m knowledge_builder.cli run state set --root <knowledge-root> --id <run> --key <key> --value <value>
 ```
+
+Version gate for a pack with no target library: set `version_applicability=not_applicable` and a non-empty `version_reason`; the gate prints the reason. Without the reason it does not pass.
+
+Anchor rules under `verify --claims`: a quote containing `"` uses single quotes (`quote='He said "go".'`); a quote with both quote characters is a malformed anchor. A `Derived:`/`Observed:`/`Decision:` line on the line directly above a table or fence exempts that block.
 
 ## 2. Universal Knowledge Master Contract (UKMC.v1)
 

@@ -13,6 +13,7 @@ from knowledge_builder.containment import (
     require_inside,
 )
 from knowledge_builder.research.ledger import AtomicResearchLedger, EvidenceAtom
+from knowledge_builder.research.saturation import validate_round_metadata
 
 
 def register_run(subparsers, parser_class):
@@ -51,6 +52,12 @@ def register_run(subparsers, parser_class):
     status.add_argument("--root", required=True, help="External knowledge repository root")
     status.add_argument("--id", required=True, help="Run id")
     status.set_defaults(func=cmd_run_status)
+
+    from knowledge_builder.research.run_state import register_state
+    from knowledge_builder.research.saturation import register_measure
+
+    register_measure(commands)
+    register_state(commands, parser_class)
 
 
 def cmd_run_init(args):
@@ -94,6 +101,7 @@ def cmd_run_record(args):
         if not isinstance(data, dict):
             raise ValueError("atom must be a JSON object")
         atom = EvidenceAtom(**data)
+        validate_round_metadata(atom.metadata)
         AtomicResearchLedger(args.id, base_dir=Path(args.root) / "_evidence").record_atom(atom)
     except (ContainmentError, TypeError, ValueError, json.JSONDecodeError) as exc:
         _fail(f"invalid atom: {exc}")

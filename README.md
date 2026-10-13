@@ -161,6 +161,40 @@ python3 -m knowledge_builder.cli lint <knowledge-root>/<domain>/<topic>/note.md
 python3 -m knowledge_builder.cli index --root <knowledge-root>/<domain>/<topic>
 ```
 
+### 6. Run a research ledger
+```bash
+# One run = _evidence/<id>/{state.json,evidence.jsonl,sources/}
+python3 -m knowledge_builder.cli run init --root <knowledge-root> --id <run> --budget 400 --require <claim-id> --researcher <runtime>
+
+# Freeze a web page as plain text into sources/ (identity encoding, gzip decoded, never overwrites).
+# Prints the sha256 and the repo-relative path to cite in an atom.
+python3 -m knowledge_builder.cli ingest --freeze <url> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
+
+# Append one atom from stdin. metadata.round is an integer >= 1; metadata.novel is a boolean.
+python3 -m knowledge_builder.cli run record --root <knowledge-root> --id <run> < atom.json
+
+# Per-round novelty: delta(r) = novel atoms in r / atoms before r. Round 1 is the baseline.
+# --material counts a novel atom only when an ease:source anchor in a module cites its quote.
+# Nothing is written unless --write-state is given.
+python3 -m knowledge_builder.cli run measure --root <knowledge-root> --id <run> --material [--write-state]
+
+# Typed writes to state.json. Settable keys: round, consecutive_low_delta_rounds,
+# last_weighted_delta, has_viable_probe_remaining, is_target_version_matched,
+# version_applicability (applicable | not_applicable), version_reason, resolved (appends).
+python3 -m knowledge_builder.cli run state set --root <knowledge-root> --id <run> --key version_applicability --value not_applicable
+python3 -m knowledge_builder.cli run state set --root <knowledge-root> --id <run> --key version_reason --value "concept pack: no target library"
+
+# The gate reads the ledger. It prints "low-delta rounds N/3" and, for a declared
+# not-applicable version, "Version:  not applicable: <reason>".
+python3 -m knowledge_builder.cli gate --root <knowledge-root> --run-id <run>
+```
+
+`version_applicability: not_applicable` passes the version gate only with a non-empty `version_reason`. Without the reason the gate stays at DEEPEN.
+
+### Anchor and label rules checked by `verify --claims`
+- A quote that contains `"` is written with single quotes: `<!-- ease:source uri=... sha256=... quote='He said "go".' -->`. A quote holding both `"` and `'` cannot be written in either form; verify reports a malformed anchor, so cite a shorter fragment.
+- A `Derived:`, `Observed:`, or `Decision:` line directly above a table or code fence (the very next line, no blank line) exempts that one block. A blank line in between, or the label below the block, does not.
+
 ---
 
 ## 🌐 Ecosystem & Cross-Marketing
