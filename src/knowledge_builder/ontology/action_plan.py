@@ -1,19 +1,14 @@
 """Turn an action spec plus parameters into staged file edits. Nothing here writes to disk."""
 
-import hashlib
-import json
-import re
-from pathlib import Path
-
-from knowledge_builder.containment import ContainmentError, read_text_inside, require_inside
+from knowledge_builder.containment import ContainmentError, read_text_inside
 from knowledge_builder.ontology import action_edits
-from knowledge_builder.ontology.action_defaults import DEFAULT_ACTIONS, DEFAULT_TEMPLATE
+from knowledge_builder.ontology.action_defaults import DEFAULT_ACTIONS
 from knowledge_builder.ontology.action_edits import EditError
 from knowledge_builder.ontology.functions import FUNCTIONS
+from knowledge_builder.ontology.object_create import create_object
 from knowledge_builder.ontology.schema import KEBAB
 
 BARE_KEYS = {"object", "target", "link_type"}
-PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 
 
 class ActionError(ValueError):
@@ -38,6 +33,8 @@ def parse_params(spec, graph, raw):
         if key not in raw or raw[key] == "":
             raise ActionError(f"missing parameter '{key}'")
         value, kind = raw[key], (rule or {}).get("type", "string")
+        if not isinstance(value, str):
+            raise ActionError(f"parameter '{key}' takes one value")
         if kind == "object_id" and graph.get(value) is None:
             raise ActionError(f"parameter '{key}': unknown object '{value}'")
         if kind == "id" and (KEBAB.fullmatch(value) is None or graph.get(value) is not None):
@@ -108,43 +105,9 @@ def _link(change):
     return apply
 
 
-def _create(stage, args, ontology):
-    ident, kind, values = args["id"], args["object_type"], dict(args["values"])
-    if kind not in ontology.object_types:
-        raise EditError(f"object_type '{kind}' is not declared")
-    if KEBAB.fullmatch(str(ident)) is None:
-        raise EditError(f"id '{ident}' must be kebab-case")
-    rel = f"{ident}.md"
-    if (stage.root / rel).exists() or rel in stage.files:
-        raise EditError(f"{rel} already exists")
-    source = values.get("source", "")
-    try:
-        target = require_inside(stage.root / source, stage.root)
-    except ContainmentError as exc:
-        raise EditError(f"source: {exc}") from exc
-    if not source or not target.is_file():
-        raise EditError(f"source '{source}' is not a file under the root")
-    values.update(id=ident, object_type=kind, source_sha256=hashlib.sha256(target.read_bytes()).hexdigest())
-    stage.files[rel] = _render(_template(stage.root, kind), values)
-    stage.created[ident] = rel
-
-
-def _template(root, kind):
-    path = root / "_templates" / f"{kind}.md.tmpl"
-    return read_text_inside(path, root) if path.is_file() else DEFAULT_TEMPLATE
-
-
-def _render(template, values):
-    def fill(match):
-        if match.group(1) not in values:
-            raise EditError(f"template placeholder {{{{{match.group(1)}}}}} has no value")
-        return json.dumps(str(values[match.group(1)]), ensure_ascii=False)[1:-1]
-    return PLACEHOLDER.sub(fill, template)
-
-
 VERBS = {
     "set": _set,
     "add-link": _link(action_edits.add_link),
     "remove-link": _link(action_edits.remove_link),
-    "create-object": _create,
+    "create-object": create_object,
 }

@@ -11,6 +11,7 @@ from knowledge_builder.ontology.action_plan import ActionError, Stage
 from knowledge_builder.ontology.claim_atoms import Atoms, header_field, verified_file
 from knowledge_builder.ontology.claim_render import capture_rows, evidence_rows, render, template_for
 from knowledge_builder.ontology.claim_state import PackState, host_of
+from knowledge_builder.ontology.hosting_hosts import is_hosting_host
 from knowledge_builder.ontology.list_edits import append_map_item
 
 PARAMS = {"atom", "run", "into", "id", "kind", "publisher", "contradicted_kind"}
@@ -148,6 +149,11 @@ def _create_source(state, stage, url, capture, kind, publisher):
     if not kind or (allowed and kind not in allowed):
         raise ActionError(f"a new Source for {url} needs --param kind=<{'|'.join(allowed or ['kind'])}>, got {kind!r}")
     host = host_of(url)
+    if not publisher and is_hosting_host(host):
+        raise ActionError(
+            f"{host} hosts or mirrors other publishers' work, so it cannot name the publisher of {url}: "
+            "pass --param publisher=<who published it>"
+        )
     publisher = publisher or host
     if not publisher:
         raise ActionError(f"cannot derive a publisher from {url}: pass --param publisher=<name>")

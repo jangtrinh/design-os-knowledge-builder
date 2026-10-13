@@ -76,13 +76,13 @@ def _properties(ontology, obj, kind):
             if prop["required"]:
                 failures.append(format_error(obj.rel, f"missing property '{name}'", f"/{name}"))
             continue
-        problem = _value_problem(prop, value)
+        problem = value_problem(prop, value)
         if problem:
             failures.append(format_error(obj.rel, f"{name} {problem}", f"/{name}"))
     return failures
 
 
-def _value_problem(prop, value):
+def value_problem(prop, value):
     kind = prop["type"]
     if kind == "enum":
         return None if value in prop["values"] else f"{value!r} is not one of {prop['values']}"

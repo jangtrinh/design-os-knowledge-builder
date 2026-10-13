@@ -18,6 +18,7 @@ from knowledge_builder.ontology.action_lock import root_lock
 from knowledge_builder.ontology.action_plan import (
     ActionError, Stage, action_spec, apply_edits, check_criteria, parse_params,
 )
+from knowledge_builder.ontology.create_object_params import is_default, prepare, reject_repeated
 from knowledge_builder.ontology.functions import Context
 from knowledge_builder.ontology.objects import load_graph
 from knowledge_builder.ontology.schema import OntologyError, load_ontology
@@ -52,12 +53,18 @@ def _plan(root, name, items):
     if ontology is None:
         raise ActionError("action needs ontology.yaml; this root is in legacy mode")
     graph = load_graph(root)
+    own_params = name == "create-object" and is_default(ontology)
+    if not own_params:
+        reject_repeated(items)
     if name in NATIVE:
         return importlib.import_module(NATIVE[name]).plan_batch(root, ontology, graph, items)
     if len(items) != 1:
         raise ActionError(f"action {name} does not take a batch; batchable: {', '.join(sorted(NATIVE))}")
-    spec = action_spec(ontology, name)
-    params = parse_params(spec, graph, items[0])
+    if own_params:
+        spec, params = prepare(ontology, graph, items[0])
+    else:
+        spec = action_spec(ontology, name)
+        params = parse_params(spec, graph, items[0])
     check_criteria(spec, params, Context(root, graph))
     stage = Stage(root, graph)
     apply_edits(spec, params, stage, ontology)
@@ -123,6 +130,8 @@ def _write(root, rel, data):
     if path.is_absolute() or ".." in path.parts:
         raise ActionError(f"refusing to write outside the root: {rel}")
     try:
+        if not (root / path.parent).exists():
+            ensure_real_dir(root / path.parent)
         require_inside(root / path.parent, root)
     except ContainmentError as exc:
         raise ActionError(f"refusing to write {rel}: {exc}") from exc

@@ -1,6 +1,7 @@
 """pack check: verify --claims, coverage, index freshness, gate. Exit 0 only when verify passes."""
 
 from knowledge_builder.ontology.query import QueryError, load_fresh_index
+from knowledge_builder.pack.publisher_kinds import warning_lines
 from knowledge_builder.pack.status_report import build_status, load_pack
 from knowledge_builder.verify import verify_root
 
@@ -18,6 +19,7 @@ def check_pack(root, run=None):
     )
     for item in status["deprecated_claims_cited"]:
         lines.append(f"deprecated claim {item['claim']} (use {item['superseded_by']}) is still cited by {', '.join(item['documents'])}: re-link or re-word")
+    lines.extend(warning_lines(status["publisher_kind_conflicts"]))
     lines.append(f"index: {_index_state(root)}")
     gate = status["gate"]
     lines.append(f"gate: {gate['decision'] or 'n/a'} - {gate['reason']}")
