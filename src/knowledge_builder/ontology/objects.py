@@ -83,7 +83,9 @@ def load_graph(root):
 
 
 def _markdown_paths(root):
-    for path in root.rglob("*.md"):
+    for path in root.rglob("*"):
+        if path.suffix.lower() != ".md":
+            continue
         relative = path.relative_to(root)
         if SKIP_DIRS.intersection(relative.parts) or path.name.lower() == "readme.md":
             continue

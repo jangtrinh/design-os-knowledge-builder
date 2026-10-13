@@ -3,14 +3,16 @@
 import fcntl
 import json
 import os
+from collections import Counter
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
 from knowledge_builder.containment import (
-    ContainmentError, atomic_write, ensure_real_dir, open_append_nofollow, open_lock_nofollow, write_all,
+    ContainmentError, atomic_write, ensure_real_dir, open_append_nofollow, open_lock_nofollow, require_inside, write_all,
 )
+from knowledge_builder.ontology.action_backup import Backup
 from knowledge_builder.ontology.action_plan import (
     ActionError, Stage, action_spec, apply_edits, check_criteria, parse_params,
 )
@@ -43,19 +45,23 @@ def run_action(root, name, raw_params, verify=None):
     if not changed:
         raise ActionError("action produced no change")
     verify = verify or _structural_verify
-    baseline = set(verify(root))
+    baseline = Counter(verify(root))
+    backup = Backup(root)
     try:
+        for rel in [*changed, INDEX_FILE]:
+            backup.save(rel)
         for rel, text in changed.items():
             _write(root, rel, text.encode("utf-8"))
-        introduced = [line for line in verify(root) if line not in baseline]
+        introduced = list((Counter(verify(root)) - baseline).elements())
         if introduced:
             raise ActionError("verify failed after edits:\n  " + "\n  ".join(introduced))
         rebuild_index(root)
         record = _record(name, params, root, sorted(changed), originals)
         _append_log(root, record)
     except BaseException:
-        _restore(root, originals)
+        backup.restore()
         raise
+    backup.discard()
     return record
 
 
@@ -71,15 +77,13 @@ def _read(path):
 
 def _write(root, rel, data):
     path = Path(rel)
+    if path.is_absolute() or ".." in path.parts:
+        raise ActionError(f"refusing to write outside the root: {rel}")
+    try:
+        require_inside(root / path.parent, root)
+    except ContainmentError as exc:
+        raise ActionError(f"refusing to write {rel}: {exc}") from exc
     atomic_write(root / path.parent, path.name, data)
-
-
-def _restore(root, originals):
-    for rel, data in originals.items():
-        if data is None:
-            (root / rel).unlink(missing_ok=True)
-        elif _read(root / rel) != data:
-            _write(root, rel, data)
 
 
 def rebuild_index(root):
@@ -112,8 +116,12 @@ def _append_log(root, record):
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
         fd = open_append_nofollow(directory / LOG_FILE)
+        size = os.fstat(fd).st_size
         try:
             write_all(fd, (json.dumps(record, sort_keys=True) + "\n").encode("utf-8"))
+        except BaseException:
+            os.ftruncate(fd, size)
+            raise
         finally:
             os.close(fd)
     finally:

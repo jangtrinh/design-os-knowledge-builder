@@ -6,6 +6,7 @@ from pathlib import Path
 
 from knowledge_builder.containment import ContainmentError, read_bytes_inside
 from knowledge_builder.index import DEFAULT_EXCLUDE, _markdown_files
+from knowledge_builder.ontology.index_enrich import schema_fingerprint
 from knowledge_builder.ontology.schema import load_ontology
 
 
@@ -27,7 +28,12 @@ def load_fresh_index(root):
 
 
 def _stale_paths(root, entries):
-    files, _errors = _markdown_files(root, [DEFAULT_EXCLUDE])
+    files, errors = _markdown_files(root, [DEFAULT_EXCLUDE])
+    if errors:
+        raise QueryError(f"index.json cannot be trusted, discovery failed for {'; '.join(errors[:5])}: run index")
+    fingerprint = schema_fingerprint(root)
+    if any(entry.get("ontology_sha256") != fingerprint for entry in entries):
+        return ["ontology.yaml"]
     on_disk = {path.relative_to(root).as_posix(): path for path in files}
     indexed = {entry["path"]: entry["sha256"] for entry in entries}
     stale = set(on_disk) ^ set(indexed)

@@ -86,6 +86,8 @@ class FlowParser:
         raw = self.text[start : self.pos].strip()
         if not raw:
             self._fail("empty scalar")
+        if ": " in raw or raw.endswith(":"):
+            self._fail("':' inside a plain scalar (missing comma?)")
         return raw
 
     def _quoted(self, quote):

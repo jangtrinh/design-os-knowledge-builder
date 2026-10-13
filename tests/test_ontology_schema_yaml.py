@@ -46,6 +46,17 @@ class TestSchemaYaml(unittest.TestCase):
                 parse_schema_yaml(bad)
             self.assertIn("line", str(caught.exception))
 
+    def test_every_list_item_needs_a_dash_space_marker(self):
+        for bad in ("extra_keys:\n  - a\n  -forbidden\n", "extra_keys:\n  -a\n"):
+            with self.subTest(bad), self.assertRaises(SchemaSyntaxError):
+                parse_schema_yaml(bad)
+
+    def test_colon_space_inside_a_plain_flow_scalar_is_a_missing_comma(self):
+        with self.assertRaises(SchemaSyntaxError) as caught:
+            parse_schema_yaml("properties: [{name: rank type: integer}]\n")
+        self.assertIn("line 1", str(caught.exception))
+        self.assertEqual(parse_schema_yaml("u: [http://x.y/z]\n"), {"u": ["http://x.y/z"]})
+
 
 if __name__ == "__main__":
     unittest.main()

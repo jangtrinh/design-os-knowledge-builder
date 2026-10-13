@@ -72,11 +72,13 @@ def _eol(lines):
 
 
 def _find_key(lines, close, key):
-    for index in range(1, close):
-        match = _KEY_LINE.match(lines[index].rstrip("\r\n"))
-        if match and match.group(1) == key:
-            return index
-    return None
+    found = [
+        index for index in range(1, close)
+        if (match := _KEY_LINE.match(lines[index].rstrip("\r\n"))) and match.group(1) == key
+    ]
+    if len(found) > 1:
+        raise EditError(f"frontmatter has duplicate key '{key}'; fix it before editing")
+    return found[0] if found else None
 
 
 def _block_end(lines, start, close):

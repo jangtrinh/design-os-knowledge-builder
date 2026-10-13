@@ -111,6 +111,8 @@ def _create(stage, args, ontology):
     ident, kind, values = args["id"], args["object_type"], dict(args["values"])
     if kind not in ontology.object_types:
         raise EditError(f"object_type '{kind}' is not declared")
+    if KEBAB.fullmatch(str(ident)) is None:
+        raise EditError(f"id '{ident}' must be kebab-case")
     rel = f"{ident}.md"
     if (stage.root / rel).exists() or rel in stage.files:
         raise EditError(f"{rel} already exists")

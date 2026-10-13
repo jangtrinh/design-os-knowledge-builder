@@ -25,14 +25,14 @@ def parse_schema_yaml(text):
 
 
 def _block(rows, index, indent):
-    if rows[index][1].startswith("- ") or rows[index][1] == "-":
+    if _is_item(rows[index][1]):
         return _list(rows, index, indent)
     return _map(rows, index, indent)
 
 
 def _map(rows, index, indent):
     result = {}
-    while index < len(rows) and rows[index][0] == indent and not rows[index][1].startswith("- "):
+    while index < len(rows) and rows[index][0] == indent and not _is_item(rows[index][1]):
         _indent, text, number = rows[index]
         key, rest = _split_key(text, number)
         if key in result:
@@ -50,7 +50,7 @@ def _map(rows, index, indent):
 
 def _list(rows, index, indent):
     items = []
-    while index < len(rows) and rows[index][0] == indent and rows[index][1].startswith("-"):
+    while index < len(rows) and rows[index][0] == indent and _is_item(rows[index][1]):
         _indent, text, number = rows[index]
         rest = text[1:].strip()
         if not rest:
@@ -64,6 +64,10 @@ def _list(rows, index, indent):
             index += 1
     _reject_stray(rows, index, indent)
     return items, index
+
+
+def _is_item(text):
+    return text == "-" or text.startswith("- ")
 
 
 def _reject_stray(rows, index, indent):

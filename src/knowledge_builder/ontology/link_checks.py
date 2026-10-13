@@ -36,8 +36,9 @@ def _one(ontology, graph, obj, item, pointer):
     target = graph.get(target_id)
     if target is None:
         return failures + [format_error(obj.rel, f"target '{target_id}' does not exist", path)]
-    if target.object_type is not None and target.object_type != declared["to"]:
-        failures.append(format_error(obj.rel, f"target '{target_id}' is a '{target.object_type}', link_type '{name}' needs '{declared['to']}'", path))
+    if target.object_type != declared["to"]:
+        actual = f"a '{target.object_type}'" if target.object_type else "untyped (no object_type)"
+        failures.append(format_error(obj.rel, f"target '{target_id}' is {actual}, link_type '{name}' needs '{declared['to']}'", path))
     if target.status == "deprecated":
         replacement = (target.data or {}).get("superseded_by")
         hint = f"use '{replacement}'" if replacement else "no replacement is recorded"
