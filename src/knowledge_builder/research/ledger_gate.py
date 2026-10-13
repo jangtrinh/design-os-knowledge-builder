@@ -48,6 +48,8 @@ def ledger_evaluation_input(root, run_id):
         block_reason=block_reason if isinstance(block_reason, str) else None,
         independent_review_passed=_review_separates_duty(run_dir, state),
         minimum_independent_sources=_minimum_sources(state),
+        version_not_applicable=state.get("version_applicability") == "not_applicable",
+        version_reason=_version_reason(state),
     )
 
 
@@ -183,6 +185,11 @@ def _unresolved_contradictions(state, atoms):
 def _version_matched(state):
     """Missing or non-boolean version evidence cannot certify."""
     return bool_or_absent(state, "is_target_version_matched", absent=False)
+
+
+def _version_reason(state):
+    reason = state.get("version_reason")
+    return reason if isinstance(reason, str) else None
 
 
 def _probe_remaining(state):
