@@ -1,0 +1,41 @@
+{
+  "name": "design-os-knowledge-builder",
+  "description": "Deterministic multimodal knowledge compiler with `UKMC.v1` schema enforcement, SHA-256 provenance, and a 6-validator epistemic gate.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jang Trinh",
+    "url": "https://github.com/jangtrinh"
+  },
+  "homepage": "https://jangtrinh.github.io/design-os-knowledge-builder/",
+  "repository": "https://github.com/jangtrinh/design-os-knowledge-builder",
+  "license": "MIT",
+  "keywords": [
+    "knowledge-compiler",
+    "ukmc",
+    "rag",
+    "agent-skills",
+    "epistemic-gate",
+    "design-os"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "DESIGN:OS Knowledge Builder",
+    "shortDescription": "Deterministic multimodal knowledge compiler with `UKMC.v1` schema enforcement, SHA-256 provenance, and a 6-validator epistemic gate.",
+    "longDescription": "Compile web documentation, PDFs, codebases, and videos into hallucination-free, token-budgeted knowledge packs (`SKILL.md` + `knowledge/**/*.md`) ready for Claude Code, Codex, Gemini CLI, and Antigravity.",
+    "developerName": "DESIGN:OS",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://jangtrinh.github.io/design-os-knowledge-builder/",
+    "privacyPolicyURL": "https://github.com/jangtrinh/design-os-knowledge-builder/blob/main/PRIVACY.md",
+    "defaultPrompt": [
+      "Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists.",
+      "Audit our knowledge/ directory with the 6-validator epistemic gate and fix any missing frontmatter or untrusted quarantine flags.",
+      "Generate a progressive-disclosure SKILL.md router and llms.txt index for our domain knowledge base."
+    ],
+    "brandColor": "#202020",
+    "logo": "./assets/cover.png"
+  }
+}

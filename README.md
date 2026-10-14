@@ -1,268 +1,327 @@
-# Design OS Knowledge Builder (`design-os-knowledge-builder`)
+# DESIGN:OS Knowledge Builder (`design-os-knowledge-builder`)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://python.org)
-[![Contract: UKMC.v1](https://img.shields.io/badge/Contract-UKMC.v1-purple.svg)](./docs/master-contract-ukmc.md)
-[![Stopping Gate: Formal Logic Passed](https://img.shields.io/badge/Stopping_Gate-Verified-emerald.svg)](./assets/stopping_gate_check.png)
+**Deterministic multimodal knowledge compiler with `UKMC.v1` schema enforcement, SHA-256 provenance, and a 6-validator epistemic gate.**
 
-> **Universal Multimodal Knowledge Pipeline, Auto-Research Loop, and Epistemic Stopping Gate Engine for AI Coding Agents.**  
-> Built for the **Products** ecosystem (Claude Code, Codex Native, Antigravity, and Gemini).
+Compile web documentation, PDFs, codebases, and videos into hallucination-free, token-budgeted knowledge packs (`SKILL.md` + `knowledge/**/*.md`) ready for Claude Code, Codex, Gemini CLI, and Antigravity.
 
 <p align="center">
-  <img src="./assets/hero_assembled.png" alt="Design OS Knowledge Builder - Assembled Technical State" width="760"/>
+  <img src="assets/cover.png" alt="DESIGN:OS Knowledge Builder — 2:1 Axonometric Technical Architecture" width="840">
 </p>
+
 <p align="center">
-  <em>Figure 1: Fully seated mechanical assembly — Universal Multimodal Knowledge Ingestion & Epistemic Verification Engine (Isometric technical illustration, pure greyscale hairline <code>#202020</code> on <code>#ffffff</code>, seated state).</em>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-202020?style=flat-square&labelColor=202020&color=444444" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/Claude_Code_%C2%B7_Codex_%C2%B7_Gemini_%C2%B7_Antigravity-skill-202020?style=flat-square&labelColor=202020&color=444444" alt="Compatible agents">
+  <a href="commands/doctor.md"><img src="https://img.shields.io/badge/diagnostics-%2Fdoctor-202020?style=flat-square&labelColor=202020&color=444444" alt="Doctor command"></a>
+  <a href="https://jangtrinh.github.io/design-os-knowledge-builder/"><img src="https://img.shields.io/badge/live_docs-GitHub_Pages-202020?style=flat-square&labelColor=202020&color=444444" alt="Live GitHub Pages"></a>
+  <a href="https://buymeacoffee.com/jangtrinh"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+</p>
+
+<p align="center">
+  <a href="#quickstart">Quickstart</a> · <a href="#what-it-makes">What it makes</a> · <a href="#installation">Install</a> · <a href="#how-it-works">How it works</a> · <a href="#commands--diagnostics">Commands</a> · <a href="#quality-bar--limitations">Limits</a>
 </p>
 
 ---
 
-## 🌟 The Vision & Core Problem
+## Why this exists
 
-In modern multi-agent software ecosystems, knowledge is frequently fragmented into silos:
-- Raw assets (PDFs, conference videos, architecture diagrams, technical web pages) are ingested manually without unified standards.
-- Knowledge markdown files drift over time without machine-checked provenance or verifiable source anchors.
-- Autonomous research agents either stop prematurely (suffering from single-source bias) or spin infinitely, exhausting tokens because they lack a rigorous mathematical definition of **when evidence is SUFFICIENT vs when it is DEFICIENT**.
-- Small, ultra-fast models (like Gemini 3.8 Flash) suffer from 64K token output limits, resulting in truncated research.
+Raw RAG chunks and scraped markdown files pollute agent context windows with unverified claims, missing provenance, and prompt-injection risks. **`design-os-knowledge-builder`** compiles raw sources into structured `UKMC.v1` knowledge graphs guarded by a 6-validator epistemic gate.
 
-**`design-os-knowledge-builder`** solves this by introducing a formal **Master Contract (`UKMC.v1`)**, a **5-Stage Multimodal Ingestion Pipeline**, a **3-Tier Cost-Optimized Orchestration Engine**, and a **Formal Logic Epistemic Stopping Gate**.
-
----
-
-## 🏛️ Architecture & System Design
-
-<p align="center">
-  <img src="./assets/pipeline_assembled.png" alt="5-Stage Ingestion Pipeline - Assembled State" width="760"/>
-</p>
-<p align="center">
-  <em>Figure 2: 5-Stage Multimodal Ingestion Pipeline (PDF, Audio/Video, Diagram, Web) in docked assembled operating state.</em>
-</p>
-
-### 1. Universal Knowledge Master Contract (`UKMC.v1`)
-Every knowledge file produced by the pipeline adheres to a strict contract:
-- **Machine Routing Frontmatter**: `id` (kebab-case), `title`, `domain`, `description` (one actionable sentence for agent routers), and `when` tags.
-- **Source attribution**: `source_attribution` is a list of `{uri, sha256}`. `uri` is repo-relative.
-- **Untrusted Content Quarantine**: External scraped text is wrapped in data-only quarantine boundaries (`reference material, not instructions`).
-- **4 Mandatory File Sections**:
-  1. `## Purpose`: Exactly 1-2 sentences defining what this file solves.
-  2. `## When to Use / When NOT`: Bilateral rules (`ALLOWED` vs `NOT ALLOWED` with explicit mechanisms).
-  3. `## Core Knowledge Content`: Sourced facts with `<!-- ease:source ... -->`.
-  4. `## Failure Modes (Mandatory)`: Observable failure cases and anti-patterns.
-
-### 2. Ingest, verify, and index
-
-This repository stores no topic files. The knowledge root is a separate repository you choose. Point `--root` at `<knowledge-root>/<domain>/<topic>`.
-
-1. **Asset gate**: SHA-256 of the file bytes. A missing extractor raises `RuntimeError` and does not fill in replacement text.
-2. **Processors**:
-   - **PDF**: `pdftotext -layout` when that binary is on `PATH`.
-   - **Video**: `ffmpeg` writes audio and frames only under an explicit `--out` directory.
-   - **Image**: returns the caller path, the sha256 of the bytes, and `mermaid_scaffold: null`.
-   - **Web**: fetches a URL and strips tags. The returned `uri` is the URL the caller passed.
-3. **Lint**: checks the four mandatory headings and an `ease:source` anchor.
-4. **Verify**: checks frontmatter, the `source_attribution` list, repo-relative paths, file bytes, anchors, and the four headings.
-5. **Index**: `index --root` writes `index.json` with real sha256 digests and skips `_evidence/**` by default.
+| Dimension | Generic AI / Manual Workflow | DESIGN:OS Knowledge Builder (`DESIGN:OS`) |
+| :--- | :--- | :--- |
+| **Provenance & Trust** | Unattributed markdown scrapes with zero hash verification | Mandatory `source_attribution` (`uri`, `sha256`, `license`, `trust_tier`) on every node |
+| **Prompt-Injection Safety** | External web text mixed directly into system instructions | Explicit `quarantine.is_external_untrusted` isolation and sanitization |
+| **Failure Prevention** | Happy-path notes that omit edge cases | Mandatory `## When to Use / When NOT` and `>= 5` concrete `## Failure Modes` per node |
+| **Context Efficiency** | Monolithic dumps that blow the 200k context window | Progressive disclosure (`SKILL.md` router -> domain index -> leaf node) |
+| **Privacy & Telemetry** | Opaque cloud telemetry or unverified third-party APIs | **Zero telemetry** — 100% local execution ([`PRIVACY.md`](PRIVACY.md) audited) |
 
 ---
 
-## 🧠 Epistemic Stopping Gate (When is it ENOUGH?)
+## Quickstart
 
-Auto-Research cannot rely on heuristics like "read 5 articles and stop". `design-os-knowledge-builder` defines 4 distinct, mutually exclusive termination states:
+### 1. Install the plugin or CLI
 
-<p align="center">
-  <img src="./assets/stopping_gate_assembled.png" alt="Epistemic Stopping Gate - Seated Assembly" width="560"/>
-</p>
-<p align="center">
-  <em>Figure 3: Epistemic Stopping Gate mechanism seated down on registration pins — distinguishing STOP_SUFFICIENT, DEEPEN, PAUSE_BUDGET, and ABSTAIN_BLOCKED. (Verified via <a href="./assets/stopping_gate_check.png">Codex Native Astra Logic Suite</a>).</em>
-</p>
+**In Claude Code:**
 
-1. `STOP_SUFFICIENT`: **Sufficient Evidence**. 100% of required technical claims verified by independent sources and code execution; semantic saturation achieved ($\le 2\%$ delta across 3 rounds).
-2. `DEEPEN`: **Deficiencies Found**. Missing claims, single-source bias, version drift, or untested failure modes $\rightarrow$ Open another targeted probe.
-3. `PAUSE_BUDGET`: **Budget Exhausted**. Loop iterations ran out while claims remain incomplete. **Never reported as "sufficient"**.
-4. `ABSTAIN_BLOCKED`: **Blocked Upstream**. Paywalls or anti-scraping without viable fallback.
+```text
+/plugin marketplace add jangtrinh/design-os-knowledge-builder
+/plugin install design-os-knowledge-builder@design-os-knowledge-builder
+```
 
-### Mathematical Formulation
-$$G_t = RequiredCoverage \land EvidenceAdequacy \land RequiredExecution \land CounterevidenceCoverage \land VersionValidity \land NoBlockingContradiction$$
-$$STOP_{\text{sufficient}} = G_t \land S_t \land DecisionStable \land NoMaterialProbeRemaining \land ValidIndependentReview$$
+**Or from your terminal (Codex, Gemini CLI, Antigravity, OpenCode, or standalone CLI):**
 
-> **The Golden Rule**: *A high soft score NEVER compensates for a broken hard gate.*
-
----
-
-## ⚡ 3-Tier Cost-Optimized Orchestration & 64K Cutoff Defense
-
-To allow small models like **Gemini 3.8 Flash** to perform long-form research without truncation:
-1. **File-Backed Atomic Ledger (`evidence.jsonl`)**: Discrete evidence atoms (500B–1KB) are streamed directly to disk as they are discovered.
-2. **Idempotent Resume (`state.json`)**: If context fills up or a network interruption occurs, the next turn resumes immediately from the state cursor.
-3. **Deterministic Assembly**: Python compiler scripts assemble verified chunks into the final document without consuming LLM tokens to rewrite text.
-4. **Tiered Model Routing**:
-   - **Tier 0 ($0.00)**: Local shell scripts, `pdftotext`, `ffmpeg`, `gh CLI`, regex.
-   - **Tier 1 (75% tokens - Cheap)**: Gemini 3.8 Flash / Flash-Lite / GPT-4o-mini for scraping and OCR.
-   - **Tier 2 (25% tokens - Front-tier)**: Gemini 3.8 Pro / Claude 3.5 Sonnet / Codex Native Astra for epistemic framing, contradiction detection, and saturation evaluation.
-
----
-
-## 👥 The 5-Perspective Council
-
-<p align="center">
-  <img src="./assets/council_assembled.png" alt="5-Perspective Council Verification - Seated Assembly" width="560"/>
-</p>
-<p align="center">
-  <em>Figure 4: 5-Perspective Verification Comparator seated on calibration base (Builder, Red-Team, Architect, Auditor, Operator).</em>
-</p>
-
-Before knowledge graduates into the core, it must pass 5 expert lenses:
-1. **Builder**: Is there actual runnable code and minimal reproduction?
-2. **Red-Team**: What are the failure modes, race conditions, and breaking limits?
-3. **Architect**: Does it adhere to KISS/YAGNI/DRY? Is the license clean of copyleft (GPL/AGPL)?
-4. **Auditor**: What is the real-world latency p99, RAM footprint, and token cost?
-5. **Operator**: How is this monitored, debugged, and restored when it fails?
-
----
-
-## 🚀 Quickstart & CLI Usage
-
-### Installation
 ```bash
 git clone https://github.com/jangtrinh/design-os-knowledge-builder.git
 cd design-os-knowledge-builder
-pip install -e .
+python3 scripts/verify-ukmc.py
 ```
 
-### 1. Ingest Raw Media
+### 2. Ask in plain English
+
+Open your project in your AI coding agent and describe what you need:
+
+> "Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists."
+
+> "Audit our knowledge/ directory with the 6-validator epistemic gate and fix any missing frontmatter or untrusted quarantine flags."
+
+> "Generate a progressive-disclosure SKILL.md router and llms.txt index for our domain knowledge base."
+
+### 3. Verify your setup
+
 ```bash
-# Ingest PDF
-python3 -m knowledge_builder.cli ingest ./whitepaper.pdf
-
-# Ingest video. Extracts are written only under --out.
-python3 -m knowledge_builder.cli ingest ./tech-talk.mp4 --out ./extracts
-
-# Ingest an image. The result is a digest and a null diagram scaffold.
-python3 -m knowledge_builder.cli ingest ./system-diagram.png
+python3 scripts/self_check.py
 ```
-
-### 2. Verify an external knowledge root
-```bash
-python3 -m knowledge_builder.cli verify <knowledge-root>/<domain>/<topic>
-```
-
-### 3. Evaluate Stopping Gate
-```bash
-python3 -m knowledge_builder.cli gate --run-id run-001 --required 5 --verified 5 --sources 3
-```
-
-### 4. Lint Knowledge Markdown
-```bash
-python3 -m knowledge_builder.cli lint <knowledge-root>/<domain>/<topic>/note.md
-```
-
-### 5. Compile Machine-Readable Index
-```bash
-python3 -m knowledge_builder.cli index --root <knowledge-root>/<domain>/<topic>
-```
-
-### 6. Run a research ledger
-```bash
-# One run = _evidence/<id>/{state.json,evidence.jsonl,sources/}
-python3 -m knowledge_builder.cli run init --root <knowledge-root> --id <run> --budget 400 --require <claim-id> --researcher <runtime>
-
-# Freeze a web page as plain text into sources/ (identity encoding, gzip decoded, never overwrites).
-# Prints the sha256 and the repo-relative path to cite in an atom.
-python3 -m knowledge_builder.cli ingest --freeze <url> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
-
-# Append one atom from stdin. metadata.round is an integer >= 1; metadata.novel is a boolean.
-python3 -m knowledge_builder.cli run record --root <knowledge-root> --id <run> < atom.json
-
-# Per-round novelty: delta(r) = novel atoms in r / atoms before r. Round 1 is the baseline.
-# --material counts a novel atom only when an ease:source anchor in a module cites its quote.
-# Nothing is written unless --write-state is given.
-python3 -m knowledge_builder.cli run measure --root <knowledge-root> --id <run> --material [--write-state]
-
-# Typed writes to state.json. Settable keys: round, consecutive_low_delta_rounds,
-# last_weighted_delta, has_viable_probe_remaining, is_target_version_matched,
-# version_applicability (applicable | not_applicable), version_reason, resolved (appends).
-python3 -m knowledge_builder.cli run state set --root <knowledge-root> --id <run> --key version_applicability --value not_applicable
-python3 -m knowledge_builder.cli run state set --root <knowledge-root> --id <run> --key version_reason --value "concept pack: no target library"
-
-# The gate reads the ledger. It prints "low-delta rounds N/3" and, for a declared
-# not-applicable version, "Version:  not applicable: <reason>".
-python3 -m knowledge_builder.cli gate --root <knowledge-root> --run-id <run>
-```
-
-`version_applicability: not_applicable` passes the version gate only with a non-empty `version_reason`. Without the reason the gate stays at DEEPEN.
-
-### Anchor and label rules checked by `verify --claims`
-- A quote that contains `"` is written with single quotes: `<!-- ease:source uri=... sha256=... quote='He said "go".' -->`. A quote holding both `"` and `'` cannot be written in either form; verify reports a malformed anchor, so cite a shorter fragment.
-- A `Derived:`, `Observed:`, or `Decision:` line directly above a table or code fence (the very next line, no blank line) exempts that one block. A blank line in between, or the label below the block, does not.
-
-### 7. Ontology layer (optional, per knowledge root)
-A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
-```bash
-# verify also checks object_type, interface contract, closed keys, links and lifecycle
-python3 -m knowledge_builder.cli verify <knowledge-root>
-# index adds object_type, status, links_out, links_in and derived source_count / evidence_age_days / links_in_count
-python3 -m knowledge_builder.cli index --root <knowledge-root>
-# read-only object sets over index.json (refuses a stale index: run index)
-python3 -m knowledge_builder.cli query --root <knowledge-root> --object-type concept --status active --fields id,links_in_count
-# typed local write: criteria, atomic edit, verify, rollback on failure, index rebuild, log line in _actions/actions.jsonl
-python3 -m knowledge_builder.cli action deprecate --root <knowledge-root> --param target=old-id --param replacement=new-id
-```
-Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier` (to `verified` it also needs the stopping gate to return STOP_SUFFICIENT for every `_evidence/<run>` the file cites). Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default.
-
-`create-object` takes the parameters of the object type it creates: `id`, `object_type`, `title`, every property the type declares in `ontology.yaml` (enum, integer and boolean values are checked against the schema before anything is written; a name the type does not declare is refused and the declared ones are listed; a property marked `required` must be given), and, for a type that implements an interface, `domain`, `description`, `when` and `source`. `when` and `source` may be repeated (`--param when=a --param when=b`): one `when` entry and one `source_attribution` entry with its own sha256 per value. The file is written into the type's `folder:` (created if missing), else at the root. A type with no interface and no `_templates/<type>.md.tmpl` gets a generated minimal file (`id`, `title`, `object_type`, `status`, the declared properties, a `## Notes` section). Other actions refuse a repeated parameter.
-
-`promote-claim` does not guess a publisher from a hosting or mirror host (`web.archive.org`, `github.com`, `raw.githubusercontent.com`, `githubusercontent.com`, `arxiv.org`, `hackmd.io`, and their subdomains): pass `--param publisher=<who published it>`. `pack status` and `pack check` print a `warning:` line for a publisher whose Sources carry more than one `kind`; it never fails the check.
-
-### 8. Ontology-first packs (claims, sources, `pack` commands)
-`pack init` scaffolds a root from `src/knowledge_builder/templates/ontology.starter.yaml` (package data, so it also works from an installed wheel): document types (`concept`, `guide`, `comparison`, `decision-record`), `claim` objects in `claims/`, `source` objects in `sources/`, an opt-in `entity` type in `entities/`, and link types `cites`, `supported-by`, `contradicts`, `compares`, `depends-on`, `about`.
-```bash
-# new or empty root only; writes ontology.yaml, _templates/, claims/, sources/, pack.json and opens the research run
-python3 -m knowledge_builder.cli pack init --root <pack-root> --topic "my topic" --run my-run --require some-claim-id
-# promote a verified ledger atom into claims/<id>.md + sources/<id>.md (+ supported-by link); --into adds a second atom to a claim
-python3 -m knowledge_builder.cli action promote-claim --root <pack-root> --param atom=hb-1 --param kind=official
-python3 -m knowledge_builder.cli action promote-claim --root <pack-root> --param atom=hb-3 --param into=<claim-id> --param kind=academic
-# many at once, one verify for the whole batch (all or nothing): one JSON object of string parameters per line
-python3 -m knowledge_builder.cli action promote-claim --root <pack-root> --batch atoms.jsonl
-# one screen of counts (add --json); check exits 0 only when verify --claims passes and prints the gate decision
-python3 -m knowledge_builder.cli pack status --root <pack-root>
-python3 -m knowledge_builder.cli pack check --root <pack-root>
-```
-Pass `--param id=<short-kebab-id>` to `promote-claim`: it is the recommended way to name a claim. Without it the id is the first words of the statement, cut at a word boundary within 60 characters (a suffix `-2`, `-3` resolves collisions), which is long for statements copied from sources.
-
-A document cites a claim with `<!-- ease:claim id=<claim-id> -->` under the block it supports and a `cites` link to that claim; the quote lives only in the claim, and `verify --claims` checks it against the frozen capture. Every anchor id must be in the document's `cites` links and every `cites` target must be used by an anchor. `promote-claim` refuses an atom whose frozen file hash or quote does not verify, and an atom that is already promoted (it names the claim). Promoting a `CONTRADICTION` atom also promotes the atom named in its `metadata.contradicts` and links the two with `contradicts`; that records the contradiction but does not resolve it for the stopping gate. Run `action resolve-contradiction --param claim=<id> --param resolution=<text>` (or deprecate one side) to resolve it; the claim must still verify. Every action runs under one lock per root (`_actions/.root.lock`).
 
 ---
 
-## 🌐 Ecosystem & Cross-Marketing
+## What it makes
 
-`design-os-knowledge-builder` is part of the **`DESIGN:OS`** suite of autonomous multi-agent developer tools. Explore companion toolchains designed to work together:
+Every deliverable produced by `design-os-knowledge-builder` is backed by a deterministic verification gate rather than freehand AI guesswork.
 
-| Repository | Archetype | Description | Live Site / Docs |
+<p align="center">
+  <img src="assets/cover.png" alt="DESIGN:OS Knowledge Builder Output Specimen" width="840"><br>
+  <sub>Prompt: <code>"Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists."</code></sub>
+</p>
+
+| Deliverable / Mode | Best for | Output Format | Verification Gate |
 | :--- | :--- | :--- | :--- |
-| [**`design-os-knowledge-builder`**](https://github.com/jangtrinh/design-os-knowledge-builder) | Multi-Agent Knowledge Engine | Universal multimodal ingestion, 3-tier cost orchestration & formal stopping gates. | [Interactive Site](https://jangtrinh.github.io/design-os-knowledge-builder/) |
-| [**`design-os-figma-plugin`**](https://github.com/jangtrinh/design-os-figma-plugin) | Desktop Plugin / Bridge | Live canvas bridge, multi-machine architecture, bidirectional design token sync. | [Live Showcase](https://jangtrinh.github.io/design-os-figma-plugin/) |
-| [**`design-os-svg-animation`**](https://github.com/jangtrinh/design-os-svg-animation) | Vector Motion Engine | Deterministic 1080p 60fps video generation & code-driven kinematic animation. | [Live Showcase](https://jangtrinh.github.io/design-os-svg-animation/) |
-| [**`design-os-3d-blender`**](https://github.com/jangtrinh/design-os-3d-blender) | 3D / CAD Generator | Parametric 3D scene & asset synthesis with embedded Three.js 3D CAD viewer. | [Live Showcase](https://jangtrinh.github.io/design-os-3d-blender/) |
-| [**`design-os-drone-showcase`**](https://github.com/jangtrinh/design-os-drone-showcase) | Hardware Engineering | 249g indoor drone engineering, scroll-scrubbing kinematics & hardware teardown. | [Live Showcase](https://jangtrinh.github.io/design-os-drone-showcase/) |
-| [**`jang-personal-site`**](https://github.com/jangtrinh/jang-personal-site) | Portfolio & Design System | Canonical 2:1 isometric technical illustration design system & verified case studies. | [jang.work](https://www.jang.work/) |
-
-### 📚 Documentation Deep Dives
-
-- [**Master Contract (`UKMC.v1`)**](./docs/master-contract-ukmc.md): Strict schema requirements, cryptographic provenance hashing, and data quarantine boundaries.
-- [**Art Direction Specification**](./docs/art-direction.md): 2:1 isometric technical illustrations, hairline greyscale `#202020` on `#ffffff`, seated mechanical states.
-- [**Interactive Architecture Site**](https://jangtrinh.github.io/design-os-knowledge-builder/): Full 9-tier cognitive presentation with live Schema.org FAQPage for AEO.
+| **UKMC.v1 Knowledge Nodes** | Codifying domain standards with cryptographic source attribution | `Markdown + YAML Frontmatter + Mermaid` | `6-validator epistemic gate PASS` |
+| **Agent Skill Routers** | Packaging domain knowledge into portable `skills/<slug>/SKILL.md` bundles | `Progressive-disclosure Skill Pack` | `python3 scripts/self_check.py` |
+| **GEO & LLM Indexes** | Publishing machine-readable `llms.txt` and knowledge catalogs | `llms.txt + JSON manifest` | `Zero broken local links` |
 
 ---
 
-## 🧪 Testing
+## Installation
 
-Run the test suite:
+Choose the setup that matches your AI coding agent. Every option installs the same canonical skill (`skills/es-knowledge-forge/SKILL.md`) and `/doctor` diagnostic suite.
+
+### Claude Code
+
+Run these two commands inside Claude Code:
+
+```text
+/plugin marketplace add jangtrinh/design-os-knowledge-builder
+/plugin install design-os-knowledge-builder@design-os-knowledge-builder
+```
+
+### OpenAI Codex
+
+Install to your personal Codex skills directory:
+
 ```bash
-python3 -m unittest discover -s tests -t .
+git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
+mkdir -p ~/.codex/skills/es-knowledge-forge ~/.codex/prompts
+cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.codex/skills/es-knowledge-forge/
+cp /tmp/design-os-knowledge-builder/prompts/doctor.md ~/.codex/prompts/es-knowledge-forge-doctor.md
+rm -rf /tmp/design-os-knowledge-builder
+```
+
+### Gemini CLI & Google Antigravity
+
+```bash
+git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
+mkdir -p ~/.gemini/skills/es-knowledge-forge
+cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.gemini/skills/es-knowledge-forge/
+rm -rf /tmp/design-os-knowledge-builder
+```
+
+### OpenCode, Cursor, Windsurf & Other Agent Harnesses
+
+```bash
+git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
+mkdir -p ~/.agents/skills/es-knowledge-forge
+cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.agents/skills/es-knowledge-forge/
+rm -rf /tmp/design-os-knowledge-builder
+```
+
+<details>
+<summary>Verify or uninstall</summary>
+
+**Verify installation:**
+
+```bash
+python3 scripts/self_check.py
+```
+
+Or run `/doctor` inside Claude Code / Codex to inspect installed skill paths, plugin manifests, and gate health.
+
+**Uninstall:**
+
+```bash
+rm -rf ~/.claude/skills/es-knowledge-forge ~/.codex/skills/es-knowledge-forge ~/.gemini/skills/es-knowledge-forge ~/.agents/skills/es-knowledge-forge
+```
+
+</details>
+
+---
+
+## Usage & Prompt Cookbook
+
+Once installed, `skills/es-knowledge-forge/SKILL.md` activates automatically when your prompt matches its domain triggers. Browse [`docs/cookbook.md`](docs/cookbook.md) for copy-paste prompt recipes.
+
+**Generate & Scaffold**
+
+```text
+"Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists."
+```
+
+**Audit & Verify**
+
+```text
+"Audit our knowledge/ directory with the 6-validator epistemic gate and fix any missing frontmatter or untrusted quarantine flags."
+```
+
+**Export & Automate**
+
+```text
+"Generate a progressive-disclosure SKILL.md router and llms.txt index for our domain knowledge base."
 ```
 
 ---
 
-## 📜 License
+## Commands & Diagnostics
 
-MIT License. See [LICENSE](./LICENSE) for details.
+| Command | Environment | What it does |
+| :--- | :--- | :--- |
+| `/doctor` | Claude Code / Codex | Read-only diagnostic check of installed skill paths, plugin manifests, and runtime prerequisites |
+| `python3 scripts/self_check.py` | Terminal / CI | Deterministic offline verification of manifests, skill contracts, and governance files |
+| `python3 scripts/verify-ukmc.py` | Terminal / CI | Run the 6-validator UKMC.v1 epistemic gate across all compiled knowledge nodes |
+
+---
+
+## How it works
+
+1. **Intent Routing** — Your AI agent matches your request against `skills/es-knowledge-forge/SKILL.md` frontmatter triggers.
+2. **Progressive Context Loading** — Only the entry-point `SKILL.md` router loads initially; detailed recipes and scripts load on demand.
+3. **Deterministic Execution** — Domain scripts and contracts execute locally with reproducible inputs and outputs.
+4. **Gate Verification** — `scripts/self_check.py` and domain verifiers (`python3 scripts/verify-ukmc.py`) validate the artifact before completion.
+5. **Zero-Telemetry Delivery** — Verified files are written directly to your workspace with zero external network calls.
+
+```text
+User Prompt / CLI Invocation
+            │
+            ▼
+┌───────────────────────────────────────────────┐
+│ skills/es-knowledge-forge/SKILL.md
+│ Progressive disclosure router & hard rules    │
+└───────────┬───────────────────────────────────┘
+            │ loads on demand
+            ▼
+┌───────────────────────────────────────────────┐
+│ python3 scripts/verify-ukmc.py
+│ Deterministic build & contract enforcement    │
+└───────────┬───────────────────────────────────┘
+            │ verifies
+            ▼
+┌───────────────────────────────────────────────┐
+│ python3 scripts/self_check.py + /doctor       │
+│ Zero-telemetry local verification gate        │
+└───────────────────────────────────────────────┘
+```
+
+### What loads when
+
+`design-os-knowledge-builder` uses progressive context disclosure so your agent's context window stays fast and focused:
+
+| File | Loaded when |
+| :--- | :--- |
+| `skills/es-knowledge-forge/SKILL.md` | Always (~100–150 lines) — routing rules, triggers, and execution workflow |
+| `docs/cookbook.md` | When selecting multi-step prompt recipes or domain patterns |
+| `commands/doctor.md` / `prompts/doctor.md` | Only when running `/doctor` diagnostics |
+| `llms.txt` | When indexed by AI answer engines, RAG pipelines, or repo crawlers |
+
+---
+
+## File structure
+
+```text
+design-os-knowledge-builder/
+├── .claude-plugin/
+│   ├── plugin.json                 # Claude Code plugin manifest
+│   └── marketplace.json            # Claude Code marketplace catalog
+├── .codex-plugin/
+│   └── plugin.json                 # OpenAI Codex plugin & interface manifest
+├── .agents/
+│   └── plugins/marketplace.json    # Cross-agent local plugin registry
+├── .factory-plugin/
+│   ├── plugin.json                 # Factory / Droid plugin manifest
+│   └── marketplace.json            # Factory marketplace metadata
+├── skills/
+│   └── es-knowledge-forge/
+│       └── SKILL.md                # Canonical agent skill entrypoint
+├── commands/
+│   └── doctor.md                   # /doctor diagnostic slash command
+├── prompts/
+│   └── doctor.md                   # Codex diagnostic prompt mirror
+├── scripts/
+│   └── self_check.py               # Deterministic repository & skill self-check
+├── docs/
+│   ├── cookbook.md                 # Copy-paste prompt recipes by job
+│   └── llms.txt                    # GEO / LLM discovery index
+├── PRIVACY.md                      # Zero-telemetry & local-first privacy commitment
+├── SECURITY.md                     # Vulnerability disclosure & security policy
+├── CONTRIBUTING.md                 # Contribution workflow & verification rules
+├── CODE_OF_CONDUCT.md              # Contributor Covenant code of conduct
+├── CHANGELOG.md                    # Release history
+├── llms.txt                        # Root LLM indexing manifest
+├── LICENSE                         # MIT License
+└── README.md
+```
+
+---
+
+## Quality bar & Limitations
+
+### It's working if...
+
+- `python3 scripts/self_check.py` prints `ok: design-os-knowledge-builder self-check passed (es-knowledge-forge)` and exits `0`.
+- `python3 scripts/verify-ukmc.py` passes with zero contract or test regressions.
+- Your AI coding agent loads `skills/es-knowledge-forge/SKILL.md` automatically when given any prompt from [`docs/cookbook.md`](docs/cookbook.md).
+- Network traffic during execution remains zero (guaranteed by [`PRIVACY.md`](PRIVACY.md)).
+
+### When not to use
+
+- Unstructured creative brainstorming or freeform journaling where strict schema gates add unnecessary friction.
+- Storing live credentials, secrets, or personally identifiable customer data (PII).
+- Replacing a transactional SQL/vector database for millions of real-time user records.
+
+---
+
+## DESIGN:OS Ecosystem
+
+`design-os-knowledge-builder` is one of the 13 open-source engines in the **`DESIGN:OS`** ecosystem:
+
+| Engine | Live Docs | Repository | Layer |
+| :--- | :--- | :--- | :--- |
+| **DESIGN:OS CLI** | [jangtrinh.github.io/design-os](https://jangtrinh.github.io/design-os/) | [`jangtrinh/design-os`](https://github.com/jangtrinh/design-os) | `cli` |
+| **Knowledge Builder** | [jangtrinh.github.io/design-os-knowledge-builder](https://jangtrinh.github.io/design-os-knowledge-builder/) | [`jangtrinh/design-os-knowledge-builder`](https://github.com/jangtrinh/design-os-knowledge-builder) | `compiler` |
+| **Figma Plugin & CLI** | [jangtrinh.github.io/design-os-figma-plugin](https://jangtrinh.github.io/design-os-figma-plugin/) | [`jangtrinh/design-os-figma-plugin`](https://github.com/jangtrinh/design-os-figma-plugin) | `plugin` |
+| **SVG Animation Engine** | [jangtrinh.github.io/design-os-svg-animation](https://jangtrinh.github.io/design-os-svg-animation/) | [`jangtrinh/design-os-svg-animation`](https://github.com/jangtrinh/design-os-svg-animation) | `engine` |
+| **3D Blender Agent** | [jangtrinh.github.io/design-os-3d-blender](https://jangtrinh.github.io/design-os-3d-blender/) | [`jangtrinh/design-os-3d-blender`](https://github.com/jangtrinh/design-os-3d-blender) | `3d / cad` |
+| **OPAH ONE Drone** | [jangtrinh.github.io/design-os-drone-showcase](https://jangtrinh.github.io/design-os-drone-showcase/) | [`jangtrinh/design-os-drone-showcase`](https://github.com/jangtrinh/design-os-drone-showcase) | `hardware` |
+| **GitHub Pages Engine** | [jangtrinh.github.io/design-os-github-page](https://jangtrinh.github.io/design-os-github-page/) | [`jangtrinh/design-os-github-page`](https://github.com/jangtrinh/design-os-github-page) | `pages` |
+| **Apple Design OS** | [jangtrinh.github.io/design-os-apple](https://jangtrinh.github.io/design-os-apple/) | [`jangtrinh/design-os-apple`](https://github.com/jangtrinh/design-os-apple) | `swiftui` |
+| **Agent Teacher** | [jangtrinh.github.io/design-os-pedagogy](https://jangtrinh.github.io/design-os-pedagogy/) | [`jangtrinh/design-os-pedagogy`](https://github.com/jangtrinh/design-os-pedagogy) | `pedagogy` |
+| **Origami CAD** | [jangtrinh.github.io/design-os-origami](https://jangtrinh.github.io/design-os-origami/) | [`jangtrinh/design-os-origami`](https://github.com/jangtrinh/design-os-origami) | `packaging` |
+| **Voice UX Architecture** | [jangtrinh.github.io/design-os-voice-ux](https://jangtrinh.github.io/design-os-voice-ux/) | [`jangtrinh/design-os-voice-ux`](https://github.com/jangtrinh/design-os-voice-ux) | `voice-ai` |
+| **Code2Flow** | [jangtrinh.github.io/design-os-code2flow](https://jangtrinh.github.io/design-os-code2flow/) | [`jangtrinh/design-os-code2flow`](https://github.com/jangtrinh/design-os-code2flow) | `ast / audit` |
+| **Generative UI** | [jangtrinh.github.io/design-os-generative-ui](https://jangtrinh.github.io/design-os-generative-ui/) | [`jangtrinh/design-os-generative-ui`](https://github.com/jangtrinh/design-os-generative-ui) | `runtime` |
+
+---
+
+## Contributing, Governance & License
+
+- **Contributing**: See [`CONTRIBUTING.md`](CONTRIBUTING.md) for pull request guidelines and verification gates (`python3 scripts/self_check.py`).
+- **Code of Conduct**: Governed by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+- **Security & Privacy**: Zero telemetry — see [`SECURITY.md`](SECURITY.md) and [`PRIVACY.md`](PRIVACY.md).
+- **Changelog & LLM Index**: Track releases in [`CHANGELOG.md`](CHANGELOG.md) and machine-readable index in [`llms.txt`](llms.txt).
+- **License**: [MIT](LICENSE) © [Jang Trinh](https://github.com/jangtrinh).
+
+---
+
+If `design-os-knowledge-builder` saves you time, a star on GitHub helps other engineers and AI agents find it.
+
+<p align="left">
+  <a href="https://buymeacoffee.com/jangtrinh">
+    <img src="https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee">
+  </a>
+</p>

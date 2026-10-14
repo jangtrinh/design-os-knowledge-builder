@@ -1,0 +1,20 @@
+{
+  "name": "design-os-knowledge-builder",
+  "interface": {
+    "displayName": "DESIGN:OS Knowledge Builder"
+  },
+  "plugins": [
+    {
+      "name": "design-os-knowledge-builder",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
