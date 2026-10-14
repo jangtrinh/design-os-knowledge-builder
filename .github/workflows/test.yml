@@ -24,3 +24,5 @@ jobs:
         run: python -m pytest -q
       - name: Contract is current
         run: python scripts/generate-skill-contract.py --check
+      - name: Repository self-check
+        run: python scripts/self_check.py

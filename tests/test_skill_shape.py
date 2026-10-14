@@ -1,9 +1,10 @@
 """es-knowledge-forge follows the tool-product profile: shape (A1, A2, A9, M3), size limits."""
 
+import json
 import re
 import unittest
 
-from tests.skill_support import SKILL
+from tests.skill_support import REPO, SKILL
 
 SKILL_MD = (SKILL / "SKILL.md").read_text(encoding="utf-8")
 RULES = (SKILL / "rules.md").read_text(encoding="utf-8")
@@ -88,3 +89,19 @@ class TestSkillShape(unittest.TestCase):
         specs = sorted((SKILL / "examples").glob("*.json"))
         self.assertGreaterEqual(len(specs), 2)
         self.assertTrue(any('"entities"' in p.read_text(encoding="utf-8") for p in specs))
+
+
+class TestSkillHasOneHome(unittest.TestCase):
+    """A8: the bundles point at ./skills/, and no second copy of the skill can drift."""
+
+    def test_a8_the_skill_exists_only_under_skills(self):
+        found = [p.relative_to(REPO).as_posix() for p in REPO.rglob("SKILL.md")
+                 if not {".git", ".brv", "node_modules"} & set(p.relative_to(REPO).parts)]
+        self.assertEqual(found, ["skills/es-knowledge-forge/SKILL.md"])
+        self.assertEqual([p.name for p in REPO.rglob("es-knowledge-forge") if ".git" not in p.parts], ["es-knowledge-forge"])
+
+    def test_a8_bundle_manifests_point_at_the_skills_folder(self):
+        manifest = json.loads((REPO / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["skills"], "./skills/")
+        self.assertTrue((REPO / manifest["skills"] / SKILL.name / "SKILL.md").is_file())
+

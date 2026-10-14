@@ -1,0 +1,15 @@
+{
+  "name": "design-os-knowledge-builder",
+  "metadata": {
+    "description": "Ontology-first knowledge packs: claims with verifiable sources (frozen captures checked by sha256 and quote) and a ledger-backed stopping gate."
+  },
+  "owner": {
+    "name": "Jang Trinh"
+  },
+  "plugins": [
+    {
+      "name": "design-os-knowledge-builder",
+      "source": "./"
+    }
+  ]
+}
