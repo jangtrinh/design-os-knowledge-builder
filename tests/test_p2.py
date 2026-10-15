@@ -322,6 +322,7 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
             gate_argv = [
                 "knowledge-builder",
                 "gate",
+                "--legacy",
                 "--root",
                 str(root),
                 "--run-id",

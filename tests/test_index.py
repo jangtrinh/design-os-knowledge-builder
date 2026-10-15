@@ -59,7 +59,7 @@ class TestIndexKnowledgeRoot(unittest.TestCase):
             frozen.write_text("frozen source\n", encoding="utf-8")
             (root / "readme.md").write_text("# readme\n", encoding="utf-8")
 
-            code, out, err = _run(["knowledge-builder", "index", "--root", str(root)])
+            code, out, err = _run(["knowledge-builder", "index", "--root", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
             self.assertNotIn("placeholder-hash", out)
 
@@ -78,7 +78,7 @@ class TestIndexKnowledgeRoot(unittest.TestCase):
         """A directory under the tree that contains this pyproject.toml is refused."""
         package = _package_directory()
         with tempfile.TemporaryDirectory(dir=package) as tmp:
-            code, out, err = _run(["knowledge-builder", "index", "--root", tmp])
+            code, out, err = _run(["knowledge-builder", "index", "--root", tmp, "--legacy"])
             self.assertEqual(code, 2, out + err)
             self.assertFalse((Path(tmp) / "index.json").exists())
 
@@ -88,7 +88,7 @@ class TestIndexKnowledgeRoot(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "note.md").write_text(body, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "index", "--root", str(root)])
+            code, out, err = _run(["knowledge-builder", "index", "--root", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertNotEqual(code, 2, out + err)
             self.assertIn("note.md", out + err)

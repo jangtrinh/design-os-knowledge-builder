@@ -117,7 +117,7 @@ class TestVerifyPermissionsFile(unittest.TestCase):
             lint_code, _lint_out, lint_err = _run(["knowledge-builder", "lint", str(md)])
             self.assertEqual(lint_code, 0, lint_err)
 
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotIn("invalid choice", err)
             self.assertEqual(code, 1)
             self.assertIn(REL, out)
@@ -126,7 +126,7 @@ class TestVerifyPermissionsFile(unittest.TestCase):
             self.assertGreaterEqual(_count(self, out, "failures"), 1)
 
             _populate(root, _knowledge(digest))
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
             self.assertEqual(_count(self, out, "files"), 1)
             self.assertEqual(_count(self, out, "anchors"), 1)
@@ -138,7 +138,7 @@ class TestVerifyPermissionsFile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _populate(root, _knowledge(digest, anchor_sha=flipped))
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotIn("invalid choice", err)
             self.assertEqual(code, 1, out + err)
             self.assertIn(REL, out)
@@ -157,7 +157,7 @@ class TestVerifyPermissionsFile(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp)
                     _populate(root, _knowledge(digest, uri=uri))
-                    code, out, err = _run(["knowledge-builder", "verify", str(root)])
+                    code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
                     self.assertNotIn("invalid choice", err)
                     self.assertEqual(code, 1, out + err)
                     self.assertIn(REL, out)
@@ -173,7 +173,7 @@ class TestVerifyPermissionsFile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _populate(root, text)
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotIn("invalid choice", err)
             self.assertEqual(code, 1, out + err)
             self.assertIn(REL, out)
@@ -199,7 +199,7 @@ class TestVerifyPermissionsFile(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp)
                     _populate(root, text)
-                    code, out, err = _run(["knowledge-builder", "verify", str(root)])
+                    code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
                     self.assertNotIn("invalid choice", err)
                     self.assertEqual(code, 1, out + err)
                     self.assertIn(REL, out)
@@ -211,7 +211,7 @@ class TestVerifyPermissionsFile(unittest.TestCase):
                 with tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp)
                     _populate(root, _knowledge(digest, trust_tier=tier))
-                    code, out, err = _run(["knowledge-builder", "verify", str(root)])
+                    code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
                     self.assertNotIn("invalid choice", err)
                     self.assertEqual(code, 0, out + err)
                     self.assertEqual(_count(self, out, "failures"), 0)

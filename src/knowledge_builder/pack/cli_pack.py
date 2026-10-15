@@ -4,6 +4,7 @@ import json
 import sys
 
 from knowledge_builder.ontology.template_files import TemplateError
+from knowledge_builder.ontology_mode import require_ontology
 from knowledge_builder.pack.check_pack import check_pack
 from knowledge_builder.pack.init_pack import PackError, init_pack
 from knowledge_builder.pack.status_report import build_status
@@ -24,6 +25,7 @@ def cmd_pack_init(args):
 
 
 def cmd_pack_status(args):
+    require_ontology(args.root)
     try:
         report = build_status(args.root, args.run)
     except PackError as exc:
@@ -32,6 +34,7 @@ def cmd_pack_status(args):
 
 
 def cmd_pack_check(args):
+    require_ontology(args.root)
     try:
         code, lines = check_pack(args.root, args.run)
     except PackError as exc:

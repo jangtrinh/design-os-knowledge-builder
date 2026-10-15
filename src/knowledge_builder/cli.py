@@ -17,6 +17,7 @@ from knowledge_builder.research.stopping_gate import (
     TerminationState,
 )
 from knowledge_builder.index import cmd_index
+from knowledge_builder.ontology_mode import add_legacy_flag, require_ontology
 from knowledge_builder.research.run_driver import register_run
 from knowledge_builder.verify import cmd_verify
 
@@ -107,6 +108,7 @@ def cmd_gate(args):
             independent_review_passed=False,
         )
     else:
+        require_ontology(args.root, getattr(args, "legacy", False))
         try:
             inp = ledger_evaluation_input(args.root, args.run_id)
         except LedgerGateError as exc:
@@ -195,6 +197,7 @@ def main():
     p_gate.add_argument("--delta", type=float, default=None)
     p_gate.add_argument("--budget", type=int, default=10)
     p_gate.add_argument("--has-probes", action="store_true")
+    add_legacy_flag(p_gate)
     p_gate.set_defaults(func=cmd_gate)
 
     # Lint
@@ -209,6 +212,7 @@ def main():
         action="store_true",
         help="Require each anchor quote to occur in the hashed file. Structural verify stays the default.",
     )
+    add_legacy_flag(p_verify)
     p_verify.set_defaults(func=cmd_verify)
 
     # Index
@@ -220,6 +224,7 @@ def main():
         default=None,
         help="Root-relative glob to skip (default: _evidence/**)",
     )
+    add_legacy_flag(p_index)
     p_index.set_defaults(func=cmd_index)
 
     register_run(subparsers, _Parser)

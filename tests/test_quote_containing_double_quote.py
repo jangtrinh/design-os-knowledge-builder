@@ -89,27 +89,27 @@ class TestQuoteWithDoubleQuote(unittest.TestCase):
     def test_single_quoted_form_passes_verify_claims(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = _root(tmp, f"quote='{QUOTE}'")
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
         self.assertEqual(code, 0, out + err)
         self.assertIn("failures: 0", out)
 
     def test_double_quoted_form_cannot_hold_the_quote(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = _root(tmp, f'quote="{QUOTE}"')
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
         self.assertNotEqual(code, 0, out + err)
         self.assertIn("malformed ease:source anchor", out)
 
     def test_a_quote_with_both_quote_characters_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = _root(tmp, "quote='It\\'s \"go\"'")
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
         self.assertNotEqual(code, 0, out + err)
 
     def test_wrong_single_quoted_quote_is_still_caught(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = _root(tmp, "quote='He said \"stop\" twice.'")
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
         self.assertNotEqual(code, 0, out + err)
         self.assertIn("quote is not in the hashed file", out)
 
@@ -156,11 +156,11 @@ class TestQuoteWithDoubleQuote(unittest.TestCase):
                 stdin=json.dumps(atom),
             )
             self.assertEqual(code, 0, out + err)
-            code, out, err = _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"])
+            code, out, err = _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1", "--legacy"])
             self.assertNotIn("Missing verified claims", out)
             # Control: the same gate reports the claim missing once the source changes.
             (root / URI).write_bytes(b"He said stop twice.\n")
-            code, out, err = _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"])
+            code, out, err = _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1", "--legacy"])
         self.assertIn("Missing verified claims (0/1)", out)
 
 
