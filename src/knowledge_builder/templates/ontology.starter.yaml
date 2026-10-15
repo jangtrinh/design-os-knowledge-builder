@@ -40,7 +40,7 @@ object_types:
     implements: [frozen-source]
     folder: sources
     properties:
-      - {name: kind, type: enum, values: [official, academic, vendor, practitioner, community]}
+      - {name: kind, type: enum, values: [official, academic, vendor, practitioner, community, first-party]}
   entity:
     folder: entities
 link_types:

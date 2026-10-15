@@ -11,7 +11,7 @@ or pick the narrower topic. Judgment lives here; [validate.py](validate.py) only
 | Documents | 1 to 8 modules, each one question; names kebab-case |
 | Object types | document types (`concept`, `guide`, `comparison`, `decision-record`) plus any entity type |
 | Entities | the things documents are *about* (tools, standards, products); each gets one entity object |
-| Sources | at least 2 independent publishers per document claim that matters; first-party runs count as practitioner |
+| Sources | at least 2 independent publishers per document claim that matters; first-party runs use `kind=first-party` and never count as independent |
 | Required claims | ids the stopping gate must see verified (`pack init --require`) |
 | Target library | named version, or `not_applicable` with a reason (R13) |
 | Owner | who approves the schema and who may review (a different runtime, R12) |

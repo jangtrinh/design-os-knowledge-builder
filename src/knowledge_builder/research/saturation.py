@@ -5,6 +5,8 @@ metadata.novel is true. delta(round r) = novel atoms in r / atoms before r. The
 first round present is the baseline and has no delta. With --material an atom
 counts as novel only when its quote is cited by an ease:source anchor in a
 module under the root, so it changed a claim, a failure mode, or a Decision.
+An atom with metadata.backfill true (a re-recorded or imported atom) is left out of
+novelty and of the denominator; it is reported separately.
 """
 
 import re
@@ -21,7 +23,7 @@ _ANCHOR_PREFIX = re.compile(r"\s*ease:source\b")
 
 
 def validate_round_metadata(metadata):
-    """round is an integer >= 1 and novel is a boolean, when present."""
+    """round is an integer >= 1; novel and backfill are booleans, when present."""
     if not isinstance(metadata, dict):
         return
     if "round" in metadata:
@@ -30,6 +32,8 @@ def validate_round_metadata(metadata):
             raise ValueError("metadata.round must be an integer >= 1")
     if "novel" in metadata and not isinstance(metadata["novel"], bool):
         raise ValueError("metadata.novel must be a boolean")
+    if "backfill" in metadata and not isinstance(metadata["backfill"], bool):
+        raise ValueError("metadata.backfill must be a boolean")
 
 
 def register_measure(commands):
@@ -78,10 +82,20 @@ def cited_quotes(root):
     return quotes
 
 
+def is_backfill(atom):
+    return isinstance(atom.metadata, dict) and atom.metadata.get("backfill") is True
+
+
+def backfill_count(atoms):
+    return sum(1 for atom in atoms if is_backfill(atom))
+
+
 def measure_rounds(atoms, cited=None):
-    """([(round, atoms, novel, before, delta)], trailing_low_rounds, last_delta)."""
+    """([(round, atoms, novel, before, delta)], trailing_low_rounds, last_delta). Backfill atoms are not measured."""
     groups = defaultdict(list)
     for atom in atoms:
+        if is_backfill(atom):
+            continue
         meta = atom.metadata if isinstance(atom.metadata, dict) else {}
         rnd = meta.get("round")
         rnd = rnd if isinstance(rnd, int) and not isinstance(rnd, bool) and rnd >= 1 else 1
@@ -123,6 +137,8 @@ def cmd_run_measure(args):
     for rnd, count, novel, before, delta in rows:
         shown = "n/a (baseline)" if delta is None else f"{delta:.4f}"
         print(f"round {rnd}: atoms {count}, novel {novel}, before {before}, delta {shown}")
+    if backfill_count(atoms):
+        print(f"backfill atoms: {backfill_count(atoms)} (excluded)")
     print(f"consecutive_low_delta_rounds={trailing} last_weighted_delta={last}")
     if not args.write_state:
         return

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from knowledge_builder.containment import ContainmentError
+from knowledge_builder.ontology.action_log import rejected_count
 from knowledge_builder.ontology.objects import load_graph
 from knowledge_builder.ontology.schema import OntologyError, load_ontology
 from knowledge_builder.pack import graph_counts
@@ -10,7 +11,7 @@ from knowledge_builder.pack.init_pack import PackError, read_pack
 from knowledge_builder.pack.publisher_kinds import publisher_kind_conflicts
 from knowledge_builder.research.ledger import AtomicResearchLedger
 from knowledge_builder.research.ledger_gate import LedgerGateError, ledger_evaluation_input
-from knowledge_builder.research.saturation import cited_quotes, measure_rounds
+from knowledge_builder.research.saturation import backfill_count, cited_quotes, measure_rounds
 from knowledge_builder.research.stopping_gate import evaluate_stopping_gate
 from knowledge_builder.verify import verify_root
 
@@ -51,6 +52,7 @@ def ledger_report(root, run, promoted):
         "consecutive_low_delta_rounds": trailing,
         "last_weighted_delta": last,
         "material": True,
+        "backfill_atoms": backfill_count(atoms),
     }
     return len([a for a in atoms if (run, a.id) not in promoted]), saturation
 
@@ -74,6 +76,7 @@ def build_status(root, run=None):
         "claims": graph_counts.claim_figures(root, ontology, graph),
         **graph_counts.coverage(ontology, graph),
         "unpromoted_atoms": unpromoted,
+        "rejected_actions": rejected_count(root),
         "derived_blocks": derived,
         "deprecated_claims_cited": graph_counts.deprecated_cited(ontology, graph),
         "publisher_kind_conflicts": publisher_kind_conflicts(ontology, graph),

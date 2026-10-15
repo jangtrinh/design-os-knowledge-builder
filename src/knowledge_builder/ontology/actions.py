@@ -1,19 +1,15 @@
 """Run one typed action: criteria, staged edits, atomic write, verify, rollback, index, log."""
 
-import fcntl
 import importlib
-import json
-import os
 from collections import Counter
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
-from knowledge_builder.containment import (
-    ContainmentError, atomic_write, ensure_real_dir, open_append_nofollow, open_lock_nofollow, require_inside, write_all,
-)
+from knowledge_builder.containment import ContainmentError, atomic_write, ensure_real_dir, require_inside
 from knowledge_builder.ontology.action_backup import Backup
+from knowledge_builder.ontology.action_log import LOG_DIR, LOG_FILE, append_log, record_rejection
 from knowledge_builder.ontology.action_lock import root_lock
 from knowledge_builder.ontology.action_plan import (
     ActionError, Stage, action_spec, apply_edits, check_criteria, parse_params,
@@ -23,7 +19,7 @@ from knowledge_builder.ontology.functions import Context
 from knowledge_builder.ontology.objects import load_graph
 from knowledge_builder.ontology.schema import OntologyError, load_ontology
 
-LOG_DIR, LOG_FILE, INDEX_FILE = "_actions", "actions.jsonl", "index.json"
+INDEX_FILE = "index.json"
 
 __all__ = ["ActionError", "run_action", "run_batch", "rebuild_index"]
 
@@ -40,8 +36,12 @@ def run_batch(root, name, items, verify=None):
     """One root lock, one verify, one index rebuild, one log record per item. All items apply or none does."""
     root = Path(root).resolve()
     with root_lock(root):
-        stage, steps = _plan(root, name, items)
-        return _apply(root, name, stage, steps, verify or _structural_verify)
+        try:
+            stage, steps = _plan(root, name, items)
+            return _apply(root, name, stage, steps, verify or _structural_verify)
+        except ActionError as exc:
+            record_rejection(root, name, items, exc)
+            raise
 
 
 def _plan(root, name, items):
@@ -58,17 +58,27 @@ def _plan(root, name, items):
         reject_repeated(items)
     if name in NATIVE:
         return importlib.import_module(NATIVE[name]).plan_batch(root, ontology, graph, items)
-    if len(items) != 1:
-        raise ActionError(f"action {name} does not take a batch; batchable: {', '.join(sorted(NATIVE))}")
     if own_params:
+        if len(items) != 1:
+            raise ActionError("action create-object does not take a batch")
         spec, params = prepare(ontology, graph, items[0])
-    else:
-        spec = action_spec(ontology, name)
-        params = parse_params(spec, graph, items[0])
-    check_criteria(spec, params, Context(root, graph))
-    stage = Stage(root, graph)
-    apply_edits(spec, params, stage, ontology)
-    return stage, [(params, dict(stage.files))]
+        check_criteria(spec, params, Context(root, graph))
+        stage = Stage(root, graph)
+        apply_edits(spec, params, stage, ontology)
+        return stage, [(params, dict(stage.files))]
+    spec = action_spec(ontology, name)
+    if len(items) > 1 and any("create-object" in edit for edit in spec.get("edits") or []):
+        raise ActionError(f"action {name} creates objects and does not take a batch")
+    stage, steps, ctx = Stage(root, graph), [], Context(root, graph)
+    for number, raw in enumerate(items, start=1):
+        try:
+            params = parse_params(spec, graph, raw)
+            check_criteria(spec, params, ctx)
+            apply_edits(spec, params, stage, ontology)
+        except ActionError as exc:
+            raise ActionError(f"item {number}: {exc}" if len(items) > 1 else str(exc)) from exc
+        steps.append((params, dict(stage.files)))
+    return stage, steps
 
 
 def _apply(root, name, stage, steps, verify):
@@ -89,7 +99,7 @@ def _apply(root, name, stage, steps, verify):
         rebuild_index(root)
         records = _records(name, steps, originals)
         for record in records:
-            _append_log(root, record)
+            append_log(root, record)
     except BaseException:
         backup.restore()
         raise
@@ -145,24 +155,3 @@ def rebuild_index(root):
         cmd_index(SimpleNamespace(root=str(root), exclude=None))
     except SystemExit as exc:
         raise ActionError(f"index rebuild failed (exit {exc.code})") from exc
-
-
-def _append_log(root, record):
-    try:
-        directory = ensure_real_dir(root / LOG_DIR)
-        lock_fd = open_lock_nofollow(directory / ".lock")
-    except ContainmentError as exc:
-        raise ActionError(f"cannot write action log: {exc}") from exc
-    try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
-        fd = open_append_nofollow(directory / LOG_FILE)
-        size = os.fstat(fd).st_size
-        try:
-            write_all(fd, (json.dumps(record, sort_keys=True) + "\n").encode("utf-8"))
-        except BaseException:
-            os.ftruncate(fd, size)
-            raise
-        finally:
-            os.close(fd)
-    finally:
-        os.close(lock_fd)

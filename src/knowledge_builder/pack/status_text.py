@@ -13,6 +13,7 @@ def status_text(report):
         f"claims: {claims['count']}  with 2+ sources: {claims['with_2_sources_by_file']} by file, {claims['with_2_publishers']} by publisher",
         f"duplicate statements: {len(claims['duplicate_statements'])}",
         f"unpromoted atoms: {_value(report['unpromoted_atoms'])}",
+        f"rejected actions: {report['rejected_actions']}",
         f"uncited claims: {report['uncited_claims']}",
         f"documents without claims: {report['documents_without_claims']}",
         f"derived blocks: {report['derived_blocks']}",
@@ -28,6 +29,8 @@ def status_text(report):
     else:
         rounds = "; ".join(f"r{r['round']} {r['novel']}/{r['atoms']} novel" for r in saturation["rounds"]) or "no atoms"
         lines.append(f"saturation (material): {rounds}; low-delta rounds {saturation['consecutive_low_delta_rounds']}")
+        if saturation.get("backfill_atoms"):
+            lines.append(f"backfill atoms: {saturation['backfill_atoms']} (excluded)")
     return "\n".join(lines)
 
 

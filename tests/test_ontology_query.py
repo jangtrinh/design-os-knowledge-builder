@@ -33,7 +33,7 @@ class TestQuery(RootCase):
         self.assertEqual(self.ids("--linked-to", "alpha"), ["beta", "cmp"])
         self.assertEqual(self.ids("--linked-to", "alpha", "--link-type", "compares"), ["cmp"])
         self.assertEqual(self.ids("--linked-to", "cmp"), ["alpha", "beta"])
-        self.assertEqual(self.ids("--linked-to", "nobody"), [])
+        self.assertEqual(self.query("--linked-to", "nobody")[0], 1)  # an unknown id is an error, not []
 
     def test_fields_projection(self):
         code, rows, text = self.query("--object-type", "comparison", "--fields", "id,status,links_out")

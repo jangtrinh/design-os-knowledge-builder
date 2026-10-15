@@ -1,5 +1,7 @@
 """document -> cites -> claim -> supported-by -> source -> captures. Read-only traversal over the graph."""
 
+from knowledge_builder.ontology.source_checks import counts_as_independent
+
 
 class Chain:
     def __init__(self, claims, sources, captures):
@@ -12,7 +14,7 @@ class Chain:
         return {o.rel for o in [*self.claims, *self.sources]}
 
     def publishers(self):
-        return {str(s.data.get("publisher")) for s in self.sources if s.data.get("publisher")}
+        return {str(s.data.get("publisher")) for s in self.sources if s.data.get("publisher") and counts_as_independent(s.data)}
 
 
 def traverse(graph, obj):

@@ -221,6 +221,7 @@ kb run record --root <knowledge-root> --id <run> < atom.json
 
 # Per-round novelty: delta(r) = novel atoms in r / atoms before r. Round 1 is the baseline.
 # --material counts a novel atom only when an ease:source anchor in a module cites its quote.
+# Atoms with metadata.backfill=true are excluded from novelty and the denominator (printed as "backfill atoms: N (excluded)").
 # Nothing is written unless --write-state is given.
 kb run measure --root <knowledge-root> --id <run> --material [--write-state]
 
@@ -246,11 +247,13 @@ kb query --root <pack-root> --object-type concept --status active --fields id,li
 kb action promote-claim --root <pack-root> --param atom=hb-1 --param kind=official
 kb action promote-claim --root <pack-root> --param atom=hb-3 --param into=<claim-id> --param kind=academic
 kb action promote-claim --root <pack-root> --batch atoms.jsonl     # all or nothing, one verify for the batch
+kb action promote-claim --root <pack-root> --param atom=sa-1 --param kind=first-party   # local execution output: no URL, publisher local, never independent
 kb action create-object --root <pack-root> --param id=<id> --param object_type=entity --param title="..."
 kb action add-link --root <pack-root> --param source=<id> --param link_type=cites --param target=<claim-id>
+kb action add-link --root <pack-root> --batch links.jsonl          # many links, one verify, all or nothing
 kb action resolve-contradiction --root <pack-root> --param claim=<id> --param resolution="<text>"
 ```
-Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`, `promote-claim`, `resolve-contradiction`. Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default. Every action runs under one lock per root, edits atomically, verifies, rolls back on failure, rebuilds the index and appends a line to `_actions/actions.jsonl`.
+Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`, `promote-claim`, `resolve-contradiction`. Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default. Every action runs under one lock per root, edits atomically, verifies, rolls back on failure, rebuilds the index and appends a line to `_actions/actions.jsonl`; a refused action appends one line to `_actions/rejected.jsonl` instead (`pack status` shows the count).
 
 Rules the tool enforces:
 - `promote-claim` refuses an atom whose frozen file hash or quote does not verify, and an atom that is already promoted (the error names the claim). Pass `--param id=<short-kebab-id>` to name the claim; without it the id is the first words of the statement, cut at 60 characters.

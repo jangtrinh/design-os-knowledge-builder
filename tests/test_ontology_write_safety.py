@@ -13,10 +13,14 @@ from knowledge_builder.ontology.actions import ActionError, run_action
 from tests.test_ontology_support import RootCase, make_stop_run, run_cli
 
 
+REJECTED_TRACE = "_actions/rejected.jsonl"
+
+
 def snapshot(root):
+    """Every file's sha256, except the one trace a refused action may add: _actions/rejected.jsonl."""
     return {
         p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted(root.rglob("*")) if p.is_file()
+        for p in sorted(root.rglob("*")) if p.is_file() and p.relative_to(root).as_posix() != REJECTED_TRACE
     }
 
 
@@ -121,7 +125,7 @@ class TestLogAppend(WriteCase):
             os.write(fd, data[:10])
             raise OSError(errno.EIO, "disk error")
 
-        with patch("knowledge_builder.ontology.actions.write_all", partial):
+        with patch("knowledge_builder.ontology.action_log.write_all", partial):
             with self.assertRaises(OSError):
                 run_action(self.root, "promote-trust-tier", {"target": "alpha", "tier": "verified"})
         self.assertEqual(log.read_bytes(), good)

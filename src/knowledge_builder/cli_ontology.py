@@ -85,5 +85,5 @@ def register_ontology(subparsers, parser_class):
     action.add_argument("name", help="Action type from ontology.yaml (or a default)")
     action.add_argument("--root", required=True, help="External knowledge repository root")
     action.add_argument("--param", action="append", help="key=value (repeat a key only where the action takes several values, e.g. create-object when/source)")
-    action.add_argument("--batch", help="JSONL file, one parameter object per line (promote-claim): one verify for the whole batch")
+    action.add_argument("--batch", help="JSONL file, one parameter object per line (promote-claim, add-link and other non-creating actions): one verify, all or nothing")
     action.set_defaults(func=cmd_action)

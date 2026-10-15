@@ -29,13 +29,15 @@ class TestBatch(PromoteCase):
         self.assertEqual(second["before_sha"]["claims/alpha.md"], first["after_sha"]["claims/alpha.md"])  # sha chain continuous
 
     def test_batch_is_all_or_nothing(self):
-        before = sorted(p.name for p in self.root.rglob("*") if p.is_file())
+        files = lambda: sorted(p.name for p in self.root.rglob("*") if p.is_file() and p.name != "rejected.jsonl")
+        before = files()
         with self.assertRaises(ActionError):
             run_batch(self.root, "promote-claim", [
                 {"atom": "a1", "kind": "official"},
                 {"atom": "ghost", "kind": "official"},
             ])
-        self.assertEqual(sorted(p.name for p in self.root.rglob("*") if p.is_file()), before)
+        self.assertEqual(files(), before)
+        self.assertTrue((self.root / "_actions" / "rejected.jsonl").is_file())
 
     def test_cli_batch_jsonl(self):
         batch = self.root.parent / "batch.jsonl"

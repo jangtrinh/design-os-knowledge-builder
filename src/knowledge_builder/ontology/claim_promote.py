@@ -11,6 +11,7 @@ from knowledge_builder.ontology.action_plan import ActionError, Stage
 from knowledge_builder.ontology.claim_atoms import Atoms, header_field, verified_file
 from knowledge_builder.ontology.claim_render import capture_rows, evidence_rows, render, template_for
 from knowledge_builder.ontology.claim_state import PackState, host_of
+from knowledge_builder.ontology.source_checks import FIRST_PARTY, LOCAL_PUBLISHER
 from knowledge_builder.ontology.hosting_hosts import is_hosting_host
 from knowledge_builder.ontology.list_edits import append_map_item
 
@@ -126,8 +127,14 @@ def _entry(run, atom, source_id):
 def _source_for(state, stage, run, atom, real, kind, publisher):
     """Id of the Source for this atom's page: reuse one with the same url, else create it."""
     url = (atom.metadata or {}).get("url") or header_field(real, "Source-URL")
-    if not isinstance(url, str) or not url.strip():
-        raise ActionError(f"atom '{atom.id}': no metadata.url and no Source-URL: header in the frozen file, so no Source can be named")
+    url = url.strip() if isinstance(url, str) and url.strip() else None
+    if url is None and kind == FIRST_PARTY:
+        url = f"local:{atom.source_uri}"  # the Source's url is required; a local file is named by its path
+    if url is None:
+        raise ActionError(
+            f"atom '{atom.id}': no metadata.url and no Source-URL: header in the frozen file, so no Source can be named "
+            f"(a local execution output or authored example takes --param kind={FIRST_PARTY})"
+        )
     capture = {"evidence_uri": atom.source_uri, "sha256": atom.source_digest, "fetched": header_field(real, "Fetched") or atom.captured_at}
     existing = state.source_for_url(url)
     if existing is None:
@@ -148,13 +155,16 @@ def _create_source(state, stage, url, capture, kind, publisher):
     allowed = (state.ontology.declared_properties(state.source_type).get("kind") or {}).get("values")
     if not kind or (allowed and kind not in allowed):
         raise ActionError(f"a new Source for {url} needs --param kind=<{'|'.join(allowed or ['kind'])}>, got {kind!r}")
-    host = host_of(url)
-    if not publisher and is_hosting_host(host):
-        raise ActionError(
-            f"{host} hosts or mirrors other publishers' work, so it cannot name the publisher of {url}: "
-            "pass --param publisher=<who published it>"
-        )
-    publisher = publisher or host
+    if kind == FIRST_PARTY:
+        publisher = publisher or LOCAL_PUBLISHER
+    else:
+        host = host_of(url)
+        if not publisher and is_hosting_host(host):
+            raise ActionError(
+                f"{host} hosts or mirrors other publishers' work, so it cannot name the publisher of {url}: "
+                "pass --param publisher=<who published it>"
+            )
+        publisher = publisher or host
     if not publisher:
         raise ActionError(f"cannot derive a publisher from {url}: pass --param publisher=<name>")
     path = url.split("://", 1)[-1].split("?", 1)[0]

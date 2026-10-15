@@ -101,11 +101,11 @@ claims, sources, captures, the [contract](contract.txt) or `index.json`.
 | `contradictions` | `resolve-contradiction` with a reason; R11 |
 | `review` | Another runtime writes review.json; R12 |
 | `index` | `K index --root P`; R14 |
-| promote-claim: no `metadata.url` and no `Source-URL:` header (open) | Put `metadata.url=local-execution` on the atom, pass `publisher=local-execution` and `kind=practitioner` (no kind exists for first-party runs) |
-| Rejected action leaves no line in `_actions/actions.jsonl` (open) | Keep your own friction log of rejected commands and why |
-| `query --linked-to <unknown id>` prints `[]`, exit 0 (open) | Confirm the id first: `K query --root P --fields id` |
-| Saturation `0/N novel`, `delta 100.0%` (open) | Set `round` + `novel` when recording, never re-record to rebuild; `run measure --material --write-state` |
-| 200+ add-link calls, no body action (open) | Shell loop one call per link; hand-write the body, then `K index` |
+| promote-claim: no `metadata.url` and no `Source-URL:` header | A local execution output or authored example takes `--param kind=first-party` (publisher `local`, never counted as independent); a web page keeps its `metadata.url` |
+| A rejected action is not in `_actions/actions.jsonl` (successes only) | Read `_actions/rejected.jsonl` (action, params, reason, at); `pack status` shows the count |
+| `query --linked-to <unknown id>` exits 1 `unknown object` (also unknown `--implements` / `--object-type`) | Fix the id: `K query --root P --fields id` |
+| Saturation `0/N novel`, `delta 100.0%` | Set `round` + `novel` when recording; mark re-recorded atoms `metadata.backfill=true` (excluded, printed as `backfill atoms: N (excluded)`); `run measure --material --write-state` |
+| 200+ add-link calls, no body action | `K action add-link --root P --batch links.jsonl` (one verify, all or nothing); hand-write the body, then `K index` |
 | Many arXiv/W3C papers count as one publisher | Pass `publisher=<authors' organisation>` per source; R6 |
 | No browser | Record NOT RUN; look.md "Without a browser" |
 

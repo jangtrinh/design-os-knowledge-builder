@@ -24,7 +24,7 @@ class TestStarterTemplate(PackCase):
     def test_source_kind_is_an_enum(self):
         scaffold_root(self.root)
         values = load_ontology(self.root).declared_properties("source")["kind"]["values"]
-        self.assertEqual(values, ["official", "academic", "vendor", "practitioner", "community"])
+        self.assertEqual(values, ["official", "academic", "vendor", "practitioner", "community", "first-party"])
 
     def test_templates_exist_for_every_starter_type(self):
         scaffold_root(self.root)
