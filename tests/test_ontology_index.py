@@ -9,7 +9,7 @@ from tests.test_ontology_support import RootCase, run_cli
 
 class TestIndexEnrichment(RootCase):
     def build(self):
-        code, out, err = run_cli(["knowledge-builder", "index", "--root", str(self.root)])
+        code, out, err = run_cli(["knowledge-builder", "index", "--root", str(self.root), "--legacy"])
         self.assertEqual(code, 0, out + err)
         return {e["id"]: e for e in json.loads(self.read("index.json"))}
 
@@ -59,7 +59,7 @@ class TestIndexEnrichment(RootCase):
 
     def test_broken_schema_fails_index(self):
         self.write("ontology.yaml", "version: [oops\n")
-        code, out, err = run_cli(["knowledge-builder", "index", "--root", str(self.root)])
+        code, out, err = run_cli(["knowledge-builder", "index", "--root", str(self.root), "--legacy"])
         self.assertEqual(code, 1)
         self.assertIn("ontology.yaml", out + err)
         self.assertFalse((self.root / "index.json").exists())

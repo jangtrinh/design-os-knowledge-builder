@@ -127,7 +127,7 @@ def _write_sufficient(root, *, alias=False):
 
 
 def _gate(root):
-    return _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"])
+    return _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1", "--legacy"])
 
 
 NOTE = """---
@@ -278,7 +278,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             target.write_text("ORIGINAL", encoding="utf-8")
             os.symlink(target, root / "index.json")
             (root / "note.md").write_text(NOTE, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "index", "--root", str(root)])
+            code, out, err = _run(["knowledge-builder", "index", "--root", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertEqual(target.read_text(encoding="utf-8"), "ORIGINAL")
             self.assertTrue(os.path.islink(root / "index.json"))
@@ -450,9 +450,9 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             self.assertNotIn("ease:source", text)
             md = root / "note.md"
             md.write_text(text, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertIn("anchors: 0", out)
             self.assertNotIn("failures: 0", out)
@@ -479,7 +479,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
                         _knowledge(digest, uri, anchor_line=anchor),
                         encoding="utf-8",
                     )
-                    code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+                    code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
                     self.assertNotEqual(code, 0, out + err)
                     self.assertNotIn("failures: 0", out)
 
@@ -499,7 +499,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             text = _knowledge(digest, uri, anchor_line=anchor)
             text = text.replace("id: note\n", "id: []\n", 1)
             (root / "note.md").write_text(text, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertIn("id", out.lower())
 
@@ -512,7 +512,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             anchor = f"<!-- ease:source uri={uri} sha256={digest} -->"
             text = _knowledge(digest, uri, anchor_line=anchor, trust_line="trust_tier: []")
             (root / "note.md").write_text(text, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertIn("trust_tier", out)
 
@@ -532,7 +532,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             ):
                 commented = commented.replace(heading, f"<!-- {heading} -->", 1)
             (root / "note.md").write_text(commented, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertIn("heading", out.lower())
 
@@ -547,7 +547,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             fenced = fenced.replace("## Purpose", "```\n## Purpose", 1)
             fenced = fenced.replace("## Failure Modes", "## Failure Modes\n```", 1)
             (root / "note.md").write_text(fenced, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertIn("heading", out.lower())
 
@@ -569,7 +569,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             outside_note = outside / "note.md"
             outside_note.write_text(_knowledge(digest, uri, anchor_line=anchor), encoding="utf-8")
             os.symlink(outside_note, root / "note.md")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("failures: 0", out)
 
@@ -577,7 +577,7 @@ class TestLedgerIndexAndAnchorGuards(unittest.TestCase):
             index_note = outside / "index-note.md"
             index_note.write_text(NOTE, encoding="utf-8")
             os.symlink(index_note, root / "note.md")
-            code, out, err = _run(["knowledge-builder", "index", "--root", str(root)])
+            code, out, err = _run(["knowledge-builder", "index", "--root", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertFalse((root / "index.json").exists())
 

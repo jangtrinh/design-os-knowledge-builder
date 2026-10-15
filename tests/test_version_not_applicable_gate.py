@@ -101,7 +101,7 @@ def _fixture(root, **state_extra):
 
 
 def _gate(root):
-    return _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"])
+    return _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1", "--legacy"])
 
 
 def _passing(**overrides):

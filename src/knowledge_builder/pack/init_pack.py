@@ -23,14 +23,17 @@ def default_run(topic):
     return f"{slug}-{date.today().strftime('%y%m%d')}"
 
 
-def init_pack(root, topic, run=None, budget=400, require=(), researcher=None):
-    """Create root (or fill an existing empty one). A failure removes what this call created."""
+def init_pack(root, topic, run=None, budget=400, require=(), researcher=None, keep=()):
+    """Create root (or fill an existing empty one). A failure removes what this call created.
+
+    `keep` names top-level files that may already be in the root (pack migrate keeps its plan); they are never removed.
+    """
     from knowledge_builder.research.run_driver import cmd_run_init
 
     root = Path(root).expanduser()
     if not topic.strip():
         raise PackError("--topic must not be empty")
-    if root.exists() and (not root.is_dir() or any(root.iterdir())):
+    if root.exists() and (not root.is_dir() or any(child.name not in keep for child in root.iterdir())):
         raise PackError(f"root is not empty: {root} (pack init only scaffolds a new or empty directory)")
     run = run or default_run(topic)
     created_root = not root.exists()
@@ -45,18 +48,20 @@ def init_pack(root, topic, run=None, budget=400, require=(), researcher=None):
         (root / PACK_FILE).write_text(json.dumps({"topic": topic, "run": run}, indent=2) + "\n", encoding="utf-8")
         cmd_run_init(SimpleNamespace(root=str(root), id=run, budget=budget, require=list(require) or None, researcher=researcher))
     except BaseException as exc:
-        _undo(root, created_root)
+        _undo(root, created_root, keep)
         if isinstance(exc, SystemExit):
             raise PackError(f"run init rejected the run id or arguments: {run!r}") from None
         raise
     return run
 
 
-def _undo(root, created_root):
+def _undo(root, created_root, keep=()):
     if created_root:
         shutil.rmtree(root, ignore_errors=True)
         return
     for child in root.iterdir():
+        if child.name in keep:
+            continue
         shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink(missing_ok=True)
 
 

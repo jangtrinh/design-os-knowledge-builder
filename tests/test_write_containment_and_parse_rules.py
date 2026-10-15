@@ -134,11 +134,11 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
             anchor = f'<!-- ease:source uri={uri} sha256={digest} quote="alpha holds" -->'
             text = _knowledge(digest, uri, anchor_line=anchor)
             (root / "note.md").write_text(text, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
             glued = text.replace('quote="alpha holds"', 'quote="alpha holds"extra="x"', 1)
             (root / "note.md").write_text(glued, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("failures: 0", out)
 
@@ -166,7 +166,7 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
             base = _knowledge(digest, uri, anchor_line=anchor)
             note = root / "note.md"
             note.write_text(base, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
 
             mutations = {
@@ -183,7 +183,7 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
             for name, text in mutations.items():
                 with self.subTest(name=name):
                     note.write_text(text, encoding="utf-8")
-                    code, out, err = _run(["knowledge-builder", "verify", str(root)])
+                    code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
                     self.assertNotEqual(code, 0, out + err)
                     self.assertIn("heading", out.lower())
 
@@ -286,7 +286,7 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
             note.write_text(text, encoding="utf-8")
             outside_note = outside / "note.md"
             outside_note.write_text(text, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
 
             import knowledge_builder.verify as verify_mod
@@ -301,7 +301,7 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
                 return found, errors
 
             with patch.object(verify_mod, "_markdown_files", swap_verify):
-                code, out, err = _run(["knowledge-builder", "verify", str(root)])
+                code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("failures: 0", out)
 
@@ -318,7 +318,7 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
             )
             outside_note = outside / "note.md"
             outside_note.write_text(note.read_text(encoding="utf-8"), encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "index", "--root", str(root)])
+            code, out, err = _run(["knowledge-builder", "index", "--root", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
             (root / "index.json").unlink()
 
@@ -334,7 +334,7 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
                 return found, errors
 
             with patch.object(index_mod, "_markdown_files", swap_index):
-                code, out, err = _run(["knowledge-builder", "index", "--root", str(root)])
+                code, out, err = _run(["knowledge-builder", "index", "--root", str(root), "--legacy"])
             self.assertNotEqual(code, 0, out + err)
             self.assertFalse((root / "index.json").exists())
 

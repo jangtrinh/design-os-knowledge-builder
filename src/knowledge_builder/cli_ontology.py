@@ -7,9 +7,11 @@ from pathlib import Path
 from knowledge_builder.ontology.actions import ActionError, run_action, run_batch
 from knowledge_builder.ontology.query import QueryError, run_query
 from knowledge_builder.ontology.schema import OntologyError
+from knowledge_builder.ontology_mode import add_legacy_flag, require_ontology
 
 
 def cmd_query(args):
+    require_ontology(args.root, getattr(args, "legacy", False))
     try:
         rows = run_query(
             args.root, object_type=args.object_type, status=args.status, linked_to=args.linked_to,
@@ -49,6 +51,7 @@ def _run_batch(args):
 
 
 def cmd_action(args):
+    require_ontology(args.root, getattr(args, "legacy", False))
     if args.batch:
         return _run_batch(args)
     params = {}
@@ -79,6 +82,7 @@ def register_ontology(subparsers, parser_class):
     query.add_argument("--implements", help="Interface the object type implements")
     query.add_argument("--where", action="append", help="key=value on an index field (repeatable)")
     query.add_argument("--fields", help="Comma list of index fields to return")
+    add_legacy_flag(query)
     query.set_defaults(func=cmd_query)
 
     action = subparsers.add_parser("action", help="Run a typed, verified, logged local write")
@@ -86,4 +90,5 @@ def register_ontology(subparsers, parser_class):
     action.add_argument("--root", required=True, help="External knowledge repository root")
     action.add_argument("--param", action="append", help="key=value (repeat a key only where the action takes several values, e.g. create-object when/source)")
     action.add_argument("--batch", help="JSONL file, one parameter object per line (promote-claim, add-link and other non-creating actions): one verify, all or nothing")
+    add_legacy_flag(action)
     action.set_defaults(func=cmd_action)

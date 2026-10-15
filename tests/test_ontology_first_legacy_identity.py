@@ -37,7 +37,7 @@ class TestLegacyIdentity(PackCase):
         (self.root / "ontology.yaml").unlink()
 
     def verify_cli(self, *flags):
-        return run_cli(["knowledge-builder", "verify", str(self.root), *flags])
+        return run_cli(["knowledge-builder", "verify", str(self.root), *flags, "--legacy"])
 
     def test_clean_legacy_root(self):
         self.legacy()

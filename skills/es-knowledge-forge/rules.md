@@ -112,3 +112,10 @@ Home: hand-over (`PACK`).
 Keep it: run `validate.py` and `look.py` after the last edit; quote their real output.
 Rejected when: a hand-over claims a check passed without its output from after the final change.
 Home: hand-over (`VALIDATE`, `LOOK`).
+
+## R18. An existing UKMC.v1 pack is migrated, never extended in place
+Keep it: `K pack migrate --from <legacy> --to <new> --run <id> --plan`, fill every `NEEDS_KIND`, `NEEDS_PUBLISHER`,
+`NEEDS_CONTRADICTS` (the reviewer's judgment, never a guess), then `K pack migrate --to <new> --apply <new>/migration-plan.json`.
+A new pack starts with `pack init`; `--legacy` only checks a v1 root and builds nothing.
+Rejected when: `apply` finds a `NEEDS_*` value, or the legacy root changed after the plan.
+Home: tool.

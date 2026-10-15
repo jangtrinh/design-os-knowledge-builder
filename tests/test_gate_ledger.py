@@ -156,6 +156,7 @@ class TestGateLedger(unittest.TestCase):
                 [
                     "knowledge-builder",
                     "gate",
+                    "--legacy",
                     "--root",
                     str(root),
                     "--run-id",
@@ -182,6 +183,7 @@ class TestGateLedger(unittest.TestCase):
                 [
                     "knowledge-builder",
                     "gate",
+                    "--legacy",
                     "--root",
                     str(root),
                     "--run-id",
@@ -207,6 +209,7 @@ class TestGateLedger(unittest.TestCase):
                 [
                     "knowledge-builder",
                     "gate",
+                    "--legacy",
                     "--root",
                     str(root),
                     "--run-id",

@@ -9,7 +9,7 @@ metadata:
 
 One workflow: Concept → Build → Check → Hand over → Adjust. Python ≥3.10, stdlib only. The product is
 `design-os-knowledge-builder`; scripts find it in this checkout, via `--repo-root <checkout>`, `KNOWLEDGE_BUILDER_REPO`,
-or an installed package. `K` = `python3 -m knowledge_builder.cli`, `P` = the pack root, `R` = the run id.
+or an installed package. `K` = `python3 -m knowledge_builder.cli`, `P` = the pack root, `R` = the run id. A new pack starts only with `pack init`.
 The pack lives apart from the tool (rule R16) at `<knowledge-root>/<domain>/<topic>`: `<project>/knowledge/<topic>/` or `~/Products/jang-knowledge/<domain>/<topic>/`.
 
 ## 1. Concept
@@ -23,7 +23,7 @@ recommended option first). Do not build before the answer. Read the numbered [ru
 | New topic | Starter ontology + proposed additions | Owner approves the schema |
 | Extend a pack | Keep its `ontology.yaml`; add atoms, claims, documents | No schema change without approval |
 | Facts for one document | One document type, claims cited by anchor | 1-8 documents per pack |
-| Legacy root (no `ontology.yaml`) | `ingest`, `verify`, `gate`, `lint`, `index`; see [references/ukmc-v2-summary.md](references/ukmc-v2-summary.md) | No claims, entities or `pack` commands |
+| Existing legacy pack | `pack migrate`: plan, fill kinds/publishers, apply ([workflow](references/ontology-first-workflow.md)) | Legacy root is read only; `verify`, `gate`, `lint`, `index` on it need `--legacy`, `ingest` none |
 
 When NOT to use: summarising without quotes, topics with no public or frozen source, storing knowledge inside the tool repo.
 

@@ -20,6 +20,17 @@ the closing condition (done only when it holds). Flags: [../contract.txt](../con
 | 13 | State | `K run state set --root P --id R --key version_applicability --value not_applicable` + `--key version_reason` | gate shows no version deficiency |
 | 14 | Check | `K pack check --root P`, `K pack status --root P`, then [../validate.py](../validate.py), [../look.py](../look.py) | exit 0, sheet inspected |
 
+## Migrating an existing UKMC.v1 pack
+
+| # | Step | Command | Closing condition |
+| --- | --- | --- | --- |
+| M1 | Plan | `K pack migrate --from L --to P --run R --plan` | `P/migration-plan.json` only; legacy root untouched |
+| M2 | Fill | edit the plan: every `NEEDS_KIND`, `NEEDS_PUBLISHER`, `NEEDS_CONTRADICTS`; claim ids, object types if wanted | no `NEEDS_` left |
+| M3 | Apply | `K pack migrate --to P --apply P/migration-plan.json` | `pack check` exit 0 (it is the command's exit) |
+| M4 | Review | steps 12-14 above | a different runtime wrote `review.json` |
+
+Kinds and publishers are the owner's or reviewer's judgment: a hosting host (arxiv, github) never names the publisher.
+
 ## Atom shape
 
 ```json

@@ -201,7 +201,7 @@ The CLI is `python3 -m knowledge_builder.cli <command>`; the examples below writ
 ### Ingest, verify, lint, index
 ```bash
 kb ingest ./whitepaper.pdf                       # PDF; video and images take --out for their extracts
-kb verify <knowledge-root>/<domain>/<topic>      # add --claims to check every quote against the frozen capture
+kb verify <knowledge-root>/<domain>/<topic>      # add --claims to check every quote against the frozen capture; a root with no ontology.yaml needs --legacy
 kb lint <knowledge-root>/<domain>/<topic>/note.md
 kb index --root <knowledge-root>/<domain>/<topic>
 kb gate --run-id run-001 --required 5 --verified 5 --sources 3
@@ -238,9 +238,12 @@ kb gate --root <knowledge-root> --run-id <run>
 `version_applicability: not_applicable` passes the version gate only with a non-empty `version_reason`; without it the gate stays at DEEPEN.
 
 ### Ontology packs: `pack`, `action`, `query`
-A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
+Ontology is the default (`UKMC.v2`). `verify`, `index`, `query`, `action`, `pack status|check` and `gate --root` refuse a root with no `ontology.yaml` (exit 1, "no ontology.yaml: run `pack init` for a new pack or `pack migrate` for an existing one; pass --legacy to check a UKMC.v1 root"). `--legacy` (on `verify`, `index`, `query`, `action`, `gate`) restores the old behaviour exactly, including its stderr warning; `ingest` and `gate --self-report` need no root. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
 ```bash
 kb pack init --root <pack-root> --topic "my topic" --run my-run --require some-claim-id   # new or empty root only
+kb pack migrate --from <legacy-root> --to <new-root> --run my-run --plan   # existing UKMC.v1 pack: writes <new-root>/migration-plan.json only
+# edit the plan: every NEEDS_KIND / NEEDS_PUBLISHER / NEEDS_CONTRADICTS, claim ids and object types are yours to set
+kb pack migrate --to <new-root> --apply <new-root>/migration-plan.json    # refuses while any NEEDS_* is left; ends with pack check
 kb pack status --root <pack-root>        # one screen of counts (add --json)
 kb pack check --root <pack-root>         # exits 0 only when verify --claims passes; prints the gate decision
 kb query --root <pack-root> --object-type concept --status active --fields id,links_in_count   # read-only; refuses a stale index
@@ -255,6 +258,8 @@ kb action add-link --root <pack-root> --batch links.jsonl          # many links,
 kb action resolve-contradiction --root <pack-root> --param claim=<id> --param resolution="<text>"
 ```
 Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`, `promote-claim`, `set-source`, `resolve-contradiction`. Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default. Every action runs under one lock per root, edits atomically, verifies, rolls back on failure, rebuilds the index and appends a line to `_actions/actions.jsonl`; a refused action appends one line to `_actions/rejected.jsonl` instead (`pack status` shows the count).
+
+`pack migrate` never writes the legacy root. `--plan` lists every module (proposed object type, default `concept`), every distinct `(uri, quote)` anchor (with its exact legacy atom, or a backfill atom to create), every captured file with its url, a proposed publisher (the host; a hosting host is `NEEDS_PUBLISHER`) and `kind: NEEDS_KIND`. `--apply` copies the captures byte-for-byte, re-records the legacy atoms (`metadata.v1_atom`), records the backfill atoms (`metadata.backfill=true`), promotes one claim per anchor, creates the documents, rewrites `ease:source` anchors to `ease:claim` and adds the `cites` links, every write through the action pipeline; if a step fails it removes everything it wrote and keeps only the plan. Documents start as `trust_tier: draft`, version `1.0.0`.
 
 Rules the tool enforces:
 - `set-source` edits only the `publisher` and/or `kind` lines of a `frozen-source` object (kind must be in the type's declared enum; a hosting or mirror host is refused as publisher; a refusal goes to `rejected.jsonl`). Publisher counts, `pack status` `with_2_publishers` and the gate's independence follow at once; publishers compare case-insensitively.

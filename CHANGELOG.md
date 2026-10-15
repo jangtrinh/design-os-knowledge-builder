@@ -2,6 +2,14 @@
 
 All notable changes to `design-os-knowledge-builder` are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Ontology is the default: `verify`, `index`, `query`, `action`, `pack` and `gate --root` refuse a root without `ontology.yaml`; `--legacy` restores the UKMC.v1 behaviour.
+
+### Added
+- `pack migrate --plan` / `--apply`: turn an existing UKMC.v1 pack into an ontology-first pack (captures copied byte-for-byte, claims promoted, bodies ported, `cites` links added); the legacy root is never written.
+
 ## [1.0.0] - 2026-10-14
 
 ### Added

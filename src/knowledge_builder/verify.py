@@ -12,6 +12,7 @@ from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
 from knowledge_builder.ontology.checks import ontology_failures
 from knowledge_builder.ontology.claim_anchors import well_formed_ids
 from knowledge_builder.ontology.schema import OntologyError, load_ontology
+from knowledge_builder.ontology_mode import require_ontology
 from knowledge_builder.ontology.scope import claim_anchor_kinds, v1_applies
 from knowledge_builder.quote_check import file_contains_quote
 
@@ -36,6 +37,7 @@ _DELIM_CELL = re.compile(r":?-{3,}:?")
 
 
 def cmd_verify(args):
+    require_ontology(args.root, getattr(args, "legacy", False))
     claims = bool(getattr(args, "claims", False))
     files, anchors, messages, exempt_blocks = verify_root(args.root, claims=claims)
     print(f"files: {files}")

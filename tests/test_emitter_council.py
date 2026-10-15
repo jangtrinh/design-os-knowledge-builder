@@ -99,7 +99,7 @@ class TestEmitterRoundTrip(unittest.TestCase):
             note = root / "notes" / "two-source-round-trip.md"
             note.parent.mkdir(parents=True, exist_ok=True)
             note.write_text(markdown, encoding="utf-8")
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
         self.assertEqual(code, 0, out + err)
         self.assertIn("failures: 0", out)
 

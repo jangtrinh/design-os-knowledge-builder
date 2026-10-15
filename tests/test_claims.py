@@ -114,19 +114,19 @@ class TestVerifyClaims(unittest.TestCase):
             root = Path(tmp)
             _populate(root, WRONG)
 
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertNotIn("unrecognized arguments", err)
             self.assertEqual(code, 0, out + err)
             self.assertEqual(_count(self, out, "failures"), 0)
 
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
             self.assertNotIn("unrecognized arguments", err)
             self.assertEqual(code, 1, out + err)
             self.assertIn(REL, out)
             self.assertIn("quote", out.lower())
 
             _populate(root, REAL.encode("utf-8") + b"\n")
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
             self.assertNotIn("unrecognized arguments", err)
             self.assertEqual(code, 0, out + err)
             self.assertEqual(_count(self, out, "failures"), 0)
@@ -136,7 +136,7 @@ class TestVerifyClaims(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _populate(root, b"alpha\r\nbeta\r\n", quote="alpha\nbeta")
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
             self.assertNotIn("unrecognized arguments", err)
             self.assertEqual(code, 0, out + err)
             self.assertEqual(_count(self, out, "failures"), 0)
@@ -147,10 +147,10 @@ class TestVerifyClaims(unittest.TestCase):
             root = Path(tmp)
             _populate(root, REAL.encode("utf-8") + b"\n", quote=None)
 
-            code, out, err = _run(["knowledge-builder", "verify", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", str(root), "--legacy"])
             self.assertEqual(code, 0, out + err)
 
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
             self.assertNotIn("unrecognized arguments", err)
             self.assertEqual(code, 1, out + err)
             self.assertIn("UNCHECKED", out)
@@ -214,7 +214,7 @@ class TestAtomQuotes(unittest.TestCase):
                 encoding="utf-8",
             )
             code, out, err = _run(
-                ["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"]
+                ["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1", "--legacy"]
             )
             self.assertEqual(code, 2, out + err)
             self.assertIn("Missing verified claims (0/1)", out)
@@ -231,7 +231,7 @@ class TestAtomQuotes(unittest.TestCase):
             evidence.write_text(json.dumps(atoms[0]) + "\n", encoding="utf-8")
 
             code, out, err = _run(
-                ["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"]
+                ["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1", "--legacy"]
             )
             self.assertEqual(code, 2, out + err)
             self.assertIn("Missing verified claims (0/1)", out)
@@ -242,7 +242,7 @@ class TestAtomQuotes(unittest.TestCase):
             atoms[0]["quote"] = "strict still permits writes\n"
             evidence.write_text(json.dumps(atoms[0]) + "\n", encoding="utf-8")
             code, out, err = _run(
-                ["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"]
+                ["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1", "--legacy"]
             )
             self.assertNotEqual(code, 0, out + err)
             self.assertNotIn("Missing verified claims", out)

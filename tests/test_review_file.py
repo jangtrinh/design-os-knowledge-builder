@@ -125,6 +125,7 @@ class TestReviewFileSeparateDuty(unittest.TestCase):
             argv = [
                 "knowledge-builder",
                 "gate",
+                "--legacy",
                 "--root",
                 str(root),
                 "--run-id",

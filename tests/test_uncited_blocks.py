@@ -96,7 +96,7 @@ def _claims_for(core):
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write(root, core)
-        return _run(["knowledge-builder", "verify", "--claims", str(root)])
+        return _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
 
 
 def _line_of(text, needle):
@@ -115,7 +115,7 @@ class TestUncitedBlocks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             text = _write(root, core)
-            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
+            code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root), "--legacy"])
         return text, code, out, err
 
     def test_cited_paragraph_passes(self):

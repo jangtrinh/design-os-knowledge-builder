@@ -32,11 +32,11 @@ class TestLinkToUntypedTarget(RootCase):
 class FreshCase(RootCase):
     def setUp(self):
         super().setUp()
-        code, out, err = run_cli(["knowledge-builder", "index", "--root", str(self.root)])
+        code, out, err = run_cli(["knowledge-builder", "index", "--root", str(self.root), "--legacy"])
         self.assertEqual(code, 0, out + err)
 
     def query(self):
-        return run_cli(["knowledge-builder", "query", "--root", str(self.root)])
+        return run_cli(["knowledge-builder", "query", "--root", str(self.root), "--legacy"])
 
 
 class TestDiscoveryErrors(FreshCase):
@@ -65,7 +65,7 @@ class TestOntologyStateInFreshness(FreshCase):
     def test_adding_ontology_yaml_to_a_legacy_index_is_stale(self):
         saved = self.read("ontology.yaml")
         (self.root / "ontology.yaml").unlink()
-        run_cli(["knowledge-builder", "index", "--root", str(self.root)])
+        run_cli(["knowledge-builder", "index", "--root", str(self.root), "--legacy"])
         self.assertEqual(self.query()[0], 0)
         self.write("ontology.yaml", saved)
         code, _out, err = self.query()

@@ -15,6 +15,7 @@ from knowledge_builder.containment import (
 from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
 from knowledge_builder.ontology.index_enrich import enrich_entries
 from knowledge_builder.ontology.schema import OntologyError
+from knowledge_builder.ontology_mode import require_ontology
 
 
 DEFAULT_EXCLUDE = "_evidence/**"
@@ -30,6 +31,7 @@ def cmd_index(args):
         print(f"[-] Directory not found: {root}", file=sys.stderr)
         sys.exit(1)
 
+    require_ontology(root, getattr(args, "legacy", False))
     entries = []
     found, errors = _markdown_files(root, _exclude_patterns(args))
     for path in found:
