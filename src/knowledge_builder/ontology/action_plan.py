@@ -18,7 +18,7 @@ class ActionError(ValueError):
 def action_spec(ontology, name):
     actions = {**DEFAULT_ACTIONS, **(ontology.action_types or {})}
     if name not in actions:
-        available = sorted({*actions, "promote-claim"})
+        available = sorted({*actions, "promote-claim", "set-source"})
         raise ActionError(f"unknown action '{name}'; available: {', '.join(available)}")
     return actions[name]
 

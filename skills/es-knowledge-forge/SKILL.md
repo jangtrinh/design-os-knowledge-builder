@@ -39,6 +39,7 @@ K ingest --freeze <url> --root P --run R --stem <stem>                    # free
 echo '<atom json>' | K run record --root P --id R                         # round + novel on every atom
 K run measure --root P --id R --material --write-state                    # after each round
 K action promote-claim --root P --param atom=<id> --param id=<claim-id>   # --into / --batch / publisher= / kind=
+K action set-source --root P --param source=<source-id> --param publisher=<name>   # and/or kind=; fixes an existing Source
 K action create-object --root P --param id=<id> --param object_type=<type> --param title=<t> ...
 K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>
 K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"

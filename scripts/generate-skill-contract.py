@@ -76,7 +76,7 @@ def walk(parser, path, help_text, lines):
 
 
 def constants(lines):
-    from knowledge_builder.ontology import claim_promote, create_object_params
+    from knowledge_builder.ontology import claim_promote, create_object_params, source_set
     from knowledge_builder.ontology.action_defaults import DEFAULT_ACTIONS
     from knowledge_builder.ontology.hosting_hosts import HOSTING_HOSTS
     from knowledge_builder.research.ledger import CLAIM_TYPES
@@ -86,7 +86,8 @@ def constants(lines):
               f"  create-object  always: {', '.join(create_object_params.ALWAYS)}; document types add: "
               f"{', '.join(create_object_params.DOCUMENT)} (repeatable: {', '.join(sorted(create_object_params.REPEATABLE))}); "
               "plus the object type's declared properties",
-              f"  promote-claim  {', '.join(sorted(claim_promote.PARAMS))}  (batch: JSONL, one object per line)"]
+              f"  promote-claim  {', '.join(sorted(claim_promote.PARAMS))}  (batch: JSONL, one object per line)",
+              f"  set-source  {', '.join(sorted(source_set.PARAMS))}  (needs publisher or kind; batch: JSONL)"]
     for name, spec in DEFAULT_ACTIONS.items():
         if name != "create-object":
             lines.append(f"  {name}  {', '.join(spec['parameters'])}")

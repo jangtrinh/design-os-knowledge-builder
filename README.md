@@ -248,14 +248,16 @@ kb action promote-claim --root <pack-root> --param atom=hb-1 --param kind=offici
 kb action promote-claim --root <pack-root> --param atom=hb-3 --param into=<claim-id> --param kind=academic
 kb action promote-claim --root <pack-root> --batch atoms.jsonl     # all or nothing, one verify for the batch
 kb action promote-claim --root <pack-root> --param atom=sa-1 --param kind=first-party   # local execution output: no URL, publisher local, never independent
+kb action set-source --root <pack-root> --param source=<source-id> --param publisher=Microsoft   # re-attribute a Source: publisher and/or kind
 kb action create-object --root <pack-root> --param id=<id> --param object_type=entity --param title="..."
 kb action add-link --root <pack-root> --param source=<id> --param link_type=cites --param target=<claim-id>
 kb action add-link --root <pack-root> --batch links.jsonl          # many links, one verify, all or nothing
 kb action resolve-contradiction --root <pack-root> --param claim=<id> --param resolution="<text>"
 ```
-Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`, `promote-claim`, `resolve-contradiction`. Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default. Every action runs under one lock per root, edits atomically, verifies, rolls back on failure, rebuilds the index and appends a line to `_actions/actions.jsonl`; a refused action appends one line to `_actions/rejected.jsonl` instead (`pack status` shows the count).
+Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`, `promote-claim`, `set-source`, `resolve-contradiction`. Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default. Every action runs under one lock per root, edits atomically, verifies, rolls back on failure, rebuilds the index and appends a line to `_actions/actions.jsonl`; a refused action appends one line to `_actions/rejected.jsonl` instead (`pack status` shows the count).
 
 Rules the tool enforces:
+- `set-source` edits only the `publisher` and/or `kind` lines of a `frozen-source` object (kind must be in the type's declared enum; a hosting or mirror host is refused as publisher; a refusal goes to `rejected.jsonl`). Publisher counts, `pack status` `with_2_publishers` and the gate's independence follow at once; publishers compare case-insensitively.
 - `promote-claim` refuses an atom whose frozen file hash or quote does not verify, and an atom that is already promoted (the error names the claim). Pass `--param id=<short-kebab-id>` to name the claim; without it the id is the first words of the statement, cut at 60 characters.
 - It does not guess a publisher from a hosting or mirror host (`web.archive.org`, `github.com`, `raw.githubusercontent.com`, `githubusercontent.com`, `arxiv.org`, `hackmd.io`, and subdomains): pass `--param publisher=<who published it>`. `pack status` and `pack check` print a `warning:` for a publisher whose sources carry more than one `kind`.
 - Promoting a `CONTRADICTION` atom also promotes the atom named in `metadata.contradicts` and links the two with `contradicts`. That records the contradiction; it resolves nothing for the stopping gate. `resolve-contradiction` (or deprecating one side) does, and the claim must still verify.
