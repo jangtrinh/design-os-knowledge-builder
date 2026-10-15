@@ -14,7 +14,9 @@ class Chain:
         return {o.rel for o in [*self.claims, *self.sources]}
 
     def publishers(self):
-        return {str(s.data.get("publisher")) for s in self.sources if s.data.get("publisher") and counts_as_independent(s.data)}
+        """Distinct publisher names, compared case-insensitively like the stopping gate does."""
+        return {str(s.data["publisher"]).strip().lower() for s in self.sources
+                if str(s.data.get("publisher") or "").strip() and counts_as_independent(s.data)}
 
 
 def traverse(graph, obj):

@@ -40,7 +40,9 @@ Home: validate:verify.
 ## R6. A publisher is who wrote the page, never the host that serves it
 Keep it: for `arxiv.org`, `github.com`, `raw.githubusercontent.com`, `githubusercontent.com`, `web.archive.org`,
 `hackmd.io` (and subdomains) pass `--param publisher=<author organisation>`; the tool refuses a hosting host
-that is derived from the URL.
+that is derived from the URL. A Source already made is corrected with
+`K action set-source --root <pack> --param source=<source-id> --param publisher=<name>` (and/or `--param kind=<kind>`):
+same refusal, and only those two keys change.
 Rejected when: a Source's `publisher` is one of those hosts.
 Home: validate:hosting-publisher.
 

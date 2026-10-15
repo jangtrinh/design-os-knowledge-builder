@@ -24,7 +24,10 @@ INDEX_FILE = "index.json"
 __all__ = ["ActionError", "run_action", "run_batch", "rebuild_index"]
 
 
-NATIVE = {"promote-claim": "knowledge_builder.ontology.claim_promote"}
+NATIVE = {
+    "promote-claim": "knowledge_builder.ontology.claim_promote",
+    "set-source": "knowledge_builder.ontology.source_set",
+}
 
 
 def run_action(root, name, raw_params, verify=None):
