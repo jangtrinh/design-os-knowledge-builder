@@ -4,29 +4,31 @@ Copy-paste recipes for **DESIGN:OS Knowledge Builder** (`skills/es-knowledge-for
 
 ---
 
-## 1. Generate & Scaffold
+## 1. Build
 
-> "Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists."
+> "Build an ontology-first knowledge pack on <topic>: freeze the sources, promote claims, cite them from a document, then run the stopping gate."
 
-## 2. Audit & Verify
+## 2. Check
 
-> "Audit our knowledge/ directory with the 6-validator epistemic gate and fix any missing frontmatter or untrusted quarantine flags."
+> "Check this knowledge pack: run verify --claims and pack check, and list the claims no document cites."
 
-## 3. Export & Automate
+## 3. Extend
 
-> "Generate a progressive-disclosure SKILL.md router and llms.txt index for our domain knowledge base."
+> "Add a claim to this pack from a verified evidence atom and cite it in the concept document."
 
 ---
 
 ## 4. CLI & Diagnostic Commands
 
 ```bash
-# Run deterministic offline self-check
+# Offline self-check of manifests, governance files and the skill
 python3 scripts/self_check.py
 
-# Run primary domain verification / workflow
-python3 scripts/verify-ukmc.py
+# Check a pack: quotes against frozen sources, then the stopping gate
+python3 -m knowledge_builder.cli verify --claims <pack-root>
+python3 -m knowledge_builder.cli pack check --root <pack-root>
 
-# Run primary CLI command
-python3 scripts/verify-ukmc.py
+# The skill's rejection checks and the human-readable look sheet
+python3 skills/es-knowledge-forge/validate.py --root <pack-root>
+python3 skills/es-knowledge-forge/look.py --root <pack-root> --sheet /absolute/look-sheet.png
 ```

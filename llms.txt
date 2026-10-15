@@ -1,8 +1,8 @@
 # design-os-knowledge-builder
 
-> Universal multimodal ingestion (PDF, video, audio, web), 3-tier cost-optimized orchestration, and formal logic epistemic stopping gate for AI agents.
+> Ontology-first knowledge packs for AI agents: claims with verifiable sources and a ledger-backed stopping gate.
 
-Universal Multimodal Knowledge Pipeline & Epistemic Stopping Gate for AI Coding Agents.
+Freeze sources, promote evidence into claims that quote them, verify every quote, and stop research when the ledger says it is enough. Ships the `es-knowledge-forge` agent skill.
 
 ## Documentation
 
@@ -11,14 +11,14 @@ Universal Multimodal Knowledge Pipeline & Epistemic Stopping Gate for AI Coding 
 
 ## Core Features & Architecture
 
-- **Primary Interface**: CLI and programmatic API.
-- **Verification Gates**: Rigorous automated checks with reproducible evidence.
-- **Deterministic Workflows**: Predictable outputs and contract enforcement.
+- **Primary Interface**: `python3 -m knowledge_builder.cli` (ingest, verify, index, query, action, pack, run, gate).
+- **Verification**: `verify --claims` checks every quote against its frozen source; `pack check` exits 0 only when it passes.
+- **Agent skill**: `skills/es-knowledge-forge/` (router, rules, build/validate/look scripts).
 
 ## DESIGN:OS Ecosystem
 
 - [design-os](https://jangtrinh.github.io/design-os/): DESIGN:OS CLI — Multi-runtime design CLI for Claude Code, Codex & Antigravity (cli)
-- [design-os-knowledge-builder](https://jangtrinh.github.io/design-os-knowledge-builder/): Knowledge Builder — Multimodal knowledge compiler with UKMC.v1 contract & epistemic gate (compiler)
+- [design-os-knowledge-builder](https://jangtrinh.github.io/design-os-knowledge-builder/): Knowledge Builder — Ontology-first knowledge packs with verifiable claims & a ledger-backed stopping gate (compiler)
 - [design-os-figma-plugin](https://jangtrinh.github.io/design-os-figma-plugin/): Figma Plugin & CLI — Live canvas bridge for AI coding agents on Figma Free (plugin)
 - [design-os-svg-animation](https://jangtrinh.github.io/design-os-svg-animation/): SVG Animation Engine — Deterministic vector animation & 1080p 60fps video pipeline (engine)
 - [design-os-3d-blender](https://jangtrinh.github.io/design-os-3d-blender/): 3D Blender Agent — Mechanical parts generation with embedded Three.js CAD viewer (3d / cad)

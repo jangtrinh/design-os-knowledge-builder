@@ -22,4 +22,4 @@ Run a read-only diagnostic check of the `design-os-knowledge-builder` installati
    - Manifest integrity (`.claude-plugin`, `.codex-plugin`, `.agents/plugins`, `.factory-plugin`)
    - Canonical skill (`skills/es-knowledge-forge/SKILL.md`)
    - Trust & privacy governance (`PRIVACY.md`, `SECURITY.md`, `LICENSE`)
-   - Domain command readiness (`python3 scripts/verify-ukmc.py`)
+   - Domain command readiness (`python3 -m knowledge_builder.cli --help` and `python3 scripts/generate-skill-contract.py --check`)

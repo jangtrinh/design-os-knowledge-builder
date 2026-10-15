@@ -1,7 +1,7 @@
 {
   "name": "design-os-knowledge-builder",
   "metadata": {
-    "description": "Deterministic multimodal knowledge compiler with `UKMC.v1` schema enforcement, SHA-256 provenance, and a 6-validator epistemic gate."
+    "description": "Ontology-first knowledge packs: claims with verifiable sources (frozen captures checked by sha256 and quote) and a ledger-backed stopping gate."
   },
   "owner": {
     "name": "Jang Trinh"

@@ -1,6 +1,6 @@
 {
   "name": "design-os-knowledge-builder",
-  "description": "Deterministic multimodal knowledge compiler with `UKMC.v1` schema enforcement, SHA-256 provenance, and a 6-validator epistemic gate.",
+  "description": "Ontology-first knowledge packs: claims with verifiable sources (frozen captures checked by sha256 and quote) and a ledger-backed stopping gate.",
   "version": "1.0.0",
   "author": {
     "name": "Jang Trinh",
@@ -20,8 +20,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "DESIGN:OS Knowledge Builder",
-    "shortDescription": "Deterministic multimodal knowledge compiler with `UKMC.v1` schema enforcement, SHA-256 provenance, and a 6-validator epistemic gate.",
-    "longDescription": "Compile web documentation, PDFs, codebases, and videos into hallucination-free, token-budgeted knowledge packs (`SKILL.md` + `knowledge/**/*.md`) ready for Claude Code, Codex, Gemini CLI, and Antigravity.",
+    "shortDescription": "Ontology-first knowledge packs: claims with verifiable sources (frozen captures checked by sha256 and quote) and a ledger-backed stopping gate.",
+    "longDescription": "Build knowledge packs from web pages and documents: freeze each source, promote evidence into claims that quote it, let `verify` check every quote, and let a ledger-backed stopping gate say when research is enough. The `es-knowledge-forge` skill teaches Claude Code, Codex, Gemini CLI, and Antigravity the workflow.",
     "developerName": "DESIGN:OS",
     "category": "Developer Tools",
     "capabilities": [
@@ -31,9 +31,9 @@
     "websiteURL": "https://jangtrinh.github.io/design-os-knowledge-builder/",
     "privacyPolicyURL": "https://github.com/jangtrinh/design-os-knowledge-builder/blob/main/PRIVACY.md",
     "defaultPrompt": [
-      "Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists.",
-      "Audit our knowledge/ directory with the 6-validator epistemic gate and fix any missing frontmatter or untrusted quarantine flags.",
-      "Generate a progressive-disclosure SKILL.md router and llms.txt index for our domain knowledge base."
+      "Build an ontology-first knowledge pack on <topic>: freeze the sources, promote claims, cite them from a document, then run the stopping gate.",
+      "Check this knowledge pack: run verify --claims and pack check, and list the claims no document cites.",
+      "Add a claim to this pack from a verified evidence atom and cite it in the concept document."
     ],
     "brandColor": "#202020",
     "logo": "./assets/cover.png"

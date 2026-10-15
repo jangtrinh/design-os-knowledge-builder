@@ -1,0 +1,107 @@
+{
+  "topic": "Tiny entity pack",
+  "run": "tiny-entity-261013",
+  "budget": 40,
+  "researcher": "claude-sonnet-5-5",
+  "sources": [
+    {
+      "stem": "gamma-page",
+      "url": "https://example.org/gamma",
+      "body": "Gamma accepts unknown keys by default. Strict mode rejects them."
+    },
+    {
+      "stem": "delta-page",
+      "url": "https://example.net/delta",
+      "body": "Delta rejects unknown keys by default. No option changes this."
+    }
+  ],
+  "atoms": [
+    {
+      "id": "g1",
+      "source": "gamma-page",
+      "statement": "Gamma accepts unknown keys by default.",
+      "quote": "Gamma accepts unknown keys by default.",
+      "round": 1
+    },
+    {
+      "id": "d1",
+      "source": "delta-page",
+      "claim_type": "CONTRADICTION",
+      "statement": "Delta rejects unknown keys by default, contradicting g1 for gamma-like tools.",
+      "quote": "Delta rejects unknown keys by default.",
+      "round": 1,
+      "metadata": {
+        "contradicts": "g1"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "atom": "d1",
+      "id": "delta-rejects-unknown",
+      "kind": "official",
+      "contradicted_kind": "official"
+    }
+  ],
+  "entities": [
+    {
+      "id": "gamma-tool",
+      "object_type": "entity",
+      "title": "Gamma tool"
+    }
+  ],
+  "documents": [
+    {
+      "id": "unknown-key-handling",
+      "object_type": "comparison",
+      "title": "Unknown key handling",
+      "description": "Compare how gamma and delta treat keys the schema does not declare.",
+      "when": [
+        "picking a validator for unknown keys"
+      ],
+      "source": [
+        "gamma-page",
+        "delta-page"
+      ],
+      "purpose": "Contrast default handling of unknown keys.",
+      "core": [
+        "Gamma accepts unknown keys by default.",
+        {
+          "claim": "gamma-accepts-unknown-keys-by-default"
+        },
+        "Delta rejects unknown keys by default.",
+        {
+          "claim": "delta-rejects-unknown"
+        }
+      ],
+      "failure_modes": "Assuming gamma and delta share one default."
+    }
+  ],
+  "links": [
+    {
+      "source": "unknown-key-handling",
+      "link_type": "about",
+      "target": "gamma-tool"
+    }
+  ],
+  "state": {
+    "version_applicability": "not_applicable",
+    "version_reason": "concept pack: no target library or framework"
+  },
+  "review": {
+    "passed": true,
+    "reviewer_runtime": "claude-opus-5-5",
+    "reviewed_at": "2026-10-13",
+    "scope": "tiny-entity-pack example",
+    "checks": [
+      "quotes match frozen captures"
+    ],
+    "findings": []
+  },
+  "resolutions": [
+    {
+      "claim": "delta-rejects-unknown",
+      "resolution": "Defaults differ per tool: gamma opts in to strictness, delta never allows unknown keys."
+    }
+  ]
+}

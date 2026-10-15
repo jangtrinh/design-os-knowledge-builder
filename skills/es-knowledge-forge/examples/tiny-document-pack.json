@@ -1,0 +1,32 @@
+{
+  "topic": "Tiny document pack",
+  "run": "tiny-doc-261013",
+  "budget": 40,
+  "researcher": "claude-sonnet-5-5",
+  "sources": [
+    {"stem": "alpha-page", "url": "https://example.org/alpha", "body": "Alpha holds in every case. The alpha rule has no exceptions in the tested range."},
+    {"stem": "beta-page", "url": "https://example.org/beta", "body": "Beta fails when the input is empty. Callers must pass at least one item."}
+  ],
+  "atoms": [
+    {"id": "a1", "source": "alpha-page", "statement": "Alpha holds in every case.", "quote": "Alpha holds in every case.", "round": 1},
+    {"id": "a2", "source": "beta-page", "claim_type": "FAILURE_MODE", "statement": "Beta fails when the input is empty.", "quote": "Beta fails when the input is empty.", "round": 1},
+    {"id": "a3", "source": "beta-page", "statement": "Callers must pass at least one item.", "quote": "Callers must pass at least one item.", "round": 2}
+  ],
+  "claims": [
+    {"atom": "a1", "id": "alpha-holds", "kind": "official"},
+    {"atom": "a2", "id": "beta-fails-on-empty", "kind": "official"}
+  ],
+  "documents": [
+    {
+      "id": "alpha-and-beta", "object_type": "concept", "title": "Alpha and beta",
+      "description": "Use alpha for every case and guard beta against empty input.",
+      "when": ["choosing between alpha and beta for a request"],
+      "source": ["alpha-page", "beta-page"],
+      "purpose": "State when alpha holds and when beta fails.",
+      "core": ["Alpha holds in every case.", {"claim": "alpha-holds"}, "Beta fails when the input is empty.", {"claim": "beta-fails-on-empty"}],
+      "failure_modes": "Passing an empty input to beta."
+    }
+  ],
+  "state": {"version_applicability": "not_applicable", "version_reason": "concept pack: no target library or framework"},
+  "review": {"passed": true, "reviewer_runtime": "claude-opus-5-5", "reviewed_at": "2026-10-13", "scope": "tiny-document-pack example", "checks": ["quotes match frozen captures"], "findings": []}
+}

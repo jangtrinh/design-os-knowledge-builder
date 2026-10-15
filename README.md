@@ -1,8 +1,8 @@
 # DESIGN:OS Knowledge Builder (`design-os-knowledge-builder`)
 
-**Deterministic multimodal knowledge compiler with `UKMC.v1` schema enforcement, SHA-256 provenance, and a 6-validator epistemic gate.**
+**Ontology-first knowledge packs: claims with verifiable sources, and a ledger-backed stopping gate.**
 
-Compile web documentation, PDFs, codebases, and videos into hallucination-free, token-budgeted knowledge packs (`SKILL.md` + `knowledge/**/*.md`) ready for Claude Code, Codex, Gemini CLI, and Antigravity.
+Freeze web pages and documents as sources, promote evidence into claims that quote them, and let `verify` check every quote against the frozen file. An agent skill (`skills/es-knowledge-forge/`) teaches Claude Code, Codex, Gemini CLI, and Antigravity the workflow.
 
 <p align="center">
   <img src="assets/cover.png" alt="DESIGN:OS Knowledge Builder — 2:1 Axonometric Technical Architecture" width="840">
@@ -24,7 +24,7 @@ Compile web documentation, PDFs, codebases, and videos into hallucination-free, 
 
 ## Why this exists
 
-Raw RAG chunks and scraped markdown files pollute agent context windows with unverified claims, missing provenance, and prompt-injection risks. **`design-os-knowledge-builder`** compiles raw sources into structured `UKMC.v1` knowledge graphs guarded by a 6-validator epistemic gate.
+Raw RAG chunks and scraped markdown files pollute agent context windows with unverified claims, missing provenance, and prompt-injection risks. **`design-os-knowledge-builder`** compiles raw sources into structured knowledge packs (`UKMC.v2`, with `UKMC.v1` still supported) where a claim is only as good as the quote and hash that back it, and where a research run stops only when its ledger says it is enough. This repository stores no topic files. Packs live in an external knowledge root you choose (`<knowledge-root>/<domain>/<topic>`), apart from the tool.
 
 | Dimension | Generic AI / Manual Workflow | DESIGN:OS Knowledge Builder (`DESIGN:OS`) |
 | :--- | :--- | :--- |
@@ -52,18 +52,19 @@ Raw RAG chunks and scraped markdown files pollute agent context windows with unv
 ```bash
 git clone https://github.com/jangtrinh/design-os-knowledge-builder.git
 cd design-os-knowledge-builder
-python3 scripts/verify-ukmc.py
+pip install -e .
+python3 -m knowledge_builder.cli --help
 ```
 
 ### 2. Ask in plain English
 
 Open your project in your AI coding agent and describe what you need:
 
-> "Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists."
+> "Build an ontology-first knowledge pack on <topic>: freeze the sources, promote claims, cite them from a document, then run the stopping gate."
 
-> "Audit our knowledge/ directory with the 6-validator epistemic gate and fix any missing frontmatter or untrusted quarantine flags."
+> "Check this knowledge pack: run `verify --claims` and `pack check`, and list the claims no document cites."
 
-> "Generate a progressive-disclosure SKILL.md router and llms.txt index for our domain knowledge base."
+> "Add a claim to this pack from a verified evidence atom and cite it in the concept document."
 
 ### 3. Verify your setup
 
@@ -75,18 +76,13 @@ python3 scripts/self_check.py
 
 ## What it makes
 
-Every deliverable produced by `design-os-knowledge-builder` is backed by a deterministic verification gate rather than freehand AI guesswork.
+Every pack is checked by deterministic commands (`verify`, `pack check`, `gate`) rather than by an agent's say-so.
 
-<p align="center">
-  <img src="assets/cover.png" alt="DESIGN:OS Knowledge Builder Output Specimen" width="840"><br>
-  <sub>Prompt: <code>"Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists."</code></sub>
-</p>
-
-| Deliverable / Mode | Best for | Output Format | Verification Gate |
+| Deliverable | Best for | Output | Check |
 | :--- | :--- | :--- | :--- |
-| **UKMC.v1 Knowledge Nodes** | Codifying domain standards with cryptographic source attribution | `Markdown + YAML Frontmatter + Mermaid` | `6-validator epistemic gate PASS` |
-| **Agent Skill Routers** | Packaging domain knowledge into portable `skills/<slug>/SKILL.md` bundles | `Progressive-disclosure Skill Pack` | `python3 scripts/self_check.py` |
-| **GEO & LLM Indexes** | Publishing machine-readable `llms.txt` and knowledge catalogs | `llms.txt + JSON manifest` | `Zero broken local links` |
+| **Ontology-first pack** | Domain knowledge where every claim must quote a frozen source | `ontology.yaml`, `claims/`, `sources/`, documents, `_evidence/<run>/` | `pack check` (`verify --claims` + stopping gate) |
+| **Index and object sets** | Letting an agent query a pack instead of re-reading it | `index.json`, `query` results | `index` refuses a stale index |
+| **Agent skill** | Teaching an agent to build and check packs | `skills/es-knowledge-forge/` | `python3 scripts/self_check.py` |
 
 ---
 
@@ -133,6 +129,17 @@ cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.agents/ski
 rm -rf /tmp/design-os-knowledge-builder
 ```
 
+The skill is a plain folder: `SKILL.md` routes, `rules.md`, `concepts.md` and `look.md` hold the judgment, and `build.py`, `validate.py` and `look.py` do the mechanics with the Python standard library only. They call the `knowledge_builder` tool, so either keep a checkout next to the skill, pass `--repo-root <checkout>`, or run `pip install -e .` from the checkout. A copied skill is a snapshot: re-copy it after you update the repository.
+
+```bash
+python3 skills/es-knowledge-forge/build.py --spec skills/es-knowledge-forge/examples/tiny-entity-pack.json --output-dir /absolute/new-pack
+python3 skills/es-knowledge-forge/validate.py --root /absolute/new-pack          # exit 0 ok, 1 reject, 2 could not run
+python3 skills/es-knowledge-forge/look.py --root /absolute/new-pack --sheet /absolute/look-sheet.png   # needs Chrome or Chromium
+python3 scripts/generate-skill-contract.py --check                                # the skill's CLI contract is current
+```
+
+CI runs the full test suite, including the skill tests, on Python 3.10 and 3.12.
+
 <details>
 <summary>Verify or uninstall</summary>
 
@@ -158,22 +165,22 @@ rm -rf ~/.claude/skills/es-knowledge-forge ~/.codex/skills/es-knowledge-forge ~/
 
 Once installed, `skills/es-knowledge-forge/SKILL.md` activates automatically when your prompt matches its domain triggers. Browse [`docs/cookbook.md`](docs/cookbook.md) for copy-paste prompt recipes.
 
-**Generate & Scaffold**
+**Build**
 
 ```text
-"Compile these technical RFCs into a UKMC.v1 knowledge pack with SHA-256 source attribution and failure-mode checklists."
+"Build an ontology-first knowledge pack on <topic>: freeze the sources, promote claims, cite them from a document, then run the stopping gate."
 ```
 
-**Audit & Verify**
+**Check**
 
 ```text
-"Audit our knowledge/ directory with the 6-validator epistemic gate and fix any missing frontmatter or untrusted quarantine flags."
+"Check this knowledge pack: run verify --claims and pack check, and list the claims no document cites."
 ```
 
-**Export & Automate**
+**Extend**
 
 ```text
-"Generate a progressive-disclosure SKILL.md router and llms.txt index for our domain knowledge base."
+"Add a claim to this pack from a verified evidence atom and cite it in the concept document."
 ```
 
 ---
@@ -183,18 +190,91 @@ Once installed, `skills/es-knowledge-forge/SKILL.md` activates automatically whe
 | Command | Environment | What it does |
 | :--- | :--- | :--- |
 | `/doctor` | Claude Code / Codex | Read-only diagnostic check of installed skill paths, plugin manifests, and runtime prerequisites |
-| `python3 scripts/self_check.py` | Terminal / CI | Deterministic offline verification of manifests, skill contracts, and governance files |
-| `python3 scripts/verify-ukmc.py` | Terminal / CI | Run the 6-validator UKMC.v1 epistemic gate across all compiled knowledge nodes |
+| `python3 scripts/self_check.py` | Terminal / CI | Offline check of manifests, governance files and that a skill exists |
+| `python3 -m knowledge_builder.cli verify --claims <pack-root>` | Terminal / CI | Check metadata, anchors and every quote against the frozen capture |
+| `python3 -m knowledge_builder.cli pack check --root <pack-root>` | Terminal / CI | Exit 0 only when `verify --claims` passes; prints the stopping-gate decision |
+| `python3 skills/es-knowledge-forge/validate.py --root <pack-root>` | Terminal / CI | The skill's rejection checks (uncited claims, hosting-host publishers, unresolved contradictions, stale index) |
+| `python3 -m pytest -q` | Terminal / CI | Full test suite, including the skill's shape, contract, example and look tests |
+
+The CLI is `python3 -m knowledge_builder.cli <command>`; the examples below write `kb` for it. Every command is listed with its flags in `skills/es-knowledge-forge/contract.txt` (generated by `scripts/generate-skill-contract.py`).
+
+### Ingest, verify, lint, index
+```bash
+kb ingest ./whitepaper.pdf                       # PDF; video and images take --out for their extracts
+kb verify <knowledge-root>/<domain>/<topic>      # add --claims to check every quote against the frozen capture
+kb lint <knowledge-root>/<domain>/<topic>/note.md
+kb index --root <knowledge-root>/<domain>/<topic>
+kb gate --run-id run-001 --required 5 --verified 5 --sources 3
+```
+
+### Research ledger: `run` and `ingest --freeze`
+```bash
+# One run = _evidence/<id>/{state.json,evidence.jsonl,sources/}
+kb run init --root <knowledge-root> --id <run> --budget 400 --require <claim-id> --researcher <runtime>
+
+# Freeze a web page as plain text into sources/ (identity encoding, gzip decoded, never overwrites).
+# Prints the sha256 and the repo-relative path to cite in an atom.
+kb ingest --freeze <url> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
+
+# Append one atom from stdin. metadata.round is an integer >= 1; metadata.novel is a boolean.
+kb run record --root <knowledge-root> --id <run> < atom.json
+
+# Per-round novelty: delta(r) = novel atoms in r / atoms before r. Round 1 is the baseline.
+# --material counts a novel atom only when an ease:source anchor in a module cites its quote.
+# Nothing is written unless --write-state is given.
+kb run measure --root <knowledge-root> --id <run> --material [--write-state]
+
+# Typed writes to state.json. Settable keys: round, consecutive_low_delta_rounds,
+# last_weighted_delta, has_viable_probe_remaining, is_target_version_matched,
+# version_applicability (applicable | not_applicable), version_reason, resolved (appends).
+kb run state set --root <knowledge-root> --id <run> --key version_applicability --value not_applicable
+kb run state set --root <knowledge-root> --id <run> --key version_reason --value "concept pack: no target library"
+
+# The gate reads the ledger. It prints "low-delta rounds N/3" and, for a declared
+# not-applicable version, "Version:  not applicable: <reason>".
+kb gate --root <knowledge-root> --run-id <run>
+```
+`version_applicability: not_applicable` passes the version gate only with a non-empty `version_reason`; without it the gate stays at DEEPEN.
+
+### Ontology packs: `pack`, `action`, `query`
+A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
+```bash
+kb pack init --root <pack-root> --topic "my topic" --run my-run --require some-claim-id   # new or empty root only
+kb pack status --root <pack-root>        # one screen of counts (add --json)
+kb pack check --root <pack-root>         # exits 0 only when verify --claims passes; prints the gate decision
+kb query --root <pack-root> --object-type concept --status active --fields id,links_in_count   # read-only; refuses a stale index
+kb action promote-claim --root <pack-root> --param atom=hb-1 --param kind=official
+kb action promote-claim --root <pack-root> --param atom=hb-3 --param into=<claim-id> --param kind=academic
+kb action promote-claim --root <pack-root> --batch atoms.jsonl     # all or nothing, one verify for the batch
+kb action create-object --root <pack-root> --param id=<id> --param object_type=entity --param title="..."
+kb action add-link --root <pack-root> --param source=<id> --param link_type=cites --param target=<claim-id>
+kb action resolve-contradiction --root <pack-root> --param claim=<id> --param resolution="<text>"
+```
+Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`, `promote-claim`, `resolve-contradiction`. Actions declared in `ontology.yaml` `action_types` are merged with the defaults; declaring the same name overrides a default. Every action runs under one lock per root, edits atomically, verifies, rolls back on failure, rebuilds the index and appends a line to `_actions/actions.jsonl`.
+
+Rules the tool enforces:
+- `promote-claim` refuses an atom whose frozen file hash or quote does not verify, and an atom that is already promoted (the error names the claim). Pass `--param id=<short-kebab-id>` to name the claim; without it the id is the first words of the statement, cut at 60 characters.
+- It does not guess a publisher from a hosting or mirror host (`web.archive.org`, `github.com`, `raw.githubusercontent.com`, `githubusercontent.com`, `arxiv.org`, `hackmd.io`, and subdomains): pass `--param publisher=<who published it>`. `pack status` and `pack check` print a `warning:` for a publisher whose sources carry more than one `kind`.
+- Promoting a `CONTRADICTION` atom also promotes the atom named in `metadata.contradicts` and links the two with `contradicts`. That records the contradiction; it resolves nothing for the stopping gate. `resolve-contradiction` (or deprecating one side) does, and the claim must still verify.
+- `create-object` takes the parameters of the object type it creates: `id`, `object_type`, `title`, every property the type declares (enum, integer and boolean values are checked before anything is written; an undeclared name is refused and the declared ones are listed), and, for a type with an interface, `domain`, `description`, `when` and `source`. The file goes into the type's `folder:`.
+- `promote-trust-tier` to `verified` also needs the stopping gate to return STOP_SUFFICIENT for every `_evidence/<run>` the file cites.
+
+### Anchor rule: `ease:claim` must equal `cites`
+A document cites a claim with `<!-- ease:claim id=<claim-id> -->` under the block it supports and a `cites` link to that claim. The quote lives only in the claim. Every anchor id must be in the document's `cites` links and every `cites` target must be used by an anchor; `verify --claims` rejects either mismatch.
+
+Other anchor rules checked by `verify --claims`:
+- A quote that contains `"` is written with single quotes: `<!-- ease:source uri=... sha256=... quote='He said "go".' -->`. A quote holding both `"` and `'` cannot be written either way; cite a shorter fragment.
+- A `Derived:`, `Observed:`, or `Decision:` line directly above a table or code fence (the very next line) exempts that one block. A blank line in between, or the label below the block, does not.
 
 ---
 
 ## How it works
 
 1. **Intent Routing** — Your AI agent matches your request against `skills/es-knowledge-forge/SKILL.md` frontmatter triggers.
-2. **Progressive Context Loading** — Only the entry-point `SKILL.md` router loads initially; detailed recipes and scripts load on demand.
-3. **Deterministic Execution** — Domain scripts and contracts execute locally with reproducible inputs and outputs.
-4. **Gate Verification** — `scripts/self_check.py` and domain verifiers (`python3 scripts/verify-ukmc.py`) validate the artifact before completion.
-5. **Zero-Telemetry Delivery** — Verified files are written directly to your workspace with zero external network calls.
+2. **Progressive Context Loading** — Only the entry-point `SKILL.md` router loads initially; `rules.md`, `concepts.md`, `look.md` and `references/` load on demand.
+3. **Deterministic Execution** — `build.py` turns a JSON spec into real CLI calls; `ingest --freeze` fetches a URL; `validate.py` and `look.py` use no network.
+4. **Gate Verification** — `scripts/self_check.py` and `verify --claims`, `pack check` and the skill's `validate.py` validate the artifact before completion.
+5. **Zero-Telemetry Delivery** — Verified files are written to your workspace; no telemetry is sent.
 
 ```text
 User Prompt / CLI Invocation
@@ -207,14 +287,14 @@ User Prompt / CLI Invocation
             │ loads on demand
             ▼
 ┌───────────────────────────────────────────────┐
-│ python3 scripts/verify-ukmc.py
-│ Deterministic build & contract enforcement    │
+│ build.py -> knowledge_builder CLI             │
+│ Frozen sources, claims, links, ontology       │
 └───────────┬───────────────────────────────────┘
             │ verifies
             ▼
 ┌───────────────────────────────────────────────┐
-│ python3 scripts/self_check.py + /doctor       │
-│ Zero-telemetry local verification gate        │
+│ validate.py + pack check + stopping gate      │
+│ look.py renders the pack for human eyes       │
 └───────────────────────────────────────────────┘
 ```
 
@@ -224,7 +304,9 @@ User Prompt / CLI Invocation
 
 | File | Loaded when |
 | :--- | :--- |
-| `skills/es-knowledge-forge/SKILL.md` | Always (~100–150 lines) — routing rules, triggers, and execution workflow |
+| `skills/es-knowledge-forge/SKILL.md` | Always (under 120 lines) — the procedure and what to open next |
+| `skills/es-knowledge-forge/rules.md`, `concepts.md`, `look.md` | While building, checking and reviewing a pack |
+| `skills/es-knowledge-forge/contract.txt` | When you need the exact CLI flags (generated, sha256 on its first line) |
 | `docs/cookbook.md` | When selecting multi-step prompt recipes or domain patterns |
 | `commands/doctor.md` / `prompts/doctor.md` | Only when running `/doctor` diagnostics |
 | `llms.txt` | When indexed by AI answer engines, RAG pipelines, or repo crawlers |
@@ -247,13 +329,22 @@ design-os-knowledge-builder/
 │   └── marketplace.json            # Factory marketplace metadata
 ├── skills/
 │   └── es-knowledge-forge/
-│       └── SKILL.md                # Canonical agent skill entrypoint
+│       ├── SKILL.md                # Canonical agent skill entrypoint (router)
+│       ├── rules.md  concepts.md  look.md
+│       ├── build.py  validate.py  look.py  forge_common.py  look_sheet.py
+│       ├── contract.txt            # Generated CLI contract
+│       ├── references/             # Ontology-first workflow, UKMC.v2 summary, build spec
+│       └── examples/               # Two small packs as build specs
 ├── commands/
 │   └── doctor.md                   # /doctor diagnostic slash command
 ├── prompts/
 │   └── doctor.md                   # Codex diagnostic prompt mirror
 ├── scripts/
-│   └── self_check.py               # Deterministic repository & skill self-check
+│   ├── self_check.py               # Deterministic repository & skill self-check
+│   └── generate-skill-contract.py  # Regenerates skills/es-knowledge-forge/contract.txt (--check)
+├── src/knowledge_builder/          # The tool (CLI, verify, index, gate, actions, pack)
+├── tests/                          # Tool tests and test_skill_* tests
+├── .github/workflows/test.yml      # pytest on Python 3.10 and 3.12, self-check, contract --check
 ├── docs/
 │   ├── cookbook.md                 # Copy-paste prompt recipes by job
 │   └── llms.txt                    # GEO / LLM discovery index
@@ -274,7 +365,8 @@ design-os-knowledge-builder/
 ### It's working if...
 
 - `python3 scripts/self_check.py` prints `ok: design-os-knowledge-builder self-check passed (es-knowledge-forge)` and exits `0`.
-- `python3 scripts/verify-ukmc.py` passes with zero contract or test regressions.
+- `python3 -m pytest -q` passes and `python3 scripts/generate-skill-contract.py --check` exits `0`.
+- `python3 skills/es-knowledge-forge/validate.py --root <pack-root>` prints `ok` for your pack.
 - Your AI coding agent loads `skills/es-knowledge-forge/SKILL.md` automatically when given any prompt from [`docs/cookbook.md`](docs/cookbook.md).
 - Network traffic during execution remains zero (guaranteed by [`PRIVACY.md`](PRIVACY.md)).
 
