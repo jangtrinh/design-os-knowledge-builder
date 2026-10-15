@@ -44,5 +44,8 @@ single quotes; a quote with both quote characters is a malformed anchor. Legacy 
 
 ## Legacy commands (UKMC.v1 roots without `ontology.yaml`)
 
+Every root command (`verify`, `index`, `query`, `action`, `pack status|check`, `gate --root`) refuses such a root unless `--legacy` is passed
+(`verify`, `index`, `query`, `action`, `gate`). Move an existing pack with `pack migrate` instead.
+
 `ingest <file|url>` fingerprints PDF/image/web (video needs `--out`); `verify <root> [--claims]`; `lint <file>`;
 `index --root`; `gate --root R --run-id RUN`. A missing `pdftotext` or `ffmpeg` raises an error and never fills in text.
