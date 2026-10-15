@@ -7,6 +7,7 @@ from knowledge_builder.ontology.cited_paths import resolve_inside, run_of
 from knowledge_builder.ontology.objects import format_error
 
 SOURCE_INTERFACE = "frozen-source"
+FIRST_PARTY, LOCAL_PUBLISHER = "first-party", "local"
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 CAPTURE_KEYS = ("evidence_uri", "sha256", "fetched")
 
@@ -63,3 +64,8 @@ def _capture_failures(rel, item, root, pointer):
     if hashlib.sha256(path.read_bytes()).hexdigest() != item["sha256"].lower():
         return [format_error(rel, f"sha256 mismatch for {uri}", pointer + "/sha256")]
     return []
+
+
+def counts_as_independent(source_data):
+    """First-party Sources (local execution output, authored examples) never add to independence."""
+    return source_data.get("kind") != FIRST_PARTY

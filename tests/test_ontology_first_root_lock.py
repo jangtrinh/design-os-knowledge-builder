@@ -66,10 +66,11 @@ class TestRootLock(PackCase):
         self.assertEqual(order, ["first-in", "first-out", "second-in"])
 
     def test_failed_action_leaves_no_lock_artifact(self):
-        before = sorted(p.relative_to(self.root).as_posix() for p in self.root.rglob("*"))
+        names = lambda: sorted(p.relative_to(self.root).as_posix() for p in self.root.rglob("*"))
+        before = names()
         with self.assertRaises(ActionError):
             run_action(self.root, "promote-claim", {"atom": "ghost", "kind": "official"})
-        self.assertEqual(sorted(p.relative_to(self.root).as_posix() for p in self.root.rglob("*")), before)
+        self.assertEqual(names(), sorted([*before, "_actions", "_actions/rejected.jsonl"]))  # no .root.lock or .lock left, only the trace
 
 
 class TestParallelProcesses(PackCase):

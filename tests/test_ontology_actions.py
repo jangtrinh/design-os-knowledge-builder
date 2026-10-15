@@ -8,10 +8,14 @@ from knowledge_builder.ontology.actions import ActionError, run_action
 from tests.test_ontology_support import RootCase, run_cli
 
 
+REJECTED_TRACE = "_actions/rejected.jsonl"
+
+
 def snapshot(root):
+    """Every file's sha256, except the one trace a refused action may add: _actions/rejected.jsonl."""
     return {
         p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted(root.rglob("*")) if p.is_file()
+        for p in sorted(root.rglob("*")) if p.is_file() and p.relative_to(root).as_posix() != REJECTED_TRACE
     }
 
 
@@ -81,7 +85,7 @@ class TestRollback(ActionCase):
             run_action(self.root, "deprecate", {"target": "beta", "replacement": "alpha"}, verify=verify)
         self.assertIn("forced failure", str(caught.exception))
         self.assertEqual(snapshot(self.root), before)
-        self.assertFalse((self.root / "_actions").exists())
+        self.assertEqual(sorted(p.name for p in (self.root / "_actions").iterdir()), ["rejected.jsonl"])  # no lock, no actions.jsonl
 
     def test_index_failure_after_write_rolls_back(self):
         (self.root / "index.json").write_text("[]", encoding="utf-8")  # stale but valid

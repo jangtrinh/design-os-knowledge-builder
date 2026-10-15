@@ -3,7 +3,7 @@
 from knowledge_builder.ontology.claim_checks import CLAIM_INTERFACE
 from knowledge_builder.ontology.objects import load_graph
 from knowledge_builder.ontology.schema import OntologyError, load_ontology
-from knowledge_builder.ontology.source_checks import SOURCE_INTERFACE
+from knowledge_builder.ontology.source_checks import SOURCE_INTERFACE, counts_as_independent
 
 
 def publisher_count(root, run_id, atom_ids):
@@ -26,6 +26,6 @@ def publisher_count(root, run_id, atom_ids):
             if isinstance(entry, dict) and entry.get("run") == run_id and entry.get("atom") in wanted:
                 source = graph.get(entry.get("source"))
                 name = source.data.get("publisher") if source and source.data else None
-                if isinstance(name, str) and name.strip():
+                if isinstance(name, str) and name.strip() and counts_as_independent(source.data):
                     publishers.add(name.strip().lower())
     return len(publishers)

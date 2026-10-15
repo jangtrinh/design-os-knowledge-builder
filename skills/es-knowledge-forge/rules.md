@@ -31,7 +31,8 @@ Home: hand-over (`GATE`).
 
 ## R5. Claims come from the ledger through promote-claim
 Keep it: `K action promote-claim --root <pack> --param atom=<id> --param id=<curated-kebab-id>`; corroborate an
-existing claim with `--param into=<claim>`; many at once with `--batch file.jsonl` (all or nothing).
+existing claim with `--param into=<claim>`; many at once with `--batch file.jsonl` (all or nothing). A local frozen
+file with no URL (execution output, authored example) takes `--param kind=first-party`; it never adds to independence. A pack made before this kind existed adds `first-party` to the `source` `kind` values in its own `ontology.yaml` first (the tool refuses otherwise and names the allowed list).
 Never hand-write a claim or source file.
 Rejected when: a claim names an atom the ledger does not hold, or a quote no longer matches its capture.
 Home: validate:verify.
@@ -44,7 +45,7 @@ Rejected when: a Source's `publisher` is one of those hosts.
 Home: validate:hosting-publisher.
 
 ## R7. One publisher, one kind
-Keep it: pick `official`, `academic`, `vendor`, `practitioner` or `community` once per publisher and pass the same
+Keep it: pick `official`, `academic`, `vendor`, `practitioner`, `community` or `first-party` once per publisher and pass the same
 `--param kind=` every time; a docs site and a blog on one host are two judgments, so choose the dominant one.
 Rejected when: one publisher appears under two kinds.
 Home: validate:publisher-kind.

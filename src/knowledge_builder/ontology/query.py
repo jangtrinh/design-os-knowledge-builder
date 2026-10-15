@@ -51,10 +51,16 @@ def _stale_paths(root, entries):
 def run_query(root, *, object_type=None, status=None, linked_to=None, link_type=None,
               implements=None, where=(), fields=None):
     entries = load_fresh_index(root)
+    ontology = load_ontology(Path(root)) if (implements or object_type) else None
+    if linked_to and linked_to not in {e["id"] for e in entries}:
+        raise QueryError(f"unknown object '{linked_to}'")
+    if object_type and object_type not in (set(ontology.object_types) if ontology else {e.get("object_type") for e in entries}):
+        raise QueryError(f"unknown object type '{object_type}'")
     if implements:
-        ontology = load_ontology(Path(root))
         if ontology is None:
             raise QueryError("--implements needs ontology.yaml")
+        if implements not in ontology.interfaces:
+            raise QueryError(f"unknown interface '{implements}'")
         types = set(ontology.implementing(implements))
         entries = [e for e in entries if e.get("object_type") in types]
     if object_type:

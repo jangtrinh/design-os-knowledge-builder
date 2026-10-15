@@ -18,7 +18,8 @@ TYPES = """  architecture:
 
 
 def tree(root):
-    return sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if "_evidence" not in p.parts)
+    refusal_trace = {"_actions", "_actions/rejected.jsonl"}  # the only entries a refused action may add
+    return sorted(rel for rel in (p.relative_to(root).as_posix() for p in root.rglob("*") if "_evidence" not in p.parts) if rel not in refusal_trace)
 
 
 class TypedCase(PackCase):
