@@ -19,7 +19,7 @@ nav:                        # one entry per Markdown page under docs/, in readin
   - { title: Art Direction, url: /art-direction.html }
 footer:
   - { title: GitHub, url: https://github.com/jangtrinh/design-os-knowledge-builder }
-  - { title: MIT, url: https://github.com/jangtrinh/design-os-knowledge-builder/blob/main/LICENSE }
+  - { title: PolyForm Shield 1.0.0, url: https://github.com/jangtrinh/design-os-knowledge-builder/blob/main/LICENSE }
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
