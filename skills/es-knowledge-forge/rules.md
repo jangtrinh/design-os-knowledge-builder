@@ -25,8 +25,8 @@ Rejected when: `run record` answers `invalid atom`.
 Home: tool.
 
 ## R4. Measure saturation on material atoms, then write it
-Keep it: `K run measure --root <pack> --id <run> --material --write-state` after each round.
-Rejected when: the gate prints `delta 100.0%` only because `last_weighted_delta` was never written.
+Keep it: `K run measure --root <pack> --id <run> --material --write-state` after citing each round's claims in a document.
+Rejected when: the gate prints `delta 100.0%` only because `last_weighted_delta` was never written, or `--material --write-state` was called before citing.
 Home: hand-over (`GATE`).
 
 ## R5. Claims come from the ledger through promote-claim
@@ -85,10 +85,10 @@ from the run's `researcher_runtime`, `scope`, `checks`, `findings`. The research
 Rejected when: the file is missing, `passed` is not true, or both runtimes are equal.
 Home: validate:review.
 
-## R13. A pack with no target library declares it
+## R13. A pack with no target library or executable code declares it
 Keep it: `K run state set --root <pack> --id <run> --key version_applicability --value not_applicable` and
-`--key version_reason --value "<why>"` (without the reason the gate does not pass it).
-Rejected when: the gate lists a version deficiency for a concept pack.
+`--key version_reason --value "<why>"` (and `execution_applicability` / `execution_reason` when the topic has no executable code; without the reason the gate does not pass it).
+Rejected when: the gate lists a version or execution deficiency for a concept pack.
 Home: hand-over (`GATE`).
 
 ## R14. The index is fresh after every hand edit

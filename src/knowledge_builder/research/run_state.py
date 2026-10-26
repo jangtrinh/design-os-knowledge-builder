@@ -60,6 +60,8 @@ SETTERS = {
     "is_target_version_matched": _boolean,
     "version_applicability": _applicability,
     "version_reason": _text,
+    "execution_applicability": _applicability,
+    "execution_reason": _text,
     "resolved": _text,
 }
 
@@ -133,4 +135,8 @@ def cmd_run_state_set(args):
         state.get("version_reason") or ""
     ).strip():
         print("warning: version_applicability is not_applicable but version_reason is unset; the gate will not pass it", file=sys.stderr)
+    if state.get("execution_applicability") == "not_applicable" and not str(
+        state.get("execution_reason") or ""
+    ).strip():
+        print("warning: execution_applicability is not_applicable but execution_reason is unset; the gate will not pass it", file=sys.stderr)
     print(f"{args.key}={json.dumps(value, ensure_ascii=False)}")

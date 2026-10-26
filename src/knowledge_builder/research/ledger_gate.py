@@ -29,8 +29,7 @@ def ledger_evaluation_input(root, run_id):
     if not isinstance(state, dict):
         raise LedgerGateError("state.json must be an object")
 
-    required = _required_ids(state)
-    verified = sum(1 for claim_id in required if _claim_verified(root, run_id, atoms, claim_id))
+    required, verified = _claim_coverage(root, run_id, state, atoms)
     block_reason = state.get("block_reason")
     return StoppingEvaluationInput(
         required_claims_total=len(required),
@@ -50,6 +49,8 @@ def ledger_evaluation_input(root, run_id):
         minimum_independent_sources=_minimum_sources(state),
         version_not_applicable=state.get("version_applicability") == "not_applicable",
         version_reason=_version_reason(state),
+        execution_not_applicable=state.get("execution_applicability") == "not_applicable",
+        execution_reason=_execution_reason(state),
     )
 
 
@@ -119,6 +120,30 @@ def _supports(atom, claim_id):
 
 def _claim_verified(root, run_id, atoms, claim_id):
     return any(_atom_verifies_claim(root, run_id, atom, claim_id) for atom in atoms)
+
+
+def _atom_is_verified(root, run_id, atom):
+    real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
+    return real is not None and file_contains_quote(real, getattr(atom, "quote", None))
+
+
+def _claim_coverage(root, run_id, state, atoms):
+    required = _required_ids(state)
+    verified_atom_ids = [atom.id for atom in atoms if _atom_is_verified(root, run_id, atom)]
+    from knowledge_builder.ontology.claim_coverage import verified_pack_claims
+
+    pack_claims = verified_pack_claims(root, run_id, verified_atom_ids)
+    if pack_claims is None:
+        verified = sum(1 for claim_id in required if _claim_verified(root, run_id, atoms, claim_id))
+        return required, verified
+    active_ids, verified_claim_ids = pack_claims
+    if not required:
+        required = active_ids
+    verified = sum(
+        1 for claim_id in required
+        if _claim_verified(root, run_id, atoms, claim_id) or claim_id in verified_claim_ids
+    )
+    return required, verified
 
 
 def _atom_verifies_claim(root, run_id, atom, claim_id):
@@ -204,6 +229,11 @@ def _version_matched(state):
 
 def _version_reason(state):
     reason = state.get("version_reason")
+    return reason if isinstance(reason, str) else None
+
+
+def _execution_reason(state):
+    reason = state.get("execution_reason")
     return reason if isinstance(reason, str) else None
 
 

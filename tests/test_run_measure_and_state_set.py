@@ -157,6 +157,42 @@ class TestRunMeasure(unittest.TestCase):
             self.assertEqual((run / "state.json").read_bytes(), before)
         self.assertIn("nothing to write", out)
 
+    def test_material_write_state_without_any_cited_quotes_does_not_write_false_zero(self):
+        atoms = [
+            _atom("a1", 1, True, "q-a1"),
+            _atom("a2", 1, True, "q-a2"),
+            _atom("b1", 2, True, "q-b1"),
+            _atom("b2", 2, True, "q-b2"),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            # 1. No document cites any quote at all -> refuses to write false 0.0
+            run = _init(tmp, atoms=atoms, module="# Uncited\n\nNo anchors yet.\n")
+            before = (run / "state.json").read_bytes()
+            code, out, err = _measure(tmp, "--material", "--write-state")
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual((run / "state.json").read_bytes(), before)
+            self.assertIn("nothing to write", out)
+            self.assertIn("--material", out)
+            # 2. Round 1 is cited, but Round 2 (all novel=True) is not cited yet -> still refuses to write false 0.0
+            (Path(tmp) / "m.md").write_text(
+                '# M\n\n## Core Knowledge Content\n\n<!-- ease:source uri=x sha256=y quote="q-a1" -->\n',
+                encoding="utf-8",
+            )
+            code_r1, out_r1, err_r1 = _measure(tmp, "--material", "--write-state")
+            self.assertEqual(code_r1, 0, out_r1 + err_r1)
+            self.assertEqual((run / "state.json").read_bytes(), before)
+            self.assertIn("nothing to write", out_r1)
+            # 3. Round 2 is now cited -> writes state
+            (Path(tmp) / "m.md").write_text(
+                MODULE + '\n<!-- ease:source uri=x sha256=y quote="q-a1" -->\n',
+                encoding="utf-8",
+            )
+            code2, out2, err2 = _measure(tmp, "--material", "--write-state")
+            self.assertEqual(code2, 0, out2 + err2)
+            state = _state(run)
+        self.assertEqual(state["consecutive_low_delta_rounds"], 0)
+        self.assertEqual(state["last_weighted_delta"], 1.0)
+
     def test_a_delta_above_the_threshold_resets_the_trailing_count(self):
         atoms = ATOMS + [_atom("d1", 4, True, "q-d1")]
         with tempfile.TemporaryDirectory() as tmp:
@@ -209,6 +245,8 @@ class TestRunStateSet(unittest.TestCase):
             ("is_target_version_matched", "true", True),
             ("version_applicability", "not_applicable", "not_applicable"),
             ("version_reason", "concept pack: no target library", "concept pack: no target library"),
+            ("execution_applicability", "not_applicable", "not_applicable"),
+            ("execution_reason", "concept pack: no executable code", "concept pack: no executable code"),
         )
         for key, raw, expected in cases:
             with self.subTest(key=key, raw=raw), tempfile.TemporaryDirectory() as tmp:
@@ -228,6 +266,8 @@ class TestRunStateSet(unittest.TestCase):
             ("is_target_version_matched", "1"),
             ("version_applicability", "maybe"),
             ("version_reason", "   "), ("version_reason", ""),
+            ("execution_applicability", "maybe"),
+            ("execution_reason", "   "), ("execution_reason", ""),
             ("resolved", ""),
         )
         for key, raw in bad:

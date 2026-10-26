@@ -8,7 +8,7 @@ Every pull request must pass the local self-check and repository test suite befo
 
 ```bash
 python3 scripts/self_check.py
-python3 -m pytest -q
+PYTHONPATH=src python3 -m unittest discover -s tests -t . -q
 python3 scripts/generate-skill-contract.py --check
 ```
 

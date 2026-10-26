@@ -218,5 +218,63 @@ class TestVersionNotApplicable(unittest.TestCase):
         self.assertIn("low-delta rounds missing/3", decision.reason)
 
 
+class TestExecutionNotApplicable(unittest.TestCase):
+    def _no_code_fixture(self, root, **state_extra):
+        run = _fixture(root, version_applicability="not_applicable", version_reason="concept pack", **state_extra)
+        rows = [json.loads(line) for line in (run / "evidence.jsonl").read_text(encoding="utf-8").splitlines()]
+        for row in rows:
+            row["metadata"].pop("command", None)
+        (run / "evidence.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        return run
+
+    def test_default_ledger_without_command_reports_missing_execution_proof(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._no_code_fixture(root)
+            code, out, err = _gate(root)
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("Missing code execution / test verification proof", out)
+
+    def test_execution_not_applicable_with_reason_passes_and_prints_reason(self):
+        reason = "concept pack: no executable code or CLI"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._no_code_fixture(
+                root,
+                execution_applicability="not_applicable",
+                execution_reason=reason,
+                consecutive_low_delta_rounds=3,
+                last_weighted_delta=0.01,
+                has_viable_probe_remaining=False,
+            )
+            code, out, err = _gate(root)
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("Missing code execution", out)
+        self.assertIn(f"Execution: not applicable: {reason}", out)
+
+    def test_execution_not_applicable_without_reason_is_not_a_pass(self):
+        for extra in (
+            {"execution_applicability": "not_applicable"},
+            {"execution_applicability": "not_applicable", "execution_reason": ""},
+            {"execution_applicability": "not_applicable", "execution_reason": "   "},
+            {"execution_applicability": "not_applicable", "execution_reason": 7},
+        ):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self._no_code_fixture(root, **extra)
+                code, out, err = _gate(root)
+            self.assertEqual(code, 2, out + err)
+            self.assertIn("execution_reason is missing", out)
+
+    def test_declared_not_applicable_never_falls_back_to_has_execution_proof(self):
+        for reason in (None, "", "  "):
+            decision = evaluate_stopping_gate(
+                _passing(has_execution_proof=True, execution_not_applicable=True, execution_reason=reason)
+            )
+            self.assertEqual(decision.state, TerminationState.DEEPEN)
+            self.assertFalse(decision.hard_gates_passed)
+            self.assertIn("execution_reason is missing", decision.reason)
+
+
 if __name__ == "__main__":
     unittest.main()

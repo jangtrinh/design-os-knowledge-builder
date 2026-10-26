@@ -34,7 +34,7 @@ single quotes; a quote with both quote characters is a malformed anchor. Legacy 
 
 | State | Meaning |
 | --- | --- |
-| `STOP_SUFFICIENT` | required claims verified, >= 2 independent publishers, execution proof, saturation (<= 2% delta over 3 rounds), valid independent review |
+| `STOP_SUFFICIENT` | required claims verified, >= 2 independent publishers, execution proof (or `execution_applicability=not_applicable` + `execution_reason`), saturation (<= 2% delta over 3 rounds), valid independent review |
 | `DEEPEN` | missing claims, single publisher, version drift, untested failure modes, unresolved contradiction, or no review |
 | `PAUSE_BUDGET` | budget used up before the evidence is complete; never reported as sufficient |
 | `ABSTAIN_BLOCKED` | blocked (paywall, anti-scraping) with no viable fallback |

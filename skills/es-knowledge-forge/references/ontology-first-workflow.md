@@ -8,16 +8,16 @@ the closing condition (done only when it holds). Flags: [../contract.txt](../con
 | 1 | Scaffold | `K pack init --root P --topic "<topic>" --run R --researcher <runtime> [--require <claim-id>]...` | `P/ontology.yaml`, `claims/`, `sources/`, `_evidence/R/` exist |
 | 2 | Propose schema | write `P/ontology.proposal.yaml` + rationale | file exists; the owner has not answered yet |
 | 3 | Owner approval | AskUserQuestion (<= 4 per round, recommended first) | answer recorded; only then copy to `ontology.yaml` |
-| 4 | Freeze sources | `K ingest --freeze <url> --root P --run R --stem <stem>`; local files copied into `_evidence/R/sources/` | each frozen file's sha256 printed |
+| 4 | Freeze sources | `K ingest --freeze <url> [--from-file <saved.html>] --root P --run R --stem <stem>`; local files copied into `_evidence/R/sources/` | each frozen file's sha256 printed |
 | 5 | Record atoms | `echo '<atom json>' \| K run record --root P --id R` | atom has `round`, `novel`, quote copied from the frozen file |
-| 6 | Measure | `K run measure --root P --id R --material --write-state` | `last_weighted_delta` written |
-| 7 | Promote | `K action promote-claim --root P --param atom=<id> --param id=<claim-id> [--param publisher=<org>] [--param kind=<kind>]` or `--batch f.jsonl` | claim + source files exist; `--into` for corroboration |
-| 8 | Documents, entities | `K action create-object ...` then write the body | file under its type's folder |
-| 9 | Cite | body anchor `<!-- ease:claim id=<claim> -->` + `K action add-link ... link_type=cites` | anchors == cites links |
+| 6 | Promote | `K action promote-claim --root P --param atom=<id> --param id=<claim-id> [--param publisher=<org>] [--param kind=<kind>]` or `--batch f.jsonl` | claim + source files exist; `--into` for corroboration |
+| 7 | Documents, entities | `K action create-object ...` then write the body | file under its type's folder |
+| 8 | Cite | body anchor `<!-- ease:claim id=<claim> -->` + `K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>` or `--batch f.jsonl` | anchors == cites links |
+| 9 | Measure | `K run measure --root P --id R --material --write-state` (after citing each round) | `last_weighted_delta` written |
 | 10 | Relate | `add-link` with `about` / `compares` / `depends-on` | no declared relation missing |
 | 11 | Contradictions | `K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"` | none unresolved |
 | 12 | Independent review | a different runtime writes `_evidence/R/review.json` | `validate:review` passes |
-| 13 | State | `K run state set --root P --id R --key version_applicability --value not_applicable` + `--key version_reason` | gate shows no version deficiency |
+| 13 | State | `K run state set --root P --id R --key version_applicability --value not_applicable` + `--key version_reason` (and `execution_applicability` + `execution_reason` when no code) | gate shows no version/execution deficiency |
 | 14 | Check | `K pack check --root P`, `K pack status --root P`, then [../validate.py](../validate.py), [../look.py](../look.py) | exit 0, sheet inspected |
 
 ## Atom shape
@@ -39,8 +39,8 @@ Declared properties of the type are accepted and validated (enum values). Anythi
 
 ## Batches
 
-`promote-claim --batch` takes JSONL, one object per line (`{"atom":"a1","id":"x","publisher":"org"}`); all items succeed
-or nothing changes. `add-link` has no batch: loop in the shell, one call per link (about 0.4 s each).
+`promote-claim --batch` takes JSONL, one object per line (`{"atom":"a1","id":"x","publisher":"org"}`).
+`K action add-link --root P --batch f.jsonl` takes JSONL (`{"source":"<doc>","link_type":"cites","target":"<claim>"}`); one verify runs at the end and all items succeed or nothing changes.
 
 ## When to stop
 

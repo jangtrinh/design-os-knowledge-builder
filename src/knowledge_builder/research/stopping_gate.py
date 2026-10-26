@@ -43,6 +43,10 @@ class StoppingEvaluationInput:
     # It passes only with a non-empty reason, which the gate prints.
     version_not_applicable: bool = False
     version_reason: Optional[str] = None
+    # A pack with no executable code declares the execution gate not applicable.
+    # It passes only with a non-empty reason, which the gate prints.
+    execution_not_applicable: bool = False
+    execution_reason: Optional[str] = None
 
 
 @dataclass
@@ -53,6 +57,7 @@ class StoppingDecision:
     saturation_passed: bool
     certificate: Optional[Dict[str, Any]] = None
     version_note: Optional[str] = None
+    execution_note: Optional[str] = None
 
 
 def _require_minimum_sources(value):
@@ -90,6 +95,19 @@ def version_not_applicable_reason(inp):
     return None
 
 
+def execution_not_applicable_reason(inp):
+    """The stated reason when the execution gate is declared not applicable, else None.
+
+    A declaration without a non-empty string reason is not a declaration.
+    """
+    if getattr(inp, "execution_not_applicable", False) is not True:
+        return None
+    reason = getattr(inp, "execution_reason", None)
+    if isinstance(reason, str) and reason.strip():
+        return reason.strip()
+    return None
+
+
 def saturation_from_measurement(rounds, delta):
     """True only when both measurements exist and meet the saturation rule.
 
@@ -118,6 +136,12 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     else:
         version_ok = bool_or_absent(inp, "is_target_version_matched", absent=False)
     version_note = f"not applicable: {na_reason}" if na_reason is not None else None
+    exec_na_reason = execution_not_applicable_reason(inp)
+    if getattr(inp, "execution_not_applicable", False) is True:
+        execution_ok = exec_na_reason is not None
+    else:
+        execution_ok = inp.has_execution_proof
+    execution_note = f"not applicable: {exec_na_reason}" if exec_na_reason is not None else None
     probe_remaining = bool_or_absent(inp, "has_viable_probe_remaining", absent=True)
 
     # 1. Check if blocked
@@ -129,12 +153,12 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
                 hard_gates_passed=False,
                 saturation_passed=False,
                 version_note=version_note,
+                execution_note=execution_note,
             )
 
     # 2. Hard Gate Evaluation (Score cannot compensate for a broken hard gate)
     coverage_ok = (inp.required_claims_total > 0) and (inp.required_claims_verified >= inp.required_claims_total)
     sources_ok = inp.independent_sources_count >= minimum_sources
-    execution_ok = inp.has_execution_proof
     counterevidence_ok = inp.has_counterevidence_searched
     no_contradiction_ok = inp.unresolved_contradictions_count == 0
 
@@ -181,6 +205,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
             saturation_passed=True,
             certificate=certificate,
             version_note=version_note,
+            execution_note=execution_note,
         )
 
     # 5. Check Budget
@@ -191,6 +216,7 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
             hard_gates_passed=hard_gates_passed,
             saturation_passed=saturation_passed,
             version_note=version_note,
+            execution_note=execution_note,
         )
 
     # 6. Default: Deepen targeted probe
@@ -202,7 +228,10 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
             f"Insufficient independent sources ({inp.independent_sources_count} < {inp.minimum_independent_sources})"
         )
     if not execution_ok:
-        reasons.append("Missing code execution / test verification proof")
+        if getattr(inp, "execution_not_applicable", False) is True:
+            reasons.append("Execution declared not applicable but execution_reason is missing")
+        else:
+            reasons.append("Missing code execution / test verification proof")
     if not counterevidence_ok:
         reasons.append("Counterevidence and failure modes not yet searched")
     if not version_ok:
@@ -233,4 +262,5 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         hard_gates_passed=hard_gates_passed,
         saturation_passed=saturation_passed,
         version_note=version_note,
+        execution_note=execution_note,
     )

@@ -73,6 +73,31 @@ class TestDocsTellTheTruth(unittest.TestCase):
         for phrase in ("Whisper", "write_atomic", "VLM", "Mermaid.js"):
             self.assertNotIn(phrase, site)
 
+    def test_readme_and_contributing_show_venv_and_pythonpath_fallback(self):
+        """PEP 668 externally-managed Python is handled with .venv or PYTHONPATH=src."""
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("python3 -m venv .venv", readme)
+        self.assertIn("PYTHONPATH=src", readme)
+        contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+        self.assertIn("PYTHONPATH=src", contributing)
+
+    def test_workflow_doc_documents_add_link_batch_and_places_measure_after_cite(self):
+        """Workflow docs advertise add-link --batch and run measure after citing."""
+        workflow = (
+            ROOT / "skills" / "es-knowledge-forge" / "references" / "ontology-first-workflow.md"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("add-link has no batch", workflow)
+        self.assertIn("add-link --root P --batch", workflow)
+        self.assertLess(
+            workflow.index("add-link --root P --param source="),
+            workflow.index("run measure --root P --id R --material --write-state"),
+        )
+        skill = (ROOT / "skills" / "es-knowledge-forge" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertLess(
+            skill.index("add-link --root P --param source="),
+            skill.index("run measure --root P --id R --material --write-state"),
+        )
+
 
 class TestIngestDoesNotInventASource(unittest.TestCase):
     def test_process_pdf_raises_when_subprocess_fails(self):

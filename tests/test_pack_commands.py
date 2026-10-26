@@ -184,6 +184,42 @@ class TestStatusAndCheck(PackInitCase):
         self.assertIsNone(report["run"])
         self.assertIsNone(report["unpromoted_atoms"])
 
+    def test_concept_pack_without_require_or_code_reaches_stop_sufficient_honestly(self):
+        add_atom(self.root, "fm1", "pfm", "Failure mode holds.", claim_type="FAILURE_MODE",
+                 url="https://two.example/fm", run="demo-1", extra={"round": 1, "novel": True})
+        run_action(self.root, "promote-claim", {"atom": "fm1", "kind": "vendor", "id": "claim-fm"})
+        write_document(
+            self.root, "doc-1", ["claim-one", "claim-two", "claim-fm"],
+            ["First fact holds.", "<!-- ease:claim id=claim-one -->", "",
+             "Second fact holds.", "<!-- ease:claim id=claim-two -->", "",
+             "Failure mode holds.", "<!-- ease:claim id=claim-fm -->"],
+            "_evidence/demo-1/sources/p1.txt", self.sha("p1"),
+        )
+        for key, value in (
+            ("version_applicability", "not_applicable"),
+            ("version_reason", "concept pack: no target library"),
+            ("execution_applicability", "not_applicable"),
+            ("execution_reason", "concept pack: no executable code"),
+            ("consecutive_low_delta_rounds", "3"),
+            ("last_weighted_delta", "0.0"),
+            ("has_viable_probe_remaining", "false"),
+        ):
+            code, out, err = run_cli([
+                "knowledge-builder", "run", "state", "set", "--root", str(self.root),
+                "--id", "demo-1", "--key", key, "--value", value,
+            ])
+            self.assertEqual(code, 0, out + err)
+        state_path = self.root / "_evidence/demo-1/state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        self.assertEqual(state["required_claim_ids"], [])
+        state["researcher_runtime"] = "researcher-a"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        (self.root / "_evidence/demo-1/review.json").write_text(
+            json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}), encoding="utf-8"
+        )
+        report = self.status()
+        self.assertEqual(report["gate"]["decision"], "STOP_SUFFICIENT", report["gate"])
+
 
 if __name__ == "__main__":
     unittest.main()

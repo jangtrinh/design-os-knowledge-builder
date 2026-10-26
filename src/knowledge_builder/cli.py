@@ -49,7 +49,11 @@ def cmd_freeze(args):
         sys.exit(1)
     try:
         _contained_run(args.root, args.run)
-        rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem)
+        from_file = getattr(args, "from_file", None)
+        if from_file is not None:
+            rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem, from_file=from_file)
+        else:
+            rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem)
     except (FreezeError, ContainmentError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         sys.exit(1)
@@ -59,6 +63,9 @@ def cmd_freeze(args):
 
 
 def cmd_ingest(args):
+    if getattr(args, "from_file", None) and not args.freeze:
+        print("[-] --from-file requires --freeze", file=sys.stderr)
+        sys.exit(1)
     if args.freeze:
         return cmd_freeze(args)
     raw = args.target
@@ -123,6 +130,8 @@ def cmd_gate(args):
     print(f"Saturation Passed: {decision.saturation_passed}")
     if decision.version_note:
         print(f"Version:  {decision.version_note}")
+    if decision.execution_note:
+        print(f"Execution: {decision.execution_note}")
     if decision.certificate:
         print(f"Certificate: {json.dumps(decision.certificate, indent=2)}")
     print(f"--------------------------------------------------")
@@ -177,6 +186,11 @@ def main():
     p_ingest.add_argument("--root", default=None, help="With --freeze: knowledge root")
     p_ingest.add_argument("--run", default=None, help="With --freeze: run id")
     p_ingest.add_argument("--stem", default=None, help="With --freeze: kebab-case file stem")
+    p_ingest.add_argument(
+        "--from-file",
+        default=None,
+        help="With --freeze: read HTML or text from a browser-saved file while keeping target URL as Source-URL",
+    )
     p_ingest.set_defaults(func=cmd_ingest)
 
     # Gate

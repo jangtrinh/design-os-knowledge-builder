@@ -11,13 +11,22 @@ import html
 import os
 import re
 import stat
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from pathlib import Path
+
+from knowledge_builder.containment import ContainmentError, read_text_nofollow
 
 
 MIN_CHARS = 200
+_BOT_STATUS_CODES = {401, 403, 429}
+_BOT_FALLBACK_HINT = (
+    "site blocks automated fetch; save the page from a browser and re-run with "
+    "--from-file <saved.html>, or copy plain text into _evidence/<run>/sources/<stem>.txt"
+)
 STEM = re.compile(r"[a-z0-9][a-z0-9-]*")
 _SKIP = {"script", "style", "noscript", "svg", "head"}
 _BLOCK = {
@@ -84,6 +93,12 @@ def fetch_html(url):
     try:
         with urllib.request.build_opener(_HttpOnlyRedirect).open(req, timeout=30) as resp:
             blob = resp.read()
+    except urllib.error.HTTPError as exc:
+        code = exc.code
+        exc.close()
+        if code in _BOT_STATUS_CODES:
+            raise FreezeError(f"could not fetch {url}: {exc} ({_BOT_FALLBACK_HINT})") from exc
+        raise FreezeError(f"could not fetch {url}: {exc}") from exc
     except OSError as exc:
         raise FreezeError(f"could not fetch {url}: {exc}") from exc
     if blob[:2] == b"\x1f\x8b":
@@ -92,6 +107,13 @@ def fetch_html(url):
         except (OSError, EOFError) as exc:
             raise FreezeError(f"could not decompress {url}: {exc}") from exc
     return blob.decode("utf-8", errors="replace")
+
+
+def read_local_html(from_file):
+    try:
+        return read_text_nofollow(Path(from_file))
+    except (ContainmentError, OSError, UnicodeError) as exc:
+        raise FreezeError(f"could not read --from-file {from_file}: {exc}") from exc
 
 
 def _open_dir(name, dir_fd=None):
@@ -138,7 +160,7 @@ def _open_sources(run_fd):
         raise FreezeError(f"refusing sources directory: {exc}") from exc
 
 
-def freeze_web_source(url, root, run_id, stem):
+def freeze_web_source(url, root, run_id, stem, from_file=None):
     """Write _evidence/<run>/sources/<stem>.txt and return (relative path, sha256, chars).
 
     The run directory is pinned before the fetch and written through that
@@ -146,10 +168,13 @@ def freeze_web_source(url, root, run_id, stem):
     """
     if STEM.fullmatch(stem or "") is None:
         raise FreezeError("--stem must be kebab-case: lowercase letters, digits, hyphens")
+    if not str(url).startswith(("http://", "https://")):
+        raise FreezeError(f"--freeze needs an http or https url: {url}")
     run_fd, extra = _open_run_sources(root, run_id)
     sources_fd = None
     try:
-        body = page_text(fetch_html(url))
+        raw_html = read_local_html(from_file) if from_file is not None else fetch_html(url)
+        body = page_text(raw_html)
         if len(body) < MIN_CHARS:
             raise FreezeError(
                 f"extracted only {len(body)} chars from {url}; page is likely client-rendered, pick another source"

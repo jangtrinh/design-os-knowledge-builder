@@ -34,6 +34,10 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_header("Location", self.path[len("/redirect-to/"):])
             self.end_headers()
             return
+        if self.path == "/forbidden":
+            self.send_response(403)
+            self.end_headers()
+            return
         if self.path == "/small":
             body = b"<html><body>tiny</body></html>"
             gz = False
@@ -179,6 +183,64 @@ class TestIngestFreeze(_FreezeBase):
             )
         self.assertEqual(code, 1)
         self.assertIn("http", err)
+
+    def test_http_403_names_the_local_capture_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init(root)
+            code, out, err = self._freeze(root, "/forbidden")
+            files = list((root / "_evidence/run-1/sources").iterdir())
+        self.assertEqual(code, 1)
+        self.assertIn("403", err)
+        self.assertIn("--from-file", err)
+        self.assertIn("_evidence/<run>/sources/", err)
+        self.assertEqual(files, [])
+
+    def test_freeze_from_file_keeps_url_provenance_and_extracts_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init(root)
+            saved = root / "saved.html"
+            saved.write_text(PAGE, encoding="utf-8")
+            url = "https://www.producthunt.com/launch"
+            code, out, err = _run(
+                ["knowledge-builder", "ingest", "--freeze", url, "--from-file", str(saved),
+                 "--root", str(root), "--run", "run-1", "--stem", "ph-launch"]
+            )
+            target = root / "_evidence/run-1/sources/ph-launch.txt"
+            data = target.read_bytes()
+            text = data.decode("utf-8")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn(hashlib.sha256(data).hexdigest(), out)
+        self.assertTrue(text.startswith(f"Source-URL: {url}\nFetched: "))
+        self.assertIn("First paragraph with enough words to be real content here.", text)
+        self.assertNotIn("<script>", text)
+
+    def test_from_file_refuses_symlinks_missing_files_and_missing_freeze_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init(root)
+            saved = root / "saved.html"
+            saved.write_text(PAGE, encoding="utf-8")
+            link = root / "link.html"
+            link.symlink_to(saved)
+            code, out, err = _run(
+                ["knowledge-builder", "ingest", "--freeze", "https://example.com/a",
+                 "--from-file", str(link), "--root", str(root), "--run", "run-1", "--stem", "s1"]
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("--from-file", err)
+            code, out, err = _run(
+                ["knowledge-builder", "ingest", "--freeze", "https://example.com/a",
+                 "--from-file", str(root / "missing.html"), "--root", str(root), "--run", "run-1", "--stem", "s1"]
+            )
+            self.assertEqual(code, 1)
+            self.assertEqual(list((root / "_evidence/run-1/sources").iterdir()), [])
+            code, out, err = _run(
+                ["knowledge-builder", "ingest", str(saved), "--from-file", str(saved)]
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("--freeze", err)
 
 
 class TestFreezeHardening(_FreezeBase):

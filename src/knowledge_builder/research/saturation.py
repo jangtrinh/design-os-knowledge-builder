@@ -123,6 +123,30 @@ def measure_rounds(atoms, cited=None):
     return rows, trailing, last
 
 
+def _latest_round_all_novel_uncited(atoms, cited):
+    """True when no quotes are cited at all, or the latest round has novel=True atoms and none are cited."""
+    if not cited:
+        return True
+    rounds = defaultdict(list)
+    for atom in atoms:
+        if is_backfill(atom):
+            continue
+        meta = atom.metadata if isinstance(atom.metadata, dict) else {}
+        rnd = meta.get("round")
+        rnd = rnd if isinstance(rnd, int) and not isinstance(rnd, bool) and rnd >= 1 else 1
+        rounds[rnd].append(atom)
+    if not rounds:
+        return False
+    latest_atoms = rounds[max(rounds)]
+    raw_novel = [a for a in latest_atoms if isinstance(a.metadata, dict) and a.metadata.get("novel") is True]
+    if not raw_novel:
+        return False
+    return not any(
+        isinstance(a.quote, str) and a.quote.strip() and normalise_newlines(a.quote) in cited
+        for a in raw_novel
+    )
+
+
 def cmd_run_measure(args):
     from knowledge_builder.research.run_state import load_run_state, save_run_state
     from knowledge_builder.research.run_driver import _fail
@@ -144,6 +168,9 @@ def cmd_run_measure(args):
         return
     if last is None:
         print("nothing to write: only a baseline round is recorded")
+        return
+    if args.material and _latest_round_all_novel_uncited(atoms, cited):
+        print("nothing to write: no novel atom in the measured round is cited yet for --material (cite claims in a document before writing state)")
         return
     state = dict(state)
     state["consecutive_low_delta_rounds"] = trailing
