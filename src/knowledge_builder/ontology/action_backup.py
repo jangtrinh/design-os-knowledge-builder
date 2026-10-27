@@ -5,7 +5,7 @@ import secrets
 import shutil
 from pathlib import Path
 
-from knowledge_builder.containment import ensure_real_dir
+from knowledge_builder.containment import ensure_real_dir, reject_symlink
 
 BACKUP_PARENT = "_actions"
 
@@ -21,6 +21,7 @@ class Backup:
     def save(self, rel):
         """Keep the current bytes of rel. A hard link shares the inode, because writes replace the name."""
         source = self.root / rel
+        reject_symlink(source)
         if not source.is_file():
             self.saved[rel] = None
             if not source.parent.exists() and source.parent not in self.new_dirs:

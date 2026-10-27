@@ -65,8 +65,10 @@ def cmd_run_init(args):
         _fail("budget must be >= 0")
     required = _required_claim_ids(getattr(args, "require", None))
     researcher = getattr(args, "researcher", None)
-    if researcher is not None and (not isinstance(researcher, str) or researcher == ""):
-        _fail("researcher runtime must be non-empty")
+    if researcher is not None:
+        if not isinstance(researcher, str) or not researcher.strip():
+            _fail("researcher runtime must be non-empty")
+        researcher = researcher.strip()
     try:
         run_dir = _prepare_run(args.root, args.id)
     except ContainmentError as exc:

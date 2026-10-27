@@ -124,7 +124,7 @@ def measure_rounds(atoms, cited=None):
 
 
 def _latest_round_all_novel_uncited(atoms, cited):
-    """True when no quotes are cited at all, or the latest round has novel=True atoms and none are cited."""
+    """True when no quotes are cited at all, or any post-baseline round has novel=True atoms and none are cited."""
     if not cited:
         return True
     rounds = defaultdict(list)
@@ -137,14 +137,14 @@ def _latest_round_all_novel_uncited(atoms, cited):
         rounds[rnd].append(atom)
     if not rounds:
         return False
-    latest_atoms = rounds[max(rounds)]
-    raw_novel = [a for a in latest_atoms if isinstance(a.metadata, dict) and a.metadata.get("novel") is True]
-    if not raw_novel:
-        return False
-    return not any(
-        isinstance(a.quote, str) and a.quote.strip() and normalise_newlines(a.quote) in cited
-        for a in raw_novel
-    )
+    for rnd in sorted(rounds)[1:]:
+        raw_novel = [a for a in rounds[rnd] if isinstance(a.metadata, dict) and a.metadata.get("novel") is True]
+        if raw_novel and not any(
+            isinstance(a.quote, str) and a.quote.strip() and normalise_newlines(a.quote) in cited
+            for a in raw_novel
+        ):
+            return True
+    return False
 
 
 def cmd_run_measure(args):

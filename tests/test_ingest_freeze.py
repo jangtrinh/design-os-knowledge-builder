@@ -241,6 +241,18 @@ class TestIngestFreeze(_FreezeBase):
             )
             self.assertEqual(code, 1)
             self.assertIn("--freeze", err)
+            for bad_url in (
+                "https://example.com/a\nSource-URL: https://w3.org/forged",
+                "https://example.com/a\r\nFetched: 2099",
+                "https://",
+                "http:///path-only",
+            ):
+                code, out, err = _run(
+                    ["knowledge-builder", "ingest", "--freeze", bad_url,
+                     "--from-file", str(saved), "--root", str(root), "--run", "run-1", "--stem", "s1"]
+                )
+                self.assertEqual(code, 1, bad_url)
+            self.assertEqual(list((root / "_evidence/run-1/sources").iterdir()), [])
 
 
 class TestFreezeHardening(_FreezeBase):

@@ -1,11 +1,13 @@
 """Turn an action spec plus parameters into staged file edits. Nothing here writes to disk."""
 
 from knowledge_builder.containment import ContainmentError, read_text_inside
+from knowledge_builder.frontmatter import FrontmatterError, parse_frontmatter
 from knowledge_builder.ontology import action_edits
 from knowledge_builder.ontology.action_defaults import DEFAULT_ACTIONS
 from knowledge_builder.ontology.action_edits import EditError
 from knowledge_builder.ontology.functions import FUNCTIONS
 from knowledge_builder.ontology.object_create import create_object
+from knowledge_builder.ontology.objects import KnowledgeObject
 from knowledge_builder.ontology.schema import KEBAB
 
 BARE_KEYS = {"object", "target", "link_type"}
@@ -70,6 +72,16 @@ class Stage:
             return self.files[rel]
         return read_text_inside(self.root / rel, self.root)
 
+    def write_staged(self, rel, text):
+        self.files[rel] = text
+        try:
+            data = parse_frontmatter(text)
+        except FrontmatterError:
+            return
+        updated = KnowledgeObject(rel, data, text)
+        self.graph.by_id[updated.id] = [updated]
+        self.graph.all = [updated if o.rel == rel else o for o in self.graph.all]
+
 
 def apply_edits(spec, params, stage, ontology):
     for edit in spec.get("edits") or []:
@@ -95,13 +107,13 @@ def _resolve(key, value, params):
 
 def _set(stage, args, _ontology):
     rel = stage.rel_of(args["object"])
-    stage.files[rel] = action_edits.set_key(stage.read(rel), args["key"], args["value"])
+    stage.write_staged(rel, action_edits.set_key(stage.read(rel), args["key"], args["value"]))
 
 
 def _link(change):
     def apply(stage, args, _ontology):
         rel = stage.rel_of(args["object"])
-        stage.files[rel] = change(stage.read(rel), args["link_type"], args["target"])
+        stage.write_staged(rel, change(stage.read(rel), args["link_type"], args["target"]))
     return apply
 
 

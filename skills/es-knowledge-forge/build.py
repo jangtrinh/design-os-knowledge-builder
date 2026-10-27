@@ -7,6 +7,7 @@ Exit 0 built / 1 rejected (a CLI step refused) / 2 could not run.
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from forge_common import CannotRun, product_src, run_cli  # noqa: E402
 
 FETCHED = "2026-10-13T00:00:00+00:00"
+_STEM = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
 class StepRejected(Exception):
@@ -37,10 +39,16 @@ def action(src, root, name, **params):
 
 
 def freeze(root, run, source):
-    path = root / "_evidence" / run / "sources" / f"{source['stem']}.txt"
-    data = f"Source-URL: {source['url']}\nFetched: {FETCHED}\n\n{source['body']}\n".encode("utf-8")
+    stem = str(source.get("stem", ""))
+    url = str(source.get("url", ""))
+    if _STEM.fullmatch(stem) is None:
+        raise StepRejected(f"freeze: --stem must be kebab-case, got {stem!r}")
+    if any(ch in url for ch in ("\r", "\n", "\t", " ")) or not url.startswith(("http://", "https://")):
+        raise StepRejected(f"freeze: invalid source url {url!r}")
+    path = root / "_evidence" / run / "sources" / f"{stem}.txt"
+    data = f"Source-URL: {url}\nFetched: {FETCHED}\n\n{source['body']}\n".encode("utf-8")
     path.write_bytes(data)
-    return f"_evidence/{run}/sources/{source['stem']}.txt", hashlib.sha256(data).hexdigest()
+    return f"_evidence/{run}/sources/{stem}.txt", hashlib.sha256(data).hexdigest()
 
 
 def record_atoms(src, root, spec, captured):

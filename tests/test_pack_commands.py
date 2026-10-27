@@ -220,6 +220,65 @@ class TestStatusAndCheck(PackInitCase):
         report = self.status()
         self.assertEqual(report["gate"]["decision"], "STOP_SUFFICIENT", report["gate"])
 
+    def test_tampered_claim_matching_atom_id_or_other_file_substring_fails_gate(self):
+        """Red-team H2: claim_id == atom.id cannot bypass claim verification, and quote must match atom.quote."""
+        run_action(self.root, "promote-claim", {"atom": "a3", "kind": "official", "id": "a3"})
+        # Replace quote in claims/a3.md with a different valid substring of p3.txt ("Source-URL:")
+        self.replace("claims/a3.md", 'quote: "Third fact holds."', 'quote: "Source-URL: https://three.example/c"')
+        code, out, _err = pack("check", "--root", str(self.root))
+        self.assertEqual(code, 1, out)
+        self.assertIn("claims/a3.md", out)
+        report = self.status()
+        self.assertEqual(report["gate"]["decision"], "DEEPEN")
+        self.assertIn("Missing verified claims", report["gate"]["reason"])
+
+    def test_whitespace_padded_reviewer_runtime_is_rejected_by_gate(self):
+        """Red-team H4: reviewer_runtime with trailing whitespace equals researcher_runtime."""
+        add_atom(self.root, "fm1", "pfm", "Failure mode holds.", claim_type="FAILURE_MODE",
+                 url="https://two.example/fm", run="demo-1", extra={"round": 1, "novel": True})
+        run_action(self.root, "promote-claim", {"atom": "fm1", "kind": "vendor", "id": "claim-fm"})
+        for key, value in (
+            ("version_applicability", "not_applicable"),
+            ("version_reason", "concept pack: no target library"),
+            ("execution_applicability", "not_applicable"),
+            ("execution_reason", "concept pack: no executable code"),
+            ("consecutive_low_delta_rounds", "3"),
+            ("last_weighted_delta", "0.0"),
+            ("has_viable_probe_remaining", "false"),
+        ):
+            run_cli([
+                "knowledge-builder", "run", "state", "set", "--root", str(self.root),
+                "--id", "demo-1", "--key", key, "--value", value,
+            ])
+        state_path = self.root / "_evidence/demo-1/state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["researcher_runtime"] = "researcher-a"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        (self.root / "_evidence/demo-1/review.json").write_text(
+            json.dumps({"passed": True, "reviewer_runtime": "researcher-a   "}), encoding="utf-8"
+        )
+        report = self.status()
+        self.assertEqual(report["gate"]["decision"], "DEEPEN")
+        self.assertIn("Independent review has not passed", report["gate"]["reason"])
+
+    def test_batch_deprecate_updates_staged_graph_and_backup_preserves_dangling_symlink(self):
+        """Red-team H5: batch actions update staged graph between items; backup refuses symlinks without unlinking."""
+        from knowledge_builder.ontology.actions import ActionError, run_batch
+
+        with self.assertRaises(ActionError) as ctx:
+            run_batch(self.root, "deprecate", [
+                {"target": "claim-one", "replacement": "claim-two"},
+                {"target": "claim-one", "replacement": "claim-two"},
+            ])
+        self.assertIn("item 2", str(ctx.exception))
+        # Dangling symlink at index.json must be refused and NOT unlinked by rollback
+        idx = self.root / "index.json"
+        idx.unlink()
+        idx.symlink_to(self.root / "nonexistent-target")
+        with self.assertRaises(ActionError):
+            run_action(self.root, "deprecate", {"target": "claim-one", "replacement": "claim-two"})
+        self.assertTrue(idx.is_symlink(), "rollback must not unlink a pre-existing symlink")
+
 
 if __name__ == "__main__":
     unittest.main()

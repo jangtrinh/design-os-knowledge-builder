@@ -55,6 +55,16 @@ class TestExamplesPass(BuiltExamples):
             code, lines, err = run_script("build.py", "--spec", bad, "--output-dir", Path(tmp) / "out")
         self.assertEqual(code, 1)
         self.assertIn("build:", err)
+        # Path traversal in source stem is rejected
+        spec2 = json.loads(EXAMPLES[0].read_text(encoding="utf-8"))
+        spec2["sources"][0]["stem"] = "../../escaped"
+        with tempfile.TemporaryDirectory() as tmp:
+            bad2 = Path(tmp) / "bad2.json"
+            bad2.write_text(json.dumps(spec2), encoding="utf-8")
+            code2, _, err2 = run_script("build.py", "--spec", bad2, "--output-dir", Path(tmp) / "out2")
+            self.assertEqual(code2, 1)
+            self.assertIn("stem", err2)
+            self.assertFalse((Path(tmp) / "escaped.txt").exists())
 
     def test_the_entity_example_exercises_an_entity_and_a_resolved_contradiction(self):
         root = self.packs[ENT]

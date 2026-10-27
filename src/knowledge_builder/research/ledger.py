@@ -89,7 +89,7 @@ def validate_atom(atom, run_id):
         raise ValueError("atom must be an EvidenceAtom")
     for field in _STRING_FIELDS:
         value = getattr(atom, field)
-        if not isinstance(value, str) or value == "":
+        if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{field} must be a non-empty string")
     if atom.claim_type not in CLAIM_TYPES:
         raise ValueError(f"claim_type is not allowed: {atom.claim_type}")
@@ -99,8 +99,8 @@ def validate_atom(atom, run_id):
         raise ValueError("verified_by_code must be a boolean")
     if atom.metadata is not None and not isinstance(atom.metadata, dict):
         raise ValueError("metadata must be an object")
-    if atom.quote is not None and not isinstance(atom.quote, str):
-        raise ValueError("quote must be a string")
+    if atom.quote is not None and (not isinstance(atom.quote, str) or not atom.quote.strip()):
+        raise ValueError("quote must be a non-empty string")
     atom.source_uri = require_relative_source_uri(atom.source_uri)
     return atom
 

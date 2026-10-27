@@ -7,7 +7,7 @@ from knowledge_builder.anchors import visible_lines
 from knowledge_builder.ontology.cited_paths import resolve_inside
 from knowledge_builder.ontology.objects import format_error
 from knowledge_builder.ontology.source_checks import SOURCE_INTERFACE
-from knowledge_builder.quote_check import file_contains_quote
+from knowledge_builder.quote_check import file_contains_quote, normalise_newlines
 
 CLAIM_INTERFACE = "evidence-claim"
 EVIDENCE_KEYS = ("atom", "run", "source", "evidence_uri", "quote")
@@ -89,8 +89,11 @@ def _against_files(graph, obj, root, ledgers):
         if path is None or not path.is_file() or not file_contains_quote(path, entry["quote"]):
             failures.append(format_error(obj.rel, "quote is not in the capture file", pointer + "/quote"))
         atoms = _ledger(root, entry["run"], ledgers)
-        if atoms.get(entry["atom"]) != entry["evidence_uri"]:
+        record = atoms.get(entry["atom"])
+        if record is None or record[0] != entry["evidence_uri"]:
             failures.append(format_error(obj.rel, f"atom '{entry['atom']}' is not in run '{entry['run']}' with this capture", pointer + "/atom"))
+        elif isinstance(record[1], str) and record[1].strip() and normalise_newlines(entry["quote"]) != normalise_newlines(record[1]):
+            failures.append(format_error(obj.rel, f"quote does not match atom '{entry['atom']}' in run '{entry['run']}'", pointer + "/quote"))
     return failures
 
 
@@ -100,7 +103,7 @@ def _good(obj):
 
 
 def _ledger(root, run, cache):
-    """{atom id: source_uri} for a run; an unreadable or absent ledger is empty."""
+    """{atom id: (source_uri, quote)} for a run; an unreadable or absent ledger is empty."""
     if run not in cache:
         found = {}
         path = resolve_inside(root, f"_evidence/{run}/evidence.jsonl")
@@ -108,7 +111,7 @@ def _ledger(root, run, cache):
             for line in (path.read_text(encoding="utf-8").splitlines() if path and path.is_file() else []):
                 row = json.loads(line) if line.strip() else {}
                 if isinstance(row, dict) and isinstance(row.get("id"), str):
-                    found[row["id"]] = row.get("source_uri")
+                    found[row["id"]] = (row.get("source_uri"), row.get("quote"))
         except (OSError, UnicodeError, ValueError):
             found = {}
         cache[run] = found

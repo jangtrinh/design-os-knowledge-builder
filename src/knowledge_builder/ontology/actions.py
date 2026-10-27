@@ -90,10 +90,16 @@ def _apply(root, name, stage, steps, verify):
     if not changed:
         raise ActionError("action produced no change")
     baseline = Counter(verify(root))
-    backup = Backup(root)
+    try:
+        backup = Backup(root)
+    except ContainmentError as exc:
+        raise ActionError(str(exc)) from exc
     try:
         for rel in [*changed, INDEX_FILE]:
-            backup.save(rel)
+            try:
+                backup.save(rel)
+            except ContainmentError as exc:
+                raise ActionError(str(exc)) from exc
         for rel, text in changed.items():
             _write(root, rel, text.encode("utf-8"))
         introduced = list((Counter(verify(root)) - baseline).elements())

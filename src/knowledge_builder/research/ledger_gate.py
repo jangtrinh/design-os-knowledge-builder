@@ -61,7 +61,7 @@ def _review_separates_duty(run_dir, state):
     A missing or unreadable review file is not a pass.
     """
     researcher = state.get("researcher_runtime")
-    if not isinstance(researcher, str) or researcher == "":
+    if not isinstance(researcher, str) or not researcher.strip():
         return False
     path = run_dir / "review.json"
     if os.path.islink(path) or not path.is_file():
@@ -74,9 +74,9 @@ def _review_separates_duty(run_dir, state):
     if not isinstance(review, dict) or review.get("passed") is not True:
         return False
     reviewer = review.get("reviewer_runtime")
-    if not isinstance(reviewer, str) or reviewer == "":
+    if not isinstance(reviewer, str) or not reviewer.strip():
         return False
-    return reviewer != researcher
+    return reviewer.strip() != researcher.strip()
 
 
 def _run_dir(root, run_id):
@@ -102,9 +102,9 @@ def _required_ids(state):
     if "required_claim_ids" not in state:
         raise LedgerGateError("required_claim_ids must be a list of non-empty strings")
     raw = state["required_claim_ids"]
-    if not isinstance(raw, list) or any(not isinstance(item, str) or item == "" for item in raw):
+    if not isinstance(raw, list) or any(not isinstance(item, str) or not item.strip() for item in raw):
         raise LedgerGateError("required_claim_ids must be a list of non-empty strings")
-    return list(raw)
+    return [item.strip() for item in raw]
 
 
 def _meta(atom):
@@ -139,9 +139,10 @@ def _claim_coverage(root, run_id, state, atoms):
     active_ids, verified_claim_ids = pack_claims
     if not required:
         required = active_ids
+    active_set = set(active_ids)
     verified = sum(
         1 for claim_id in required
-        if _claim_verified(root, run_id, atoms, claim_id) or claim_id in verified_claim_ids
+        if (claim_id in verified_claim_ids if (claim_id in active_set or not state["required_claim_ids"]) else _claim_verified(root, run_id, atoms, claim_id))
     )
     return required, verified
 

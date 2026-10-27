@@ -182,7 +182,20 @@ class TestRunMeasure(unittest.TestCase):
             self.assertEqual(code_r1, 0, out_r1 + err_r1)
             self.assertEqual((run / "state.json").read_bytes(), before)
             self.assertIn("nothing to write", out_r1)
+            # 2b. Red-team H3: adding Round 3 with novel=False while Round 2 is still uncited must ALSO refuse to write
+            (run / "evidence.jsonl").write_text(
+                "".join(json.dumps(a) + "\n" for a in (atoms + [_atom("c1", 3, False, "q-c1")])),
+                encoding="utf-8",
+            )
+            code_r3, out_r3, err_r3 = _measure(tmp, "--material", "--write-state")
+            self.assertEqual(code_r3, 0, out_r3 + err_r3)
+            self.assertEqual((run / "state.json").read_bytes(), before)
+            self.assertIn("nothing to write", out_r3)
             # 3. Round 2 is now cited -> writes state
+            (run / "evidence.jsonl").write_text(
+                "".join(json.dumps(a) + "\n" for a in atoms),
+                encoding="utf-8",
+            )
             (Path(tmp) / "m.md").write_text(
                 MODULE + '\n<!-- ease:source uri=x sha256=y quote="q-a1" -->\n',
                 encoding="utf-8",

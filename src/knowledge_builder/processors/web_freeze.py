@@ -8,6 +8,7 @@ some servers compress regardless. An existing file is never overwritten.
 import gzip
 import hashlib
 import html
+import io
 import os
 import re
 import stat
@@ -80,9 +81,20 @@ class _HttpOnlyRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def fetch_html(url):
-    if not url.startswith(("http://", "https://")):
+_MAX_BYTES = 10 * 1024 * 1024
+
+
+def _validate_url(url):
+    if not isinstance(url, str) or any(ch in url for ch in ("\r", "\n", "\t", " ")):
+        raise FreezeError(f"--freeze needs an http or https url without whitespace: {url!r}")
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc or not parsed.hostname:
         raise FreezeError(f"--freeze needs an http or https url: {url}")
+    return url
+
+
+def fetch_html(url):
+    _validate_url(url)
     req = urllib.request.Request(
         url,
         headers={
@@ -92,7 +104,7 @@ def fetch_html(url):
     )
     try:
         with urllib.request.build_opener(_HttpOnlyRedirect).open(req, timeout=30) as resp:
-            blob = resp.read()
+            blob = resp.read(_MAX_BYTES + 1)
     except urllib.error.HTTPError as exc:
         code = exc.code
         exc.close()
@@ -101,17 +113,33 @@ def fetch_html(url):
         raise FreezeError(f"could not fetch {url}: {exc}") from exc
     except OSError as exc:
         raise FreezeError(f"could not fetch {url}: {exc}") from exc
+    if len(blob) > _MAX_BYTES:
+        raise FreezeError(f"response from {url} exceeds {_MAX_BYTES} bytes")
     if blob[:2] == b"\x1f\x8b":
         try:
-            blob = gzip.decompress(blob)
+            with gzip.GzipFile(fileobj=io.BytesIO(blob)) as gz:
+                blob = gz.read(_MAX_BYTES + 1)
         except (OSError, EOFError) as exc:
             raise FreezeError(f"could not decompress {url}: {exc}") from exc
+        if len(blob) > _MAX_BYTES:
+            raise FreezeError(f"decompressed response from {url} exceeds {_MAX_BYTES} bytes")
     return blob.decode("utf-8", errors="replace")
 
 
 def read_local_html(from_file):
+    path = Path(from_file)
     try:
-        return read_text_nofollow(Path(from_file))
+        info = os.lstat(path)
+    except OSError as exc:
+        raise FreezeError(f"could not read --from-file {from_file}: {exc}") from exc
+    if stat.S_ISLNK(info.st_mode):
+        raise FreezeError(f"could not read --from-file {from_file}: refusing symlinked file")
+    if not stat.S_ISREG(info.st_mode):
+        raise FreezeError(f"could not read --from-file {from_file}: not a regular file")
+    if info.st_size > _MAX_BYTES:
+        raise FreezeError(f"could not read --from-file {from_file}: exceeds {_MAX_BYTES} bytes")
+    try:
+        return read_text_nofollow(path)
     except (ContainmentError, OSError, UnicodeError) as exc:
         raise FreezeError(f"could not read --from-file {from_file}: {exc}") from exc
 
@@ -168,8 +196,7 @@ def freeze_web_source(url, root, run_id, stem, from_file=None):
     """
     if STEM.fullmatch(stem or "") is None:
         raise FreezeError("--stem must be kebab-case: lowercase letters, digits, hyphens")
-    if not str(url).startswith(("http://", "https://")):
-        raise FreezeError(f"--freeze needs an http or https url: {url}")
+    _validate_url(url)
     run_fd, extra = _open_run_sources(root, run_id)
     sources_fd = None
     try:

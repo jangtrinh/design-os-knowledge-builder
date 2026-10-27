@@ -107,8 +107,9 @@ def review_failures(root, run):
         return [f"review: {where} passed is not true: fix the findings and re-review"]
     if not isinstance(runtime, str) or not runtime.strip():
         return [f"review: {where} has no reviewer_runtime: name the runtime that reviewed"]
-    if runtime == state.get("researcher_runtime"):
-        return [f"review: reviewer_runtime equals researcher_runtime ({runtime}): review on a different runtime"]
+    researcher = state.get("researcher_runtime")
+    if isinstance(researcher, str) and runtime.strip() == researcher.strip():
+        return [f"review: reviewer_runtime equals researcher_runtime ({runtime.strip()}): review on a different runtime"]
     return []
 
 

@@ -26,9 +26,9 @@ def verified_pack_claims(root, run_id, verified_atom_ids):
     ]
     if not active:
         return [], set()
-    from knowledge_builder.verify import verify_root
+    from knowledge_builder.ontology.checks import ontology_failures
 
-    failing = {message_file(m) for m in verify_root(root, claims=True)[2]}
+    failing = {message_file(m) for m in ontology_failures(root, claims=True)}
     wanted = set(verified_atom_ids)
     verified = set()
     for claim in active:
