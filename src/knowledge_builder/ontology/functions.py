@@ -26,6 +26,11 @@ def object_exists(ctx, ident):
     return ctx.graph.get(ident) is not None
 
 
+def not_same_object(_ctx, left, right):
+    """True when the two ids name different objects."""
+    return str(left) != str(right)
+
+
 def status_is(ctx, ident, status):
     return _status_of(ctx, ident) == status
 
@@ -141,6 +146,7 @@ FUNCTIONS = {
     "has-link": has_link,
     "claim-type-is": claim_type_is,
     "non-blank": non_blank,
+    "not-same-object": not_same_object,
     "claims-verified": claims_verified,
     "source-count": source_count,
     "evidence-age-days": evidence_age_days,

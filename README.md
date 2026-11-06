@@ -231,10 +231,12 @@ kb run record --root <knowledge-root> --id <run> < atom.json
 # Nothing is written unless --write-state is given.
 kb run measure --root <knowledge-root> --id <run> --material [--write-state]
 
-# Typed writes to state.json. Settable keys: round, consecutive_low_delta_rounds,
-# last_weighted_delta, has_viable_probe_remaining, is_target_version_matched,
-# version_applicability (applicable | not_applicable), version_reason,
-# execution_applicability (applicable | not_applicable), execution_reason, resolved (appends).
+# Typed writes to state.json. Settable keys: round, has_viable_probe_remaining,
+# is_target_version_matched, version_applicability (applicable | not_applicable),
+# version_reason, execution_applicability (applicable | not_applicable),
+# execution_reason, resolved (appends).
+# consecutive_low_delta_rounds and last_weighted_delta are measured: only
+# `run measure --write-state` writes them.
 kb run state set --root <knowledge-root> --id <run> --key version_applicability --value not_applicable
 kb run state set --root <knowledge-root> --id <run> --key version_reason --value "concept pack: no target library"
 kb run state set --root <knowledge-root> --id <run> --key execution_applicability --value not_applicable

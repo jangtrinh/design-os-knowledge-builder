@@ -242,12 +242,12 @@ def _uncited_blocks(text, rel, kinds=("source",)):
 
 
 def _labeled_above(previous, begin, kind):
-    """A table or fence whose first line follows a label line directly is exempt.
+    """A table, fence, or indented run whose first line follows a label is exempt.
 
     previous is (last line, kind, is a label block). A blank line between them
     breaks it, and the label exempts only the one block beneath it.
     """
-    if previous is None or kind not in ("table", "fence"):
+    if previous is None or kind not in ("table", "fence", "code"):
         return False
     finish, _prev_kind, labeled = previous
     return labeled and begin == finish + 1
@@ -278,7 +278,7 @@ def _blocks(tokens, start, end):
     index = start + 1
     while index < end:
         tok = tokens[index]
-        if tok.kind in ("blank", "fence-close", "code"):
+        if tok.kind in ("blank", "fence-close"):
             index += 1
             continue
         if tok.kind == "anchor":
@@ -290,6 +290,10 @@ def _blocks(tokens, start, end):
             index, block = _fence_block(tokens, index, end)
             blocks.append(block)
             continue
+        if tok.kind == "code":
+            index, block = _code_block(tokens, index, end)
+            blocks.append(block)
+            continue
         if tok.kind != "text" or _is_h3(tok.text):
             index += 1
             continue
@@ -299,6 +303,32 @@ def _blocks(tokens, start, end):
             index, block = _text_block(tokens, index, end)
         blocks.append(block)
     return blocks, cited
+
+
+def _code_block(tokens, index, end):
+    """One run of indented code. A blank stays inside only when more code follows."""
+    begin = tokens[index].line
+    lines = [tokens[index].text]
+    finish = begin
+    index += 1
+    while index < end:
+        kind = tokens[index].kind
+        if kind == "code":
+            lines.append(tokens[index].text)
+            finish = tokens[index].line
+            index += 1
+            continue
+        if kind == "blank" and _more_code(tokens, index + 1, end):
+            index += 1
+            continue
+        break
+    return index, (begin, finish, lines, "code")
+
+
+def _more_code(tokens, index, end):
+    while index < end and tokens[index].kind == "blank":
+        index += 1
+    return index < end and tokens[index].kind == "code"
 
 
 def _fence_block(tokens, index, end):

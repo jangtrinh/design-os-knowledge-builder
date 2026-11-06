@@ -126,8 +126,7 @@ def _entry(run, atom, source_id):
 
 def _source_for(state, stage, run, atom, real, kind, publisher):
     """Id of the Source for this atom's page: reuse one with the same url, else create it."""
-    url = (atom.metadata or {}).get("url") or header_field(real, "Source-URL")
-    url = url.strip() if isinstance(url, str) and url.strip() else None
+    url = _source_url(atom, real)
     if url is None and kind == FIRST_PARTY:
         url = f"local:{atom.source_uri}"  # the Source's url is required; a local file is named by its path
     if url is None:
@@ -149,6 +148,23 @@ def _source_for(state, stage, run, atom, real, kind, publisher):
     stage.files[source.rel] = append_map_item(stage.read(source.rel), "captures", capture)
     source.data["captures"] = [*captures, capture]
     return existing
+
+
+def _source_url(atom, real):
+    """Frozen Source-URL wins. metadata.url fills in only when the capture has no header."""
+    header = _stripped(header_field(real, "Source-URL"))
+    meta = _stripped((atom.metadata or {}).get("url"))
+    if header and meta and header != meta:
+        raise ActionError(
+            f"atom '{atom.id}': metadata.url '{meta}' contradicts the frozen Source-URL: '{header}'"
+        )
+    return header or meta
+
+
+def _stripped(value):
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def _create_source(state, stage, url, capture, kind, publisher):

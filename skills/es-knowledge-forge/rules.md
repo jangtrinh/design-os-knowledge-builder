@@ -26,6 +26,7 @@ Home: tool.
 
 ## R4. Measure saturation on material atoms, then write it
 Keep it: `K run measure --root <pack> --id <run> --material --write-state` after citing each round's claims in a document.
+`consecutive_low_delta_rounds` and `last_weighted_delta` are written only by that command. `run state set` refuses them.
 Rejected when: the gate prints `delta 100.0%` only because `last_weighted_delta` was never written, or `--material --write-state` was called before citing.
 Home: hand-over (`GATE`).
 

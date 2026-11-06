@@ -200,8 +200,6 @@ class TestStatusAndCheck(PackInitCase):
             ("version_reason", "concept pack: no target library"),
             ("execution_applicability", "not_applicable"),
             ("execution_reason", "concept pack: no executable code"),
-            ("consecutive_low_delta_rounds", "3"),
-            ("last_weighted_delta", "0.0"),
             ("has_viable_probe_remaining", "false"),
         ):
             code, out, err = run_cli([
@@ -212,6 +210,8 @@ class TestStatusAndCheck(PackInitCase):
         state_path = self.root / "_evidence/demo-1/state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         self.assertEqual(state["required_claim_ids"], [])
+        state["consecutive_low_delta_rounds"] = 3
+        state["last_weighted_delta"] = 0.0
         state["researcher_runtime"] = "researcher-a"
         state_path.write_text(json.dumps(state), encoding="utf-8")
         (self.root / "_evidence/demo-1/review.json").write_text(
@@ -242,8 +242,6 @@ class TestStatusAndCheck(PackInitCase):
             ("version_reason", "concept pack: no target library"),
             ("execution_applicability", "not_applicable"),
             ("execution_reason", "concept pack: no executable code"),
-            ("consecutive_low_delta_rounds", "3"),
-            ("last_weighted_delta", "0.0"),
             ("has_viable_probe_remaining", "false"),
         ):
             run_cli([
@@ -252,6 +250,8 @@ class TestStatusAndCheck(PackInitCase):
             ])
         state_path = self.root / "_evidence/demo-1/state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["consecutive_low_delta_rounds"] = 3
+        state["last_weighted_delta"] = 0.0
         state["researcher_runtime"] = "researcher-a"
         state_path.write_text(json.dumps(state), encoding="utf-8")
         (self.root / "_evidence/demo-1/review.json").write_text(

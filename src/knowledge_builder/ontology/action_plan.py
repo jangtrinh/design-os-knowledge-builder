@@ -50,7 +50,12 @@ def check_criteria(spec, params, ctx):
         name = criterion["function"]
         args = [params.get(arg, arg) for arg in criterion.get("args") or []]
         if not FUNCTIONS[name](ctx, *args):
-            raise ActionError(f"criteria failed: {name}({', '.join(str(a) for a in args)})")
+            shown = ", ".join(str(arg) for arg in args)
+            message = f"criteria failed: {name}({shown})"
+            extra = criterion.get("message")
+            if isinstance(extra, str) and extra.strip():
+                message = f"{message}: {extra.strip()}"
+            raise ActionError(message)
 
 
 class Stage:

@@ -15,7 +15,7 @@ smoke tests and tiny packs; real research freezes live pages. Examples: [../exam
 | `documents[]` | `{id, object_type?, title, description, when[], source[] (stems), purpose?, allowed[]?, not_allowed[]?, core[], failure_modes?}`; `core` items are text lines or `{"claim": id}` (anchor + `cites` link) |
 | `links[]` | `{source, link_type, target}` -> `add-link` |
 | `resolutions[]` | `{claim, resolution}` -> `resolve-contradiction` |
-| `state` | `{key: value}` -> `run state set` |
+| `state` | `{key: value}` -> `run state set`. `consecutive_low_delta_rounds` and `last_weighted_delta` are not accepted; `run measure --write-state` writes them |
 | `review` | object written to `_evidence/<run>/review.json` (fixture only; a real review is another runtime's work) |
 
 Order: init, freeze, record, promote, entities, documents, links, resolutions, state, review, index.

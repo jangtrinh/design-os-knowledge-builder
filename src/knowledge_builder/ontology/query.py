@@ -6,8 +6,8 @@ from pathlib import Path
 
 from knowledge_builder.containment import ContainmentError, read_bytes_inside
 from knowledge_builder.index import DEFAULT_EXCLUDE, _markdown_files
-from knowledge_builder.ontology.index_enrich import schema_fingerprint
-from knowledge_builder.ontology.schema import load_ontology
+from knowledge_builder.ontology.index_enrich import compare_enriched, schema_fingerprint
+from knowledge_builder.ontology.schema import OntologyError, load_ontology
 
 
 class QueryError(ValueError):
@@ -21,10 +21,29 @@ def load_fresh_index(root):
     except (OSError, ValueError) as exc:
         raise QueryError(f"index.json is missing or unreadable ({exc}): run index") from exc
     stale = _stale_paths(root, entries)
+    capture_stale = []
+    if not stale:
+        try:
+            entries, stale, capture_stale = compare_enriched(root, entries)
+        except OntologyError as exc:
+            raise QueryError(f"index.json is stale for ontology.yaml ({exc}): run index") from exc
+    messages = []
     if stale:
-        shown = ", ".join(stale[:5]) + (f" and {len(stale) - 5} more" if len(stale) > 5 else "")
-        raise QueryError(f"index.json is stale for {shown}: run index")
+        messages.append(f"index.json is stale for {_shown(stale)}: run index")
+    if capture_stale:
+        messages.append(
+            f"index.json is stale for {_shown(capture_stale)}: frozen capture is missing or its sha256 differs"
+        )
+    if messages:
+        raise QueryError("; ".join(messages))
     return entries
+
+
+def _shown(items):
+    shown = ", ".join(items[:5])
+    if len(items) > 5:
+        shown += f" and {len(items) - 5} more"
+    return shown
 
 
 def _stale_paths(root, entries):

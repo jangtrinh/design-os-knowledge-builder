@@ -41,7 +41,7 @@ K action promote-claim --root P --param atom=<id> --param id=<claim-id>   # --in
 K action set-source --root P --param source=<source-id> --param publisher=<name>   # and/or kind=; fixes an existing Source
 K action create-object --root P --param id=<id> --param object_type=<type> --param title=<t> ...
 K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>   # or --batch f.jsonl
-K run measure --root P --id R --material --write-state                    # after citing each round
+K run measure --root P --id R --material --write-state                    # writes consecutive_low_delta_rounds and last_weighted_delta
 K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"
 K run state set --root P --id R --key version_applicability --value not_applicable   # + version_reason
 ```

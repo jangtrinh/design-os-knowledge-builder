@@ -23,6 +23,11 @@ DEFAULT_ACTIONS = {
     "deprecate": {
         "parameters": {"target": OBJECT, "replacement": OBJECT},
         "criteria": [
+            {
+                "function": "not-same-object",
+                "args": ["target", "replacement"],
+                "message": "replacement must differ from the target",
+            },
             {"function": "object-exists", "args": ["replacement"]},
             {"function": "status-is", "args": ["target", "active"]},
         ],
