@@ -10,17 +10,22 @@ from knowledge_builder.ontology.claim_publishers import publisher_count
 from knowledge_builder.ontology.objects import load_graph
 from knowledge_builder.ontology.schema import load_ontology
 from knowledge_builder.pack import graph_counts
+from tests.capture_support import append_capture, fit_quote
 from tests.pack_support import FETCHED, RUN, PackCase, add_atom, scaffold_root, sha
 from tests.test_run_measure_and_state_set import ATOMS, _atom, _init, _measure, _state
 
 
 def add_local_atom(root, atom_id, stem, body, meta=None):
     """A local execution output: frozen file with no Source-URL header, atom with no metadata.url."""
+    body = fit_quote(body)
     data = f"{body}\n".encode("utf-8")
-    (Path(root) / "_evidence" / RUN / "sources" / f"{stem}.txt").write_bytes(data)
+    rel = f"_evidence/{RUN}/sources/{stem}.txt"
+    (Path(root) / rel).write_bytes(data)
+    digest = sha(data)
+    append_capture(root, rel, digest, origin="from-file", run=RUN)
     atom = {
         "id": atom_id, "run_id": RUN, "claim_type": "FACT", "statement": f"Statement for {atom_id}.",
-        "source_uri": f"_evidence/{RUN}/sources/{stem}.txt", "source_digest": sha(data), "captured_at": FETCHED,
+        "source_uri": rel, "source_digest": digest, "captured_at": FETCHED,
         "confidence": "HIGH", "verified_by_code": False, "metadata": meta or {}, "quote": body,
     }
     with (Path(root) / "_evidence" / RUN / "evidence.jsonl").open("a", encoding="utf-8") as handle:

@@ -53,7 +53,6 @@ SETTERS = {
     "version_reason": _text,
     "execution_applicability": _applicability,
     "execution_reason": _text,
-    "resolved": _text,
 }
 
 
@@ -114,15 +113,7 @@ def cmd_run_state_set(args):
         _fail(f"{args.key} {exc}: {args.value!r}")
     ledger, state = load_run_state(args.root, args.id)
     state = dict(state)
-    if args.key == "resolved":
-        current = state.get("resolved")
-        current = list(current) if isinstance(current, list) else []
-        if value not in current:
-            current.append(value)
-        state["resolved"] = current
-        value = current
-    else:
-        state[args.key] = value
+    state[args.key] = value
     save_run_state(ledger, state)
     if state.get("version_applicability") == "not_applicable" and not str(
         state.get("version_reason") or ""

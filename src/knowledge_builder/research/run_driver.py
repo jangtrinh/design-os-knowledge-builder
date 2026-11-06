@@ -53,11 +53,15 @@ def register_run(subparsers, parser_class):
     status.add_argument("--id", required=True, help="Run id")
     status.set_defaults(func=cmd_run_status)
 
+    from knowledge_builder.research.run_exec import register_exec
+    from knowledge_builder.research.run_resolve import register_resolve
     from knowledge_builder.research.run_state import register_state
     from knowledge_builder.research.saturation import register_measure
 
     register_measure(commands)
     register_state(commands, parser_class)
+    register_exec(commands)
+    register_resolve(commands)
 
 
 def cmd_run_init(args):

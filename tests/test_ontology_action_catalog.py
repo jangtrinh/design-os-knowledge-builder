@@ -16,7 +16,7 @@ class TestPromote(ActionCase):
         make_stop_run(self.root)
         run_action(self.root, "promote-trust-tier", params)
         self.assertEqual(self.index()["alpha"]["trust_tier"], "verified")
-        self.replace("beta.md", 'quote="Alpha facts live here."', 'quote="Not in the source."')
+        self.replace("beta.md", 'quote="Alpha facts live here. Beta facts live here."', 'quote="Not in the source across this measured sample."')
         before = snapshot(self.root)
         with self.assertRaises(ActionError) as caught:
             run_action(self.root, "promote-trust-tier", {"target": "beta", "tier": "verified"})

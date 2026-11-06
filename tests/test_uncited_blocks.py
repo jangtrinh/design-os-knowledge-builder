@@ -16,8 +16,8 @@ from unittest.mock import patch
 
 URI = "_evidence/run-1/sources/note.txt"
 REL = "topic/note.md"
-SOURCE = b"alpha holds in the file.\n"
-QUOTE = "alpha holds in the file."
+QUOTE = "alpha holds in the file across the measured sample."
+SOURCE = f"{QUOTE}\n".encode()
 
 
 def _run(argv):

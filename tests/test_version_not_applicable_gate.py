@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture
+
 from knowledge_builder.research.stopping_gate import (
     StoppingEvaluationInput,
     TerminationState,
@@ -44,7 +46,7 @@ def _sha(body):
     return hashlib.sha256(body).hexdigest()
 
 
-def _atom(atom_id, claim_id, rel, digest, *, claim_type="FACT", metadata=None):
+def _atom(atom_id, claim_id, rel, digest, quote, *, claim_type="FACT", metadata=None):
     meta = {"claim": claim_id}
     meta.update(metadata or {})
     return {
@@ -58,7 +60,7 @@ def _atom(atom_id, claim_id, rel, digest, *, claim_type="FACT", metadata=None):
         "confidence": "HIGH",
         "verified_by_code": False,
         "metadata": meta,
-        "quote": f"frozen {atom_id}",
+        "quote": quote,
     }
 
 
@@ -71,10 +73,16 @@ def _fixture(root, **state_extra):
         ("c1", "FACT", {"command": "echo ok"}),
         ("fm", "FAILURE_MODE", {}),
     ):
-        body = f"frozen {atom_id}\n".encode()
+        quote = f"frozen {atom_id} holds across the measured sample."
+        body = f"{quote}\n".encode()
         rel = f"_evidence/run-1/sources/{atom_id}.txt"
         (root / rel).write_bytes(body)
-        atoms.append(_atom(atom_id, "c1" if atom_id == "c1" else "other", rel, _sha(body),
+        digest = _sha(body)
+        if atom_id == "c1":
+            append_capture(root, rel, digest, origin="executed", command=["echo", "ok"], exit_code=0, run="run-1")
+        else:
+            append_capture(root, rel, digest, origin="from-file", run="run-1")
+        atoms.append(_atom(atom_id, "c1" if atom_id == "c1" else "other", rel, digest, quote,
                            claim_type=claim_type, metadata=meta))
     (run / "evidence.jsonl").write_text("".join(json.dumps(a) + "\n" for a in atoms), encoding="utf-8")
     state = {

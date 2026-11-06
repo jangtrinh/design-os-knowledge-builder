@@ -41,20 +41,16 @@ def gate_exit_code(state, *, self_reported=False):
 
 
 def cmd_freeze(args):
-    from knowledge_builder.processors.web_freeze import FreezeError, freeze_web_source
-    from knowledge_builder.research.run_driver import _contained_run
+    from knowledge_builder.processors.web_freeze import FreezeError
+    from knowledge_builder.research.call_budget import BudgetExhausted, CaptureError
+    from knowledge_builder.research.freeze_capture import freeze_and_record
 
-    if not args.root or not args.run or not args.stem:
-        print("[-] --freeze needs --root, --run and --stem", file=sys.stderr)
-        sys.exit(1)
     try:
-        _contained_run(args.root, args.run)
-        from_file = getattr(args, "from_file", None)
-        if from_file is not None:
-            rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem, from_file=from_file)
-        else:
-            rel, digest, chars = freeze_web_source(args.target, args.root, args.run, args.stem)
-    except (FreezeError, ContainmentError) as exc:
+        rel, digest, chars = freeze_and_record(args)
+    except BudgetExhausted as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    except (FreezeError, ContainmentError, CaptureError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         sys.exit(1)
     print(f"[✓] Frozen {chars} chars of text from {args.target}")
@@ -126,6 +122,8 @@ def cmd_gate(args):
     print(f"--------------------------------------------------")
     print(f"Decision: {decision.state.value}")
     print(f"Reason:   {decision.reason}")
+    for note in getattr(inp, "gate_notes", ()) or ():
+        print(note)
     print(f"Hard Gates Passed: {decision.hard_gates_passed}")
     print(f"Saturation Passed: {decision.saturation_passed}")
     if decision.version_note:

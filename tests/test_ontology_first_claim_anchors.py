@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from knowledge_builder.verify import verify_root
+from tests.capture_support import fit_quote
 from tests.pack_support import PackCase, build_basic, write_claim
 from tests.test_ontology_support import FIXTURE, run_cli
 
@@ -51,12 +52,13 @@ class TestClaimAnchors(PackCase):
         self.assertEqual(self.verify(claims=True), [])
 
     def test_document_with_no_claim_anchor_reports_no_claim_checked(self):
-        self.replace("doc-1.md", "Alpha holds in every case.\n<!-- ease:claim id=c1 -->", "Observed: nothing cited.")
+        quoted = fit_quote("Alpha holds in every case.")
+        self.replace("doc-1.md", f"{quoted}\n<!-- ease:claim id=c1 -->", "Observed: nothing cited.")
         failures = self.verify(claims=True)
         self.assertTrue(self.named(failures, "doc-1.md", "no claim was checked"), failures)
 
     def test_claim_quote_is_checked_against_the_capture_bytes(self):
-        self.replace("claims/c1.md", 'quote: "Alpha holds in every case."', 'quote: "Alpha never holds."')
+        self.replace("claims/c1.md", f'quote: "{fit_quote("Alpha holds in every case.")}"', 'quote: "Alpha never holds across the measured range today."')
         self.assertEqual(self.verify(claims=False), [])  # structural mode does not read quotes
         self.assertTrue(self.named(self.verify(claims=True), "claims/c1.md", "quote is not in the capture file"))
 
@@ -83,7 +85,7 @@ class TestTamper(PackCase):
         self.assertTrue(any(file in f and fragment in f for f in failures), failures)
 
     def test_edit_a_claim_quote(self):
-        self.replace("claims/c1.md", 'quote: "Alpha holds in every case."', 'quote: "Alpha holds sometimes."')
+        self.replace("claims/c1.md", f'quote: "{fit_quote("Alpha holds in every case.")}"', 'quote: "Alpha holds sometimes outside every measured range."')
         self.assert_red("claims/c1.md", "quote is not in the capture file")
 
     def test_edit_a_capture_byte(self):
@@ -120,17 +122,17 @@ class TestTamper(PackCase):
         self.assert_red("claims/c1.md", "is not a capture of source 's1'")
 
     def test_statement_drift_between_frontmatter_and_body(self):
-        self.replace("claims/c1.md", "## Statement\n\nAlpha holds in every case.", "## Statement\n\nSomething else.")
+        self.replace("claims/c1.md", f"## Statement\n\n{fit_quote('Alpha holds in every case.')}", "## Statement\n\nSomething else.")
         self.assert_red("claims/c1.md", "## Statement section must repeat the statement")
 
     def test_cli_verify_claims_exits_1_on_tamper(self):
-        self.replace("claims/c1.md", 'quote: "Alpha holds in every case."', 'quote: "gone"')
+        self.replace("claims/c1.md", f'quote: "{fit_quote("Alpha holds in every case.")}"', 'quote: "gone from the capture across the measured sample."')
         code, out, _err = run_cli(["knowledge-builder", "verify", str(self.root), "--claims"])
         self.assertEqual(code, 1)
         self.assertIn("claims/c1.md", out)
 
     def test_contradiction_claim_needs_a_contradicts_link(self):
-        write_claim(self.root, "c1", "s1", self.atom["source_uri"], "Alpha holds in every case.", claim_type="CONTRADICTION")
+        write_claim(self.root, "c1", "s1", self.atom["source_uri"], self.atom["quote"], claim_type="CONTRADICTION")
         self.assert_red("claims/c1.md", "needs a contradicts link")
 
 

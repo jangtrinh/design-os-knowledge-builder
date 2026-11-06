@@ -21,6 +21,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture
+
 
 def _run(argv, stdin=""):
     import knowledge_builder.cli as cli_mod
@@ -263,19 +265,23 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
             run = root / "_evidence" / "run-1"
             sources = run / "sources"
             sources.mkdir(parents=True)
-            body_a = b"claim alpha holds\n"
-            body_b = b"known failure mode\n"
+            claim_quote = "claim alpha holds across the measured sample."
+            fail_quote = "known failure mode happens when the input is empty and unchecked."
+            body_a = f"{claim_quote}\n".encode()
+            body_b = f"{fail_quote}\n".encode()
             rel_a = "_evidence/run-1/sources/a.txt"
             rel_b = "_evidence/run-1/sources/b.txt"
             (root / rel_a).write_bytes(body_a)
             (root / rel_b).write_bytes(body_b)
+            append_capture(root, rel_a, _sha(body_a), origin="executed", command=["python3", "-m", "unittest"], exit_code=0, run="run-1")
+            append_capture(root, rel_b, _sha(body_b), origin="from-file", run="run-1")
             claim = _atom(
                 "atom-c1",
                 "c1",
                 rel_a,
                 _sha(body_a),
                 metadata={"command": "python3 -m unittest"},
-                quote="claim alpha holds",
+                quote=claim_quote,
             )
             failure = _atom(
                 "atom-fail",
@@ -283,7 +289,7 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
                 rel_b,
                 _sha(body_b),
                 claim_type="FAILURE_MODE",
-                quote="known failure mode",
+                quote=fail_quote,
             )
             (run / "evidence.jsonl").write_text(
                 json.dumps(claim) + "\n" + json.dumps(failure) + "\n",

@@ -35,7 +35,8 @@ The real pipeline, step by step, with closing conditions, is in
 
 ```sh
 K pack init --root P --topic "<topic>" --run R --researcher <runtime>     # then proposal -> owner approval
-K ingest --freeze <url> --root P --run R --stem <stem>                    # freeze before quoting
+K ingest --freeze <url> --root P --run R --stem <stem>                    # fetches; --from-file does not
+K run exec --root P --id R --stem <stem> -- <argv...>                     # local capture; one budget call
 echo '<atom json>' | K run record --root P --id R                         # round + novel on every atom
 K action promote-claim --root P --param atom=<id> --param id=<claim-id>   # --into / --batch / publisher= / kind=
 K action set-source --root P --param source=<source-id> --param publisher=<name>   # and/or kind=; fixes an existing Source
@@ -99,7 +100,7 @@ claims, sources, captures, the [contract](contract.txt) or `index.json`.
 | `verify:` line | Fix what it names; rules R2, R5, R9, R15 |
 | `hosting-publisher` / `publisher-kind` | Re-promote with `publisher=<author org>` and one `kind`; R6, R7 |
 | `uncited-claims` / `documents-without-claims` | Anchor + `cites` link, or deprecate the claim; R9 |
-| `contradictions` | `resolve-contradiction` with a reason; R11 |
+| `contradictions` | `resolve-contradiction` or `run resolve --atom <id> --reason "<text>"`; R11 |
 | `review` | Another runtime writes review.json; R12 |
 | `index` | `K index --root P`; R14 |
 | promote-claim: no `metadata.url` and no `Source-URL:` header | A local execution output or authored example takes `--param kind=first-party` (publisher `local`, never counted as independent); a web page keeps its `metadata.url` |

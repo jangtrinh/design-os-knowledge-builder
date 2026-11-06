@@ -300,13 +300,26 @@ class TestRunStateSet(unittest.TestCase):
                 self.assertIn("not a settable key", err)
                 self.assertEqual((run / "state.json").read_bytes(), before)
 
-    def test_resolved_appends_without_duplicates(self):
+    def test_resolved_is_not_settable_and_resolve_appends_a_reason(self):
         with tempfile.TemporaryDirectory() as tmp:
-            run = _init(tmp, atoms=[])
-            self.assertEqual(_set(tmp, "resolved", "hc-19")[0], 0)
-            self.assertEqual(_set(tmp, "resolved", "hd-3")[0], 0)
-            self.assertEqual(_set(tmp, "resolved", "hc-19")[0], 0)
-            self.assertEqual(_state(run)["resolved"], ["hc-19", "hd-3"])
+            atom = _atom("x2", None, None, "edges are not first class in this graph")
+            atom["claim_type"] = "CONTRADICTION"
+            run = _init(tmp, atoms=[atom])
+            before = (run / "state.json").read_bytes()
+            code, out, err = _set(tmp, "resolved", "x2")
+            self.assertEqual(code, 1, out + err)
+            self.assertIn("not a settable key", err)
+            self.assertEqual((run / "state.json").read_bytes(), before)
+            argv = ["knowledge-builder", "run", "resolve", "--root", tmp, "--id", "run-1", "--atom", "x2", "--reason", "scoped differently"]
+            code, out, err = _run(argv)
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual(_state(run)["resolutions"], [{"atom": "x2", "reason": "scoped differently"}])
+            code, out, err = _run(argv)
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual(_state(run)["resolutions"], [
+                {"atom": "x2", "reason": "scoped differently"},
+                {"atom": "x2", "reason": "scoped differently"},
+            ])
 
     def test_set_keeps_other_state_and_the_gate_reads_it(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -13,6 +13,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture
+
 
 def _run(argv, stdin=""):
     import knowledge_builder.cli as cli_mod
@@ -85,26 +87,31 @@ def _write_sufficient(root, *, alias=False):
     run = root / "_evidence" / "run-1"
     sources = run / "sources"
     sources.mkdir(parents=True)
-    body_a = b"claim alpha holds\nknown failure mode\n"
-    body_b = b"known failure mode\n"
+    claim_quote = "claim alpha holds across the measured sample."
+    fail_quote = "known failure mode happens when the input is empty and unchecked."
+    body_a = f"{claim_quote}\n{fail_quote}\n".encode()
+    body_b = f"{fail_quote}\n".encode()
     rel_a = "_evidence/run-1/sources/a.txt"
     rel_b = "_evidence/run-1/sources/b.txt"
     (root / rel_a).write_bytes(body_a)
+    digest_a = _sha(body_a)
+    append_capture(root, rel_a, digest_a, origin="executed", command=["python3", "-m", "unittest"], exit_code=0, run="run-1")
     if alias:
         os.symlink("a.txt", root / rel_b)
-        digest_b = _sha(body_a)
-        quote_b = "known failure mode"
+        digest_b = digest_a
+        quote_b = fail_quote
     else:
         (root / rel_b).write_bytes(body_b)
         digest_b = _sha(body_b)
-        quote_b = "known failure mode"
+        quote_b = fail_quote
+    append_capture(root, rel_b, digest_b, origin="from-file", run="run-1")
     claim = _atom(
         "atom-c1",
         "c1",
         rel_a,
-        _sha(body_a),
+        digest_a,
         metadata={"command": "python3 -m unittest"},
-        quote="claim alpha holds",
+        quote=claim_quote,
     )
     failure = _atom(
         "atom-fail",

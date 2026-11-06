@@ -8,14 +8,14 @@ the closing condition (done only when it holds). Flags: [../contract.txt](../con
 | 1 | Scaffold | `K pack init --root P --topic "<topic>" --run R --researcher <runtime> [--require <claim-id>]...` | `P/ontology.yaml`, `claims/`, `sources/`, `_evidence/R/` exist |
 | 2 | Propose schema | write `P/ontology.proposal.yaml` + rationale | file exists; the owner has not answered yet |
 | 3 | Owner approval | AskUserQuestion (<= 4 per round, recommended first) | answer recorded; only then copy to `ontology.yaml` |
-| 4 | Freeze sources | `K ingest --freeze <url> [--from-file <saved.html>] --root P --run R --stem <stem>`; local files copied into `_evidence/R/sources/` | each frozen file's sha256 printed |
-| 5 | Record atoms | `echo '<atom json>' \| K run record --root P --id R` | atom has `round`, `novel`, quote copied from the frozen file |
+| 4 | Freeze sources | `K ingest --freeze <url> [--from-file <saved.html>] --root P --run R --stem <stem>` (a bare freeze fetches that URL; `--from-file` does not). `K run exec --root P --id R --stem <stem> -- <argv...>` captures a local command and does not fetch. Each success appends `captures.jsonl` and spends one budget call | sha256 printed and a log line matches the file |
+| 5 | Record atoms | `echo '<atom json>' \| K run record --root P --id R` | atom has `round`, `novel`, and a quote of at least 6 words and 30 characters copied from the capture body |
 | 6 | Promote | `K action promote-claim --root P --param atom=<id> --param id=<claim-id> [--param publisher=<org>] [--param kind=<kind>]` or `--batch f.jsonl` | claim + source files exist; `--into` for corroboration |
 | 7 | Documents, entities | `K action create-object ...` then write the body | file under its type's folder |
 | 8 | Cite | body anchor `<!-- ease:claim id=<claim> -->` + `K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>` or `--batch f.jsonl` | anchors == cites links |
 | 9 | Measure | `K run measure --root P --id R --material --write-state` (after citing each round) | `consecutive_low_delta_rounds` and `last_weighted_delta` written; `run state set` does not accept them |
 | 10 | Relate | `add-link` with `about` / `compares` / `depends-on` | no declared relation missing |
-| 11 | Contradictions | `K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"` | none unresolved |
+| 11 | Contradictions | `K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"`, or `K run resolve --root P --id R --atom <id> --reason "<text>"` for a CONTRADICTION atom. A string list in `resolved` does not count | none unresolved |
 | 12 | Independent review | a different runtime writes `_evidence/R/review.json` | `validate:review` passes |
 | 13 | State | `K run state set --root P --id R --key version_applicability --value not_applicable` + `--key version_reason` (and `execution_applicability` + `execution_reason` when no code) | gate shows no version/execution deficiency |
 | 14 | Check | `K pack check --root P`, `K pack status --root P`, then [../validate.py](../validate.py), [../look.py](../look.py) | exit 0, sheet inspected |
@@ -25,11 +25,12 @@ the closing condition (done only when it holds). Flags: [../contract.txt](../con
 ```json
 {"id":"a1","run_id":"R","claim_type":"FACT","statement":"<one sentence>","source_uri":"_evidence/R/sources/<stem>.txt",
  "source_digest":"<sha256 of that file>","captured_at":"<iso>","confidence":"HIGH","verified_by_code":false,
- "metadata":{"round":1,"novel":true,"url":"<page url, only if the file has no Source-URL header>"},"quote":"<verbatim from the file>"}
+ "metadata":{"round":1,"novel":true,"url":"<page url, only if the file has no Source-URL header>"},"quote":"<at least 6 words and 30 characters, from the capture body>"}
 ```
 
 `claim_type` is FACT, FAILURE_MODE, BENCHMARK, CONTRADICTION or INFERENCE. A CONTRADICTION atom adds
-`metadata.contradicts=<other atom id>`. A `verified_by_code` atom needs `metadata.command`.
+`metadata.contradicts=<other atom id>`. Execution proof needs a capture of origin `executed` with exit code 0;
+`metadata.command` must equal the logged command. On any other atom `metadata.command` is ignored.
 
 ## Create-object parameters
 

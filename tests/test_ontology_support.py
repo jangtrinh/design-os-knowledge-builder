@@ -9,7 +9,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture
+
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ontology" / "root"
+FACT_QUOTE = "Alpha facts live here. Beta facts live here."
+FAIL_QUOTE = "known failure mode happens when the input is empty and unchecked."
+EXEC_ARGV = ["python3", "-m", "unittest"]
 
 
 def run_cli(argv):
@@ -51,22 +56,30 @@ def make_stop_run(root, run_id="run-1"):
     run = Path(root) / "_evidence" / run_id
     sources = run / "sources"
     sources.mkdir(parents=True, exist_ok=True)
-    body_a = (sources / "source.txt").read_bytes() if (sources / "source.txt").exists() else b"Alpha facts live here.\n"
+    body_a = (sources / "source.txt").read_bytes() if (sources / "source.txt").exists() else (FACT_QUOTE + "\n").encode()
+    if FACT_QUOTE.encode() not in body_a:
+        body_a = (FACT_QUOTE + "\n").encode()
     (sources / "source.txt").write_bytes(body_a)
-    body_b = b"known failure mode\n"
+    body_b = (FAIL_QUOTE + "\n").encode()
     (sources / "failure.txt").write_bytes(body_b)
+    rel_a = f"_evidence/{run_id}/sources/source.txt"
+    rel_b = f"_evidence/{run_id}/sources/failure.txt"
+    digest_a = hashlib.sha256(body_a).hexdigest()
+    digest_b = hashlib.sha256(body_b).hexdigest()
+    append_capture(root, rel_a, digest_a, origin="executed", command=EXEC_ARGV, exit_code=0, run=run_id)
+    append_capture(root, rel_b, digest_b, origin="from-file", run=run_id)
 
-    def atom(ident, claim, name, body, kind, quote, extra=None):
+    def atom(ident, claim, name, digest, kind, quote, extra=None):
         return {
             "id": ident, "run_id": run_id, "claim_type": kind, "statement": f"support for {claim}",
-            "source_uri": f"_evidence/{run_id}/sources/{name}", "source_digest": hashlib.sha256(body).hexdigest(),
+            "source_uri": f"_evidence/{run_id}/sources/{name}", "source_digest": digest,
             "captured_at": "2026-10-12T00:00:00Z", "confidence": "HIGH", "verified_by_code": False,
             "metadata": dict({"claim": claim}, **(extra or {})), "quote": quote,
         }
 
     lines = [
-        atom("atom-c1", "c1", "source.txt", body_a, "FACT", "Alpha facts live here.", {"command": "python3 -m unittest"}),
-        atom("atom-fail", "fail-1", "failure.txt", body_b, "FAILURE_MODE", "known failure mode"),
+        atom("atom-c1", "c1", "source.txt", digest_a, "FACT", FACT_QUOTE, {"command": "python3 -m unittest"}),
+        atom("atom-fail", "fail-1", "failure.txt", digest_b, "FAILURE_MODE", FAIL_QUOTE),
     ]
     (run / "evidence.jsonl").write_text("".join(json.dumps(a) + "\n" for a in lines), encoding="utf-8")
     state = {

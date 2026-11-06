@@ -13,9 +13,14 @@ Rejected when: `ontology.yaml` differs from the starter with no recorded approva
 Home: hand-over (`APPROVAL`).
 
 ## R2. Freeze every source before quoting it
-Keep it: web page `K ingest --freeze <url> --root <pack> --run <run> --stem <kebab-stem>`; a local file is copied
-into `_evidence/<run>/sources/` and never edited. The quote comes from that file, not from a summary.
-Rejected when: a quote is not in its capture, or a capture's sha256 changed.
+Keep it: a web page is `K ingest --freeze <url> --root <pack> --run <run> --stem <kebab-stem>` (this fetches that URL);
+a saved page is the same command with `--from-file <saved.html>` (no fetch); a command is
+`K run exec --root <pack> --id <run> --stem <kebab-stem> -- <argv...>` (no fetch). Each successful write appends
+`_evidence/<run>/captures.jsonl` with the path and sha256, and spends one budget call. At 0 remaining both refuse
+before fetching or running (`budget exhausted (used N of N): the gate will PAUSE_BUDGET`). The quote comes from the
+capture body (after a `Source-URL:`, `Fetched:` or `Command:` header), has at least 6 words and 30 characters, and
+the file counts only when the log matches its path and sha256.
+Rejected when: a quote is shorter than that, sits only in the header, is absent from the body, or the capture is unattested.
 Home: validate:verify.
 
 ## R3. Every atom carries its round and novelty
@@ -35,7 +40,7 @@ Keep it: `K action promote-claim --root <pack> --param atom=<id> --param id=<cur
 existing claim with `--param into=<claim>`; many at once with `--batch file.jsonl` (all or nothing). A local frozen
 file with no URL (execution output, authored example) takes `--param kind=first-party`; it never adds to independence. A pack made before this kind existed adds `first-party` to the `source` `kind` values in its own `ontology.yaml` first (the tool refuses otherwise and names the allowed list).
 Never hand-write a claim or source file.
-Rejected when: a claim names an atom the ledger does not hold, or a quote no longer matches its capture.
+Rejected when: a claim names an atom the ledger does not hold, the quote is under 6 words or 30 characters, or the quote is not in the capture body.
 Home: validate:verify.
 
 ## R6. A publisher is who wrote the page, never the host that serves it
@@ -76,13 +81,14 @@ Home: tool.
 ## R11. A contradiction is recorded, then resolved with a reason
 Keep it: the CONTRADICTION atom has `metadata.contradicts=<atom id>`; after promoting,
 `K action resolve-contradiction --root <pack> --param claim=<id> --param resolution=<why both stand or which wins>`,
-or deprecate one side.
-Rejected when: a CONTRADICTION claim has no resolution and neither side is deprecated.
+or `K run resolve --root <pack> --id <run> --atom <contradiction-atom-id> --reason "<text>"`,
+or deprecate one side. A string list in `state.json` `resolved` does not resolve the atom.
+Rejected when: a CONTRADICTION claim has no resolution and neither side is deprecated, and no `resolutions` entry names that atom with a reason.
 Home: validate:contradictions.
 
 ## R12. A different runtime reviews the pack
 Keep it: the reviewer writes `_evidence/<run>/review.json` with `passed: true`, a `reviewer_runtime` that differs
-from the run's `researcher_runtime`, `scope`, `checks`, `findings`. The researcher never writes it.
+from the run's `researcher_runtime`, `scope`, `checks`, `findings`. The researcher never writes it. The tool does not fetch pages for this file.
 Rejected when: the file is missing, `passed` is not true, or both runtimes are equal.
 Home: validate:review.
 

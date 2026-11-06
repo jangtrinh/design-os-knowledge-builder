@@ -14,10 +14,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture
+
 
 URI = "_evidence/run-1/sources/note.txt"
 REL = "topic/note.md"
-REAL = "strict still permits writes"
+REAL = "strict still permits writes across the measured sample."
 WRONG = b"strict is read-only\n"
 
 
@@ -135,7 +137,7 @@ class TestVerifyClaims(unittest.TestCase):
         """A quote that uses LF matches a hashed file that uses CRLF."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _populate(root, b"alpha\r\nbeta\r\n", quote="alpha\nbeta")
+            _populate(root, b"alpha beta gamma\r\ndelta epsilon zeta\r\n", quote="alpha beta gamma\ndelta epsilon zeta")
             code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
             self.assertNotIn("unrecognized arguments", err)
             self.assertEqual(code, 0, out + err)
@@ -227,6 +229,7 @@ class TestAtomQuotes(unittest.TestCase):
             _ledger(root, [], ["c1"])
             (root / rel).write_bytes(WRONG)
             atoms = [_atom("atom-c1", "c1", rel, _sha(WRONG), quote=REAL)]
+            append_capture(root, rel, _sha(WRONG), origin="from-file", run="run-1")
             evidence = root / "_evidence" / "run-1" / "evidence.jsonl"
             evidence.write_text(json.dumps(atoms[0]) + "\n", encoding="utf-8")
 
@@ -236,10 +239,11 @@ class TestAtomQuotes(unittest.TestCase):
             self.assertEqual(code, 2, out + err)
             self.assertIn("Missing verified claims (0/1)", out)
 
-            swapped = b"strict still permits writes\r\n"
+            swapped = (REAL + "\n").encode().replace(b"\n", b"\r\n")
             (root / rel).write_bytes(swapped)
             atoms[0]["source_digest"] = _sha(swapped)
-            atoms[0]["quote"] = "strict still permits writes\n"
+            atoms[0]["quote"] = REAL + "\n"
+            append_capture(root, rel, _sha(swapped), origin="from-file", run="run-1")
             evidence.write_text(json.dumps(atoms[0]) + "\n", encoding="utf-8")
             code, out, err = _run(
                 ["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"]

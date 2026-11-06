@@ -6,7 +6,7 @@ from pathlib import Path
 from knowledge_builder.containment import ContainmentError
 from knowledge_builder.ontology.action_plan import ActionError
 from knowledge_builder.ontology.functions import _capture_header
-from knowledge_builder.quote_check import file_contains_quote
+from knowledge_builder.quote_rules import TOO_SHORT, quote_failure
 from knowledge_builder.research.ledger import AtomicResearchLedger
 from knowledge_builder.research.ledger_gate import _source_file
 
@@ -48,7 +48,16 @@ def verified_file(root, run, atom):
     real = _source_file(root, run, atom.source_uri, atom.source_digest)
     if real is None:
         raise ActionError(f"atom '{atom.id}': the frozen file is missing or its sha256 does not match the ledger")
-    if not file_contains_quote(real, atom.quote):
+    if not isinstance(atom.quote, str) or atom.quote.strip() == "":
+        raise ActionError(f"atom '{atom.id}': quote is not in the frozen file (or the atom has no quote)")
+    try:
+        text = real.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        text = ""
+    failure = quote_failure(text, atom.quote)
+    if failure == TOO_SHORT:
+        raise ActionError(f"atom '{atom.id}': {TOO_SHORT}")
+    if failure:
         raise ActionError(f"atom '{atom.id}': quote is not in the frozen file (or the atom has no quote)")
     return real
 
