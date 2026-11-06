@@ -66,7 +66,7 @@ class TestFunctions(RootCase):
 
     def test_claims_verified_follows_the_quote_check(self):
         self.assertTrue(FUNCTIONS["claims-verified"](self.ctx(), "alpha"))
-        self.replace("alpha.md", 'quote="Alpha facts live here."', 'quote="Not in the source."')
+        self.replace("alpha.md", 'quote="Alpha facts live here. Beta facts live here."', 'quote="Not in the source across this measured sample."')
         self.assertFalse(FUNCTIONS["claims-verified"](self.ctx(), "alpha"))
         self.assertTrue(FUNCTIONS["claims-verified"](self.ctx(), "beta"))
 

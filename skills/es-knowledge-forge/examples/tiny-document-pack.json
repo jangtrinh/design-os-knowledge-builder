@@ -4,11 +4,11 @@
   "budget": 40,
   "researcher": "claude-sonnet-5-5",
   "sources": [
-    {"stem": "alpha-page", "url": "https://example.org/alpha", "body": "Alpha holds in every case. The alpha rule has no exceptions in the tested range."},
-    {"stem": "beta-page", "url": "https://example.org/beta", "body": "Beta fails when the input is empty. Callers must pass at least one item."}
+    {"stem": "alpha-page", "url": "https://example.org/alpha", "body": "Alpha holds in every case across the measured range. The alpha rule has no exceptions in the tested range. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length."},
+    {"stem": "beta-page", "url": "https://example.org/beta", "body": "Beta fails when the input is empty. Callers must pass at least one item. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length."}
   ],
   "atoms": [
-    {"id": "a1", "source": "alpha-page", "statement": "Alpha holds in every case.", "quote": "Alpha holds in every case.", "round": 1},
+    {"id": "a1", "source": "alpha-page", "statement": "Alpha holds in every case.", "quote": "Alpha holds in every case across the measured range.", "round": 1},
     {"id": "a2", "source": "beta-page", "claim_type": "FAILURE_MODE", "statement": "Beta fails when the input is empty.", "quote": "Beta fails when the input is empty.", "round": 1},
     {"id": "a3", "source": "beta-page", "statement": "Callers must pass at least one item.", "quote": "Callers must pass at least one item.", "round": 2}
   ],

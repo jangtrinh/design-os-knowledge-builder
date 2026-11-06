@@ -14,8 +14,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture
+
 URI = "_evidence/run-1/sources/talk.txt"
-QUOTE = 'He said "go" twice.'
+QUOTE = 'He said "go" twice during the measured sample.'
 SOURCE = f"Preface line.\n{QUOTE}\nClosing line.\n".encode("utf-8")
 
 
@@ -108,7 +110,7 @@ class TestQuoteWithDoubleQuote(unittest.TestCase):
 
     def test_wrong_single_quoted_quote_is_still_caught(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = _root(tmp, "quote='He said \"stop\" twice.'")
+            root = _root(tmp, "quote='He said \"stop\" twice during the measured sample.'")
             code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
         self.assertNotEqual(code, 0, out + err)
         self.assertIn("quote is not in the hashed file", out)
@@ -156,6 +158,7 @@ class TestQuoteWithDoubleQuote(unittest.TestCase):
                 stdin=json.dumps(atom),
             )
             self.assertEqual(code, 0, out + err)
+            append_capture(root, URI, _sha(SOURCE), origin="from-file", run="run-1")
             code, out, err = _run(["knowledge-builder", "gate", "--root", str(root), "--run-id", "run-1"])
             self.assertNotIn("Missing verified claims", out)
             # Control: the same gate reports the claim missing once the source changes.

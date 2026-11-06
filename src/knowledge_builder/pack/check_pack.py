@@ -6,11 +6,11 @@ from knowledge_builder.pack.status_report import build_status, load_pack
 from knowledge_builder.verify import verify_root
 
 
-def check_pack(root, run=None):
+def check_pack(root, run=None, *, recheck=False):
     """(exit code, lines). The gate decision is printed and never forced."""
     root, _ontology, _graph = load_pack(root)
     files, anchors, failures, _derived = verify_root(root, claims=True)
-    status = build_status(root, run)
+    status = build_status(root, run, recheck=recheck)
     lines = [f"files: {files}", f"anchors: {anchors}", f"failures: {len(failures)}", *failures]
     lines.append(
         f"coverage: claims {status['claims']['count']}, uncited claims {status['uncited_claims']}, "
@@ -22,7 +22,12 @@ def check_pack(root, run=None):
     lines.extend(warning_lines(status["publisher_kind_conflicts"]))
     lines.append(f"index: {_index_state(root)}")
     gate = status["gate"]
+    lines.extend(status.get("recheck_lines") or [])
     lines.append(f"gate: {gate['decision'] or 'n/a'} - {gate['reason']}")
+    if not recheck and gate.get("decision") == "STOP_SUFFICIENT":
+        from knowledge_builder.research.live_sources import OFFLINE_NOTE
+
+        lines.append(OFFLINE_NOTE)
     return (1 if failures else 0), lines
 
 

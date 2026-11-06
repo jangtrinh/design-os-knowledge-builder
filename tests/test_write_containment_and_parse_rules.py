@@ -124,19 +124,19 @@ class TestWriteContainmentAndParseRules(unittest.TestCase):
             parse_attributes('quote="a"uri="b"')
 
         uri = "_evidence/run-1/sources/note.txt"
-        source = b"alpha holds\n"
+        source = b"alpha holds across the measured sample.\n"
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             src = root / uri
             src.parent.mkdir(parents=True)
             src.write_bytes(source)
             digest = _sha(source)
-            anchor = f'<!-- ease:source uri={uri} sha256={digest} quote="alpha holds" -->'
+            anchor = f'<!-- ease:source uri={uri} sha256={digest} quote="alpha holds across the measured sample." -->'
             text = _knowledge(digest, uri, anchor_line=anchor)
             (root / "note.md").write_text(text, encoding="utf-8")
             code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
             self.assertEqual(code, 0, out + err)
-            glued = text.replace('quote="alpha holds"', 'quote="alpha holds"extra="x"', 1)
+            glued = text.replace('quote="alpha holds across the measured sample."', 'quote="alpha holds across the measured sample."extra="x"', 1)
             (root / "note.md").write_text(glued, encoding="utf-8")
             code, out, err = _run(["knowledge-builder", "verify", "--claims", str(root)])
             self.assertNotEqual(code, 0, out + err)

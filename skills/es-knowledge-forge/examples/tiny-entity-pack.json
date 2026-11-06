@@ -7,12 +7,12 @@
     {
       "stem": "gamma-page",
       "url": "https://example.org/gamma",
-      "body": "Gamma accepts unknown keys by default. Strict mode rejects them."
+      "body": "Gamma accepts unknown keys by default. Strict mode rejects them. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length."
     },
     {
       "stem": "delta-page",
       "url": "https://example.net/delta",
-      "body": "Delta rejects unknown keys by default. No option changes this."
+      "body": "Delta rejects unknown keys by default. No option changes this. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length. Extra measured context is recorded here so the frozen page clears the minimum length."
     }
   ],
   "atoms": [

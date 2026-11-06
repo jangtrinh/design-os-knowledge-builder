@@ -13,7 +13,8 @@ from knowledge_builder.ontology.checks import ontology_failures
 from knowledge_builder.ontology.claim_anchors import well_formed_ids
 from knowledge_builder.ontology.schema import OntologyError, load_ontology
 from knowledge_builder.ontology.scope import claim_anchor_kinds, v1_applies
-from knowledge_builder.quote_check import file_contains_quote
+from knowledge_builder.quote_rules import TOO_SHORT, quote_failure
+from knowledge_builder.research.capture_log import attestation_failure
 
 
 HEADINGS = (
@@ -195,15 +196,32 @@ def _check_sources(root, rel, sources, failures):
 
 
 def _check_anchor_quote(root, rel, attrs, failures, where):
-    """True only when the anchor quote occurs in the hashed file."""
+    """True only when the anchor quote occurs in the capture body and is long enough."""
     quote = attrs.get("quote")
     if not isinstance(quote, str) or quote.strip() == "":
         failures.append(f"{rel}: {where} UNCHECKED")
         return False
     target, error = _locate(root, attrs.get("uri"))
-    if error or target is None or not target.is_file() or not file_contains_quote(target, quote):
+    if error or target is None or not target.is_file():
         failures.append(f"{rel}: {where} quote is not in the hashed file")
         return False
+    try:
+        text = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        failures.append(f"{rel}: {where} quote is not in the hashed file")
+        return False
+    failure = quote_failure(text, quote)
+    if failure == TOO_SHORT:
+        failures.append(f"{rel}: {where} {TOO_SHORT}")
+        return False
+    if failure:
+        failures.append(f"{rel}: {where} quote is not in the hashed file")
+        return False
+    if (Path(root) / "ontology.yaml").is_file():
+        attest = attestation_failure(root, attrs.get("uri"))
+        if attest:
+            failures.append(f"{rel}: {where} {attest}")
+            return False
     return True
 
 

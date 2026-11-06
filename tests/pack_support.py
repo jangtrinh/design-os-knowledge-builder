@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.capture_support import append_capture, fit_quote
 from tests.test_ontology_support import run_cli
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "src" / "knowledge_builder" / "templates"
@@ -37,11 +38,20 @@ def freeze(root, stem, body, url=None, run=RUN):
     path = Path(root) / "_evidence" / run / "sources" / f"{stem}.txt"
     data = f"Source-URL: {url}\nFetched: {FETCHED}\n\n{body}\n".encode("utf-8")
     path.write_bytes(data)
-    return f"_evidence/{run}/sources/{stem}.txt", sha(data)
+    rel = f"_evidence/{run}/sources/{stem}.txt"
+    digest = sha(data)
+    append_capture(root, rel, digest, origin="from-file", url=url, run=run)
+    return rel, digest
 
 
 def add_atom(root, atom_id, stem, body, quote=None, claim_type="FACT", url=None, run=RUN, statement=None, extra=None):
     """Freeze a capture and append one atom for it to the run ledger."""
+    quote_text = body if quote is None else quote
+    if isinstance(quote_text, str) and quote_text.strip() and quote_text in body:
+        fitted = fit_quote(quote_text)
+        if fitted != quote_text:
+            body = body.replace(quote_text, fitted, 1)
+            quote_text = fitted
     uri, digest = freeze(root, stem, body, url=url, run=run)
     meta = {"claim": f"c-{atom_id}", "url": url or f"https://{stem}.example.com/page"}
     meta.update(extra or {})
@@ -49,7 +59,7 @@ def add_atom(root, atom_id, stem, body, quote=None, claim_type="FACT", url=None,
         "id": atom_id, "run_id": run, "claim_type": claim_type,
         "statement": statement or f"Statement for {atom_id}.", "source_uri": uri, "source_digest": digest,
         "captured_at": FETCHED, "confidence": "HIGH", "verified_by_code": False, "metadata": meta,
-        "quote": body if quote is None else quote,
+        "quote": quote_text,
     }
     with (Path(root) / "_evidence" / run / "evidence.jsonl").open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(atom) + "\n")
@@ -152,8 +162,8 @@ def build_basic(root):
     scaffold_root(root)
     atom = add_atom(root, "a1", "s1", "Alpha holds in every case.", quote="Alpha holds in every case.")
     write_source(root, "s1", atom["source_uri"], atom["source_digest"])
-    write_claim(root, "c1", "s1", atom["source_uri"], "Alpha holds in every case.")
-    write_document(root, "doc-1", ["c1"], ["Alpha holds in every case.", "<!-- ease:claim id=c1 -->"], atom["source_uri"], atom["source_digest"])
+    write_claim(root, "c1", "s1", atom["source_uri"], atom["quote"])
+    write_document(root, "doc-1", ["c1"], [atom["quote"], "<!-- ease:claim id=c1 -->"], atom["source_uri"], atom["source_digest"])
     return atom
 
 

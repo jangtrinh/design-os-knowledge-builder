@@ -9,7 +9,7 @@ A knowledge root (never inside the tool repo) with `ontology.yaml` (v2) beside m
 
 | Layer | Holds | Checked by |
 | --- | --- | --- |
-| Evidence | `_evidence/<run>/{state.json,evidence.jsonl,sources/,review.json}` | `run` commands, gate |
+| Evidence | `_evidence/<run>/{state.json,evidence.jsonl,sources/,captures.jsonl,review.json}` | `run` commands, gate |
 | Sources | `sources/<id>.md`: `url`, `kind`, `publisher`, `captures[{evidence_uri,sha256,fetched}]` | `verify` |
 | Claims | `claims/<id>.md`: `statement`, `claim_type`, `confidence`, `atom_ids`, `evidence[{atom,run,source,evidence_uri,quote}]`, `supported-by` link | `verify --claims` |
 | Documents | root-level `.md` of a `sourced-document` type, four H2 sections, `cites` links, `ease:claim` anchors | `verify --claims` |
@@ -34,8 +34,8 @@ single quotes; a quote with both quote characters is a malformed anchor. Legacy 
 
 | State | Meaning |
 | --- | --- |
-| `STOP_SUFFICIENT` | required claims verified, >= 2 independent publishers, execution proof (or `execution_applicability=not_applicable` + `execution_reason`), saturation (<= 2% delta over 3 rounds), valid independent review |
-| `DEEPEN` | missing claims, single publisher, version drift, untested failure modes, unresolved contradiction, or no review |
+| `STOP_SUFFICIENT` | required claims verified from attested captures, >= 2 independent publishers (a fetched capture counts; a from-file capture counts only when the current review found its quotes; an executed capture never counts), execution proof from an `executed` capture with exit code 0 and a matching `metadata.command` (or `execution_applicability=not_applicable` with `execution_reason` and `confirm_execution_na`), a searched failure mode whose quote verifies, saturation (<= 2% delta over 3 counted rounds; a round under 5 atoms is not counted), and a current review whose verdict is pass |
+| `DEEPEN` | missing claims, unattested sources, a quote under 6 words or 30 characters, single publisher, version drift, untested failure modes, unresolved contradiction, or no review |
 | `PAUSE_BUDGET` | budget used up before the evidence is complete; never reported as sufficient |
 | `ABSTAIN_BLOCKED` | blocked (paywall, anti-scraping) with no viable fallback |
 

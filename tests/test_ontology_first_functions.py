@@ -7,8 +7,9 @@ import unittest
 from knowledge_builder.ontology.actions import ActionError, run_action
 from knowledge_builder.ontology.functions import FUNCTIONS, Context
 from knowledge_builder.ontology.objects import load_graph
+from tests.capture_support import fit_quote
 from tests.pack_support import PackCase, add_atom, build_basic, scaffold_root, write_claim, write_document, write_source
-from tests.test_ontology_support import make_stop_run
+from tests.test_ontology_support import FAIL_QUOTE, FACT_QUOTE, make_stop_run
 
 
 def call(root, name, *args):
@@ -65,7 +66,7 @@ class TestTraversal(PackCase):
         extra = add_atom(self.root, "a2", "s2", "Beta holds too.", url="https://s2.example/page")
         write_source(self.root, "s2", extra["source_uri"], extra["source_digest"], publisher="s2.example")
         self.replace("sources/s2.md", 'fetched: "2026-10-13T05:00:00+00:00"', 'fetched: "2019-05-05T00:00:00+00:00"')
-        write_claim(self.root, "c2", "s2", extra["source_uri"], "Beta holds too.", atom="a2")
+        write_claim(self.root, "c2", "s2", extra["source_uri"], extra["quote"], atom="a2")
         self.replace("doc-1.md", '    target_id: "c1"\n', '    target_id: "c1"\n  - link_type: "cites"\n    target_id: "c2"\n')
         self.replace("doc-1.md", "<!-- ease:claim id=c1 -->", "<!-- ease:claim id=c1 -->\n\nBeta holds too.\n<!-- ease:claim id=c2 -->")
         self.assertEqual(self.verify(), [])
@@ -77,7 +78,7 @@ class TestTraversal(PackCase):
         write_source(self.root, "s2", extra["source_uri"], extra["source_digest"], publisher="example.com")  # same publisher
         self.replace("claims/c1.md", 'atom_ids: ["a1"]', 'atom_ids: ["a1", "a2"]')
         self.replace("claims/c1.md", "link_types:\n", 'link_types:\n  - link_type: "supported-by"\n    target_id: "s2"\n')
-        text = self.read("claims/c1.md").replace("link_types:", f'  - atom: "a2"\n    run: "r1"\n    source: "s2"\n    evidence_uri: "{extra["source_uri"]}"\n    quote: "Alpha holds in every case."\nlink_types:', 1)
+        text = self.read("claims/c1.md").replace("link_types:", f'  - atom: "a2"\n    run: "r1"\n    source: "s2"\n    evidence_uri: "{extra["source_uri"]}"\n    quote: "{extra["quote"]}"\nlink_types:', 1)
         self.write("claims/c1.md", text)
         self.assertEqual(self.verify(), [])
         self.assertEqual(call(self.root, "source-count", "c1"), 1)  # two sources, one publisher
@@ -86,7 +87,7 @@ class TestTraversal(PackCase):
 
     def test_claims_verified_covers_the_cited_claims_and_their_sources(self):
         self.assertTrue(call(self.root, "claims-verified", "doc-1"))
-        self.replace("claims/c1.md", 'quote: "Alpha holds in every case."', 'quote: "tampered"')
+        self.replace("claims/c1.md", f'quote: "{fit_quote("Alpha holds in every case.")}"', 'quote: "tampered text is absent from the frozen capture."')
         self.assertFalse(call(self.root, "claims-verified", "doc-1"))  # the failure sits in the claim file, not the document
 
 
@@ -99,11 +100,13 @@ class TestRunsStopSufficientThroughClaims(PackCase):
         self.uri = "_evidence/run-1/sources/source.txt"
         self.digest = hashlib.sha256(body).hexdigest()
         write_source(self.root, "src-1", self.uri, self.digest)
-        write_claim(self.root, "c1", "src-1", self.uri, "Alpha facts live here.", atom="atom-c1", run="run-1")
+        write_claim(self.root, "c1", "src-1", self.uri, FACT_QUOTE, atom="atom-c1", run="run-1")
         write_document(self.root, "doc-1", ["c1"], ["Alpha facts live here.", "<!-- ease:claim id=c1 -->"], self.uri, self.digest)
         fail_uri = "_evidence/run-1/sources/failure.txt"  # the run's second atom, from a second publisher
         write_source(self.root, "src-fail", fail_uri, hashlib.sha256((self.root / fail_uri).read_bytes()).hexdigest(), publisher="other.org")
-        write_claim(self.root, "c-fail", "src-fail", fail_uri, "known failure mode", atom="atom-fail", claim_type="FAILURE_MODE", run="run-1")
+        write_claim(self.root, "c-fail", "src-fail", fail_uri, FAIL_QUOTE, atom="atom-fail", claim_type="FAILURE_MODE", run="run-1")
+        from tests.capture_support import run_review
+        run_review(self.root, run="run-1")
 
     def test_stopped_run_behind_the_claim_passes(self):
         self.assertEqual(self.verify(), [])
@@ -112,9 +115,11 @@ class TestRunsStopSufficientThroughClaims(PackCase):
     def test_a_claim_in_an_unfinished_run_blocks_the_tier_even_when_the_document_lists_a_stopped_run(self):
         other = add_atom(self.root, "b1", "unfinished", "Unfinished run fact.", url="https://u.example/x")  # run r1: not stopped
         write_source(self.root, "src-2", other["source_uri"], other["source_digest"], publisher="u.example")
-        write_claim(self.root, "c2", "src-2", other["source_uri"], "Unfinished run fact.", atom="b1")
+        write_claim(self.root, "c2", "src-2", other["source_uri"], other["quote"], atom="b1")
         self.replace("doc-1.md", '    target_id: "c1"\n', '    target_id: "c1"\n  - link_type: "cites"\n    target_id: "c2"\n')
         self.replace("doc-1.md", "<!-- ease:claim id=c1 -->", "<!-- ease:claim id=c1 -->\n\nUnfinished run fact.\n<!-- ease:claim id=c2 -->")
+        from tests.capture_support import run_review
+        run_review(self.root, run="run-1")
         self.assertEqual(self.verify(), [])
         self.assertFalse(call(self.root, "runs-stop-sufficient", "doc-1", "verified"))
         self.assertTrue(call(self.root, "runs-stop-sufficient", "doc-1", "draft"))

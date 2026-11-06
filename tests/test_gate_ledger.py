@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture
+
 
 def _run(argv, stdin=""):
     import knowledge_builder.cli as cli_mod
@@ -117,12 +119,14 @@ class TestGateLedger(unittest.TestCase):
             run = root / "_evidence" / "run-1"
             sources = run / "sources"
             sources.mkdir(parents=True)
-            body = b"frozen claim c1\n"
+            quote = "frozen claim c1 holds across the measured sample."
+            body = f"{quote}\n".encode()
             rel = "_evidence/run-1/sources/c1.txt"
             (root / rel).write_bytes(body)
             digest = _sha(body)
+            append_capture(root, rel, digest, origin="fetched", url="https://example.com/c1", run="run-1")
             atoms = [
-                _atom("atom-c1", "c1", rel, digest, quote="frozen claim c1"),
+                _atom("atom-c1", "c1", rel, digest, quote=quote),
                 _atom(
                     "contra-1",
                     "c-extra",
@@ -192,10 +196,13 @@ class TestGateLedger(unittest.TestCase):
             self.assertIn("Missing verified claims (0/2)", out)
 
             (root / rel).write_bytes(body)
-            body2 = b"frozen claim c2\n"
+            quote2 = "frozen claim c2 holds across the measured sample."
+            body2 = f"{quote2}\n".encode()
             rel2 = "_evidence/run-1/sources/c2.txt"
             (root / rel2).write_bytes(body2)
-            atoms.append(_atom("atom-c2", "c2", rel2, _sha(body2), quote="frozen claim c2"))
+            digest2 = _sha(body2)
+            append_capture(root, rel2, digest2, origin="from-file", run="run-1")
+            atoms.append(_atom("atom-c2", "c2", rel2, digest2, quote=quote2))
             (run / "evidence.jsonl").write_text(
                 "".join(json.dumps(atom) + "\n" for atom in atoms),
                 encoding="utf-8",

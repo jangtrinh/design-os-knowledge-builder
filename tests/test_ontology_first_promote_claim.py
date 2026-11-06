@@ -75,7 +75,7 @@ class TestPromote(PromoteCase):
         self.assertEqual(self.ids("claims"), [])
 
     def test_quote_missing_from_the_file_is_refused(self):
-        add_atom(self.root, "a4", "page-four", "Real text.", quote="Invented text.", url="https://four.example/x")
+        add_atom(self.root, "a4", "page-four", "Real text.", quote="This invented sentence is not in the frozen capture.", url="https://four.example/x")
         with self.assertRaises(ActionError) as caught:
             self.promote(atom="a4")
         self.assertIn("quote is not in the frozen file", str(caught.exception))

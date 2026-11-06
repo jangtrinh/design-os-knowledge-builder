@@ -7,6 +7,7 @@ import unittest
 from knowledge_builder.ontology.actions import ActionError, run_action
 from knowledge_builder.research.ledger_gate import ledger_evaluation_input
 from knowledge_builder.research.stopping_gate import evaluate_stopping_gate
+from tests.capture_support import fit_quote
 from tests.pack_support import PackCase, add_atom, scaffold_root
 
 
@@ -52,9 +53,14 @@ class TestResolution(ResolutionCase):
         run_action(self.root, "deprecate", {"target": "contra", "replacement": self.target})
         self.assertEqual(self.unresolved(), 0)
 
-    def test_state_json_resolved_is_still_honoured(self):
+    def test_legacy_resolved_list_does_not_count_and_a_resolutions_entry_does(self):
         state = json.loads(self.read("_evidence/r1/state.json"))
         state["resolved"] = ["x2"]
+        self.write("_evidence/r1/state.json", json.dumps(state))
+        evaluation = ledger_evaluation_input(self.root, "r1")
+        self.assertEqual(evaluation.unresolved_contradictions_count, 1)
+        self.assertIn("ignored legacy resolved entries: 1", evaluation.gate_notes)
+        state["resolutions"] = [{"atom": "x2", "reason": "scoped to a different graph"}]
         self.write("_evidence/r1/state.json", json.dumps(state))
         self.assertEqual(self.unresolved(), 0)
 
@@ -74,7 +80,7 @@ class TestUnverifiableClaimResolvesNothing(ResolutionCase):
         self.assertEqual(self.unresolved(), 0)
 
     def test_tampered_quote(self):
-        self.replace("claims/contra.md", 'quote: "Edges are not first class."', 'quote: "Edges are first class."')
+        self.replace("claims/contra.md", f'quote: "{fit_quote("Edges are not first class.")}"', 'quote: "Edges are first class across a different measured sample."')
         self.assertEqual(self.unresolved(), 1)
 
     def test_tampered_capture_byte(self):
@@ -94,7 +100,7 @@ class TestUnverifiableClaimResolvesNothing(ResolutionCase):
         run_action(self.root, "promote-claim", {"atom": "r9", "kind": "official", "id": "replacement"})
         run_action(self.root, "deprecate", {"target": self.target, "replacement": "replacement"})
         self.assertEqual(self.unresolved(), 0)
-        self.replace("claims/contra.md", 'quote: "Edges are not first class."', 'quote: "gone"')
+        self.replace("claims/contra.md", f'quote: "{fit_quote("Edges are not first class.")}"', 'quote: "gone from the capture across the measured sample."')
         self.assertEqual(self.unresolved(), 1)
 
     def test_blank_hand_written_resolution_does_not_count(self):

@@ -1,8 +1,9 @@
-"""B2/B3: `run measure` derives saturation from the ledger; `run state set` writes typed state.
+"""`run measure` derives saturation from the ledger; `run state set` writes typed state.
 
-Fixture: round 1 has 4 atoms (baseline). Round 2 has 2 atoms, 1 novel (1/4 = 0.25).
-Round 3 has 3 atoms, 0 novel (0/6 = 0.0). With --material only a novel atom whose
-quote a module anchor cites counts. Nothing is written without --write-state.
+Novelty follows the quote, not metadata.novel. The fixture rounds each have fewer
+than 5 atoms, so they print and do not move the low-delta streak. With --material
+only a novel atom whose quote a module anchor cites counts. Nothing is written
+without --write-state.
 """
 
 import io
@@ -110,10 +111,10 @@ class TestRunMeasure(unittest.TestCase):
             _init(tmp)
             code, out, err = _measure(tmp)
         self.assertEqual(code, 0, out + err)
-        self.assertIn("round 1: atoms 4, novel 0, before 0, delta n/a (baseline)", out)
-        self.assertIn("round 2: atoms 2, novel 1, before 4, delta 0.2500", out)
-        self.assertIn("round 3: atoms 3, novel 0, before 6, delta 0.0000", out)
-        self.assertIn("consecutive_low_delta_rounds=1 last_weighted_delta=0.0", out)
+        self.assertIn("round 1: atoms 4, novel 4, before 0, delta n/a (baseline) (too small: 4 < 5, not counted)", out)
+        self.assertIn("round 2: atoms 2, novel 2, before 4, delta 0.5000 (too small: 2 < 5, not counted)", out)
+        self.assertIn("round 3: atoms 3, novel 3, before 6, delta 0.5000 (too small: 3 < 5, not counted)", out)
+        self.assertIn("consecutive_low_delta_rounds=0 last_weighted_delta=None", out)
 
     def test_material_counts_only_novel_atoms_cited_by_an_anchor(self):
         atoms = ATOMS + [_atom("b3", 2, True, "q-uncited")]
@@ -121,9 +122,9 @@ class TestRunMeasure(unittest.TestCase):
             _init(tmp, atoms=atoms)
             _, plain, _ = _measure(tmp)
             code, out, err = _measure(tmp, "--material")
-        self.assertIn("round 2: atoms 3, novel 2, before 4, delta 0.5000", plain)
+        self.assertIn("round 2: atoms 3, novel 3, before 4, delta 0.7500", plain)
         self.assertEqual(code, 0, out + err)
-        self.assertIn("round 2: atoms 3, novel 1, before 4, delta 0.2500", out)
+        self.assertIn("round 2: atoms 3, novel 2, before 4, delta 0.5000", out)
 
     def test_material_ignores_a_quote_that_only_sits_in_a_code_fence(self):
         module = MODULE + "\n```\n<!-- ease:source uri=x sha256=y quote=\"q-b3\" -->\n```\n"
@@ -131,7 +132,7 @@ class TestRunMeasure(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             _init(tmp, atoms=atoms, module=module)
             _, out, _ = _measure(tmp, "--material")
-        self.assertIn("round 2: atoms 3, novel 1, before 4, delta 0.2500", out)
+        self.assertIn("round 2: atoms 3, novel 2, before 4, delta 0.5000", out)
 
     def test_measure_writes_nothing_unless_write_state(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -141,9 +142,10 @@ class TestRunMeasure(unittest.TestCase):
             self.assertEqual((run / "state.json").read_bytes(), before)
             code, out, err = _measure(tmp, "--write-state")
             self.assertEqual(code, 0, out + err)
+            self.assertIn("nothing to write", out)
             state = _state(run)
-        self.assertEqual(state["consecutive_low_delta_rounds"], 1)
-        self.assertEqual(state["last_weighted_delta"], 0.0)
+        self.assertIsNone(state["last_weighted_delta"])
+        self.assertNotIn("consecutive_low_delta_rounds", state)
         self.assertEqual(state["required_claim_ids"], [])
         self.assertEqual(state["budget_total"], 5)
 
@@ -159,11 +161,12 @@ class TestRunMeasure(unittest.TestCase):
 
     def test_material_write_state_without_any_cited_quotes_does_not_write_false_zero(self):
         atoms = [
-            _atom("a1", 1, True, "q-a1"),
-            _atom("a2", 1, True, "q-a2"),
-            _atom("b1", 2, True, "q-b1"),
-            _atom("b2", 2, True, "q-b2"),
+            *[_atom(f"a{i}", 1, True, f"q-a{i}") for i in range(1, 6)],
+            *[_atom(f"b{i}", 2, True, f"q-b{i}") for i in range(1, 6)],
         ]
+        cited_round_2 = "\n".join(
+            f'<!-- ease:source uri=x sha256=y quote="q-b{i}" -->' for i in range(1, 6)
+        )
         with tempfile.TemporaryDirectory() as tmp:
             # 1. No document cites any quote at all -> refuses to write false 0.0
             run = _init(tmp, atoms=atoms, module="# Uncited\n\nNo anchors yet.\n")
@@ -173,7 +176,7 @@ class TestRunMeasure(unittest.TestCase):
             self.assertEqual((run / "state.json").read_bytes(), before)
             self.assertIn("nothing to write", out)
             self.assertIn("--material", out)
-            # 2. Round 1 is cited, but Round 2 (all novel=True) is not cited yet -> still refuses to write false 0.0
+            # 2. Round 1 is cited, but round 2's new quotes are not cited yet
             (Path(tmp) / "m.md").write_text(
                 '# M\n\n## Core Knowledge Content\n\n<!-- ease:source uri=x sha256=y quote="q-a1" -->\n',
                 encoding="utf-8",
@@ -182,7 +185,7 @@ class TestRunMeasure(unittest.TestCase):
             self.assertEqual(code_r1, 0, out_r1 + err_r1)
             self.assertEqual((run / "state.json").read_bytes(), before)
             self.assertIn("nothing to write", out_r1)
-            # 2b. Red-team H3: adding Round 3 with novel=False while Round 2 is still uncited must ALSO refuse to write
+            # 2b. A later atom flagged novel false, while round 2 is still uncited, still refuses
             (run / "evidence.jsonl").write_text(
                 "".join(json.dumps(a) + "\n" for a in (atoms + [_atom("c1", 3, False, "q-c1")])),
                 encoding="utf-8",
@@ -191,13 +194,13 @@ class TestRunMeasure(unittest.TestCase):
             self.assertEqual(code_r3, 0, out_r3 + err_r3)
             self.assertEqual((run / "state.json").read_bytes(), before)
             self.assertIn("nothing to write", out_r3)
-            # 3. Round 2 is now cited -> writes state
+            # 3. Every new quote in round 2 is cited -> writes state
             (run / "evidence.jsonl").write_text(
                 "".join(json.dumps(a) + "\n" for a in atoms),
                 encoding="utf-8",
             )
             (Path(tmp) / "m.md").write_text(
-                MODULE + '\n<!-- ease:source uri=x sha256=y quote="q-a1" -->\n',
+                "# M\n\n## Core Knowledge Content\n\n" + cited_round_2 + "\n",
                 encoding="utf-8",
             )
             code2, out2, err2 = _measure(tmp, "--material", "--write-state")
@@ -300,13 +303,26 @@ class TestRunStateSet(unittest.TestCase):
                 self.assertIn("not a settable key", err)
                 self.assertEqual((run / "state.json").read_bytes(), before)
 
-    def test_resolved_appends_without_duplicates(self):
+    def test_resolved_is_not_settable_and_resolve_appends_a_reason(self):
         with tempfile.TemporaryDirectory() as tmp:
-            run = _init(tmp, atoms=[])
-            self.assertEqual(_set(tmp, "resolved", "hc-19")[0], 0)
-            self.assertEqual(_set(tmp, "resolved", "hd-3")[0], 0)
-            self.assertEqual(_set(tmp, "resolved", "hc-19")[0], 0)
-            self.assertEqual(_state(run)["resolved"], ["hc-19", "hd-3"])
+            atom = _atom("x2", None, None, "edges are not first class in this graph")
+            atom["claim_type"] = "CONTRADICTION"
+            run = _init(tmp, atoms=[atom])
+            before = (run / "state.json").read_bytes()
+            code, out, err = _set(tmp, "resolved", "x2")
+            self.assertEqual(code, 1, out + err)
+            self.assertIn("not a settable key", err)
+            self.assertEqual((run / "state.json").read_bytes(), before)
+            argv = ["knowledge-builder", "run", "resolve", "--root", tmp, "--id", "run-1", "--atom", "x2", "--reason", "scoped differently"]
+            code, out, err = _run(argv)
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual(_state(run)["resolutions"], [{"atom": "x2", "reason": "scoped differently"}])
+            code, out, err = _run(argv)
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual(_state(run)["resolutions"], [
+                {"atom": "x2", "reason": "scoped differently"},
+                {"atom": "x2", "reason": "scoped differently"},
+            ])
 
     def test_set_keeps_other_state_and_the_gate_reads_it(self):
         with tempfile.TemporaryDirectory() as tmp:

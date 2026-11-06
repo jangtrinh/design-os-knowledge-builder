@@ -6,16 +6,18 @@ Exit 0 built / 1 rejected (a CLI step refused) / 2 could not run.
 """
 import argparse
 import hashlib
+import html
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from forge_common import CannotRun, product_src, run_cli  # noqa: E402
 
-FETCHED = "2026-10-13T00:00:00+00:00"
 _STEM = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
@@ -38,17 +40,36 @@ def action(src, root, name, **params):
     step(src, ["action", name, "--root", root, *pairs])
 
 
-def freeze(root, run, source):
+def freeze(src, root, run, source):
+    """Freeze a fixture page through ingest --freeze --from-file so the capture is logged."""
     stem = str(source.get("stem", ""))
     url = str(source.get("url", ""))
     if _STEM.fullmatch(stem) is None:
         raise StepRejected(f"freeze: --stem must be kebab-case, got {stem!r}")
     if any(ch in url for ch in ("\r", "\n", "\t", " ")) or not url.startswith(("http://", "https://")):
         raise StepRejected(f"freeze: invalid source url {url!r}")
-    path = root / "_evidence" / run / "sources" / f"{stem}.txt"
-    data = f"Source-URL: {url}\nFetched: {FETCHED}\n\n{source['body']}\n".encode("utf-8")
-    path.write_bytes(data)
-    return f"_evidence/{run}/sources/{stem}.txt", hashlib.sha256(data).hexdigest()
+    page = f"<html><body><p>{html.escape(str(source.get('body', '')))}</p></body></html>"
+    fd, name = tempfile.mkstemp(suffix=".html")
+    os.close(fd)
+    try:
+        Path(name).write_text(page, encoding="utf-8")
+        step(src, ["ingest", "--freeze", "--from-file", name, "--root", str(root), "--run", run, "--stem", stem, url])
+    finally:
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
+    rel = f"_evidence/{run}/sources/{stem}.txt"
+    data = (Path(root) / rel).read_bytes()
+    return rel, hashlib.sha256(data).hexdigest()
+
+
+def fetched_at(root, uri):
+    """Timestamp the freeze command wrote into the capture header."""
+    for line in (Path(root) / uri).read_text(encoding="utf-8").splitlines():
+        if line.startswith("Fetched:"):
+            return line.split(":", 1)[1].strip()
+    raise StepRejected(f"freeze: {uri} has no Fetched header")
 
 
 def record_atoms(src, root, spec, captured):
@@ -57,7 +78,7 @@ def record_atoms(src, root, spec, captured):
         meta = {"round": atom.get("round", 1), "novel": atom.get("novel", True), **atom.get("metadata", {})}
         body = {
             "id": atom["id"], "run_id": spec["run"], "claim_type": atom.get("claim_type", "FACT"),
-            "statement": atom["statement"], "source_uri": uri, "source_digest": digest, "captured_at": FETCHED,
+            "statement": atom["statement"], "source_uri": uri, "source_digest": digest, "captured_at": fetched_at(root, uri),
             "confidence": atom.get("confidence", "HIGH"), "verified_by_code": False, "metadata": meta,
             "quote": atom["quote"],
         }
@@ -99,7 +120,7 @@ def build(spec, out, src):
     if spec.get("researcher"):
         args += ["--researcher", spec["researcher"]]
     step(src, args)
-    captured = {source["stem"]: freeze(root, run, source) for source in spec.get("sources", [])}
+    captured = {source["stem"]: freeze(src, root, run, source) for source in spec.get("sources", [])}
     record_atoms(src, root, spec, captured)
     for claim in spec.get("claims", []):
         params = {key: claim[key] for key in ("id", "publisher", "kind", "into", "contradicted_kind") if key in claim}

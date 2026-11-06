@@ -13,19 +13,27 @@ Rejected when: `ontology.yaml` differs from the starter with no recorded approva
 Home: hand-over (`APPROVAL`).
 
 ## R2. Freeze every source before quoting it
-Keep it: web page `K ingest --freeze <url> --root <pack> --run <run> --stem <kebab-stem>`; a local file is copied
-into `_evidence/<run>/sources/` and never edited. The quote comes from that file, not from a summary.
-Rejected when: a quote is not in its capture, or a capture's sha256 changed.
+Keep it: a web page is `K ingest --freeze <url> --root <pack> --run <run> --stem <kebab-stem>` (this fetches that URL);
+a saved page is the same command with `--from-file <saved.html>` (no fetch); a command is
+`K run exec --root <pack> --id <run> --stem <kebab-stem> -- <argv...>` (no fetch). Each successful write appends
+`_evidence/<run>/captures.jsonl` with the path and sha256, and spends one budget call. At 0 remaining both refuse
+before fetching or running (`budget exhausted (used N of N): the gate will PAUSE_BUDGET`). The quote comes from the
+capture body (after a `Source-URL:`, `Fetched:` or `Command:` header), has at least 6 words and 30 characters, and
+the file counts only when the log matches its path and sha256.
+Rejected when: a quote is shorter than that, sits only in the header, is absent from the body, or the capture is unattested.
 Home: validate:verify.
 
-## R3. Every atom carries its round and novelty
-Keep it: `K run record --root <pack> --id <run>` with `metadata.round` (integer >= 1), `metadata.novel` (true/false),
+## R3. Every atom carries its round
+Keep it: `K run record --root <pack> --id <run>` with `metadata.round` (integer >= 1) and
 `metadata.url` when the frozen file has no `Source-URL:` header. One atom, one quote, one fact.
+`metadata.novel` may be recorded; `run measure` does not read it. An atom is novel when its quote
+did not occur on any atom of an earlier round.
 Rejected when: `run record` answers `invalid atom`.
 Home: tool.
 
 ## R4. Measure saturation on material atoms, then write it
 Keep it: `K run measure --root <pack> --id <run> --material --write-state` after citing each round's claims in a document.
+A round with fewer than 5 non-backfill atoms is printed `(too small: N < 5, not counted)` and neither extends nor resets the low-delta streak.
 `consecutive_low_delta_rounds` and `last_weighted_delta` are written only by that command. `run state set` refuses them.
 Rejected when: the gate prints `delta 100.0%` only because `last_weighted_delta` was never written, or `--material --write-state` was called before citing.
 Home: hand-over (`GATE`).
@@ -35,7 +43,7 @@ Keep it: `K action promote-claim --root <pack> --param atom=<id> --param id=<cur
 existing claim with `--param into=<claim>`; many at once with `--batch file.jsonl` (all or nothing). A local frozen
 file with no URL (execution output, authored example) takes `--param kind=first-party`; it never adds to independence. A pack made before this kind existed adds `first-party` to the `source` `kind` values in its own `ontology.yaml` first (the tool refuses otherwise and names the allowed list).
 Never hand-write a claim or source file.
-Rejected when: a claim names an atom the ledger does not hold, or a quote no longer matches its capture.
+Rejected when: a claim names an atom the ledger does not hold, the quote is under 6 words or 30 characters, or the quote is not in the capture body.
 Home: validate:verify.
 
 ## R6. A publisher is who wrote the page, never the host that serves it
@@ -76,19 +84,29 @@ Home: tool.
 ## R11. A contradiction is recorded, then resolved with a reason
 Keep it: the CONTRADICTION atom has `metadata.contradicts=<atom id>`; after promoting,
 `K action resolve-contradiction --root <pack> --param claim=<id> --param resolution=<why both stand or which wins>`,
-or deprecate one side.
-Rejected when: a CONTRADICTION claim has no resolution and neither side is deprecated.
+or `K run resolve --root <pack> --id <run> --atom <contradiction-atom-id> --reason "<text>"`,
+or deprecate one side. A string list in `state.json` `resolved` does not resolve the atom.
+Rejected when: a CONTRADICTION claim has no resolution and neither side is deprecated, and no `resolutions` entry names that atom with a reason.
 Home: validate:contradictions.
 
 ## R12. A different runtime reviews the pack
-Keep it: the reviewer writes `_evidence/<run>/review.json` with `passed: true`, a `reviewer_runtime` that differs
-from the run's `researcher_runtime`, `scope`, `checks`, `findings`. The researcher never writes it.
-Rejected when: the file is missing, `passed` is not true, or both runtimes are equal.
+Keep it: `K run review --root <pack> --id <run> --reviewer <runtime> --verdict pass|fail`. The reviewer runtime
+must be non-empty and must differ from `researcher_runtime`. The command re-fetches every logged `fetched` or
+`from-file` URL and checks each atom quote on the live page. It writes `_evidence/<run>/review.json` bound to the
+ledger hash, the capture-log hash, and the claim-file hash. A hand-written file without those fields is not a review.
+`validate.py` also accepts a fixture file whose `passed` is true; the stopping gate does not.
+Offline, the gate trusts the sources list in that file. Certify with `K pack check --root <pack> --recheck`
+or `K gate --root <pack> --run-id <run> --recheck`: that fetch replaces the stored findings. The hashes, verdict,
+reviewer and confirm flags are still required. An unreachable page fails closed the same way as a missing quote.
+Execution captures are not re-run.
+Rejected when: the file is missing, the verdict is not pass, the reviewer equals the researcher, the hashes no longer match, or a required quote was not on the live page.
 Home: validate:review.
 
 ## R13. A pack with no target library or executable code declares it
 Keep it: `K run state set --root <pack> --id <run> --key version_applicability --value not_applicable` and
-`--key version_reason --value "<why>"` (and `execution_applicability` / `execution_reason` when the topic has no executable code; without the reason the gate does not pass it).
+`--key version_reason --value "<why>"` (and `execution_applicability` / `execution_reason` when the topic has no executable code).
+The gate passes that declaration only when the reason is non-empty and the current review sets
+`confirm_version_na` or `confirm_execution_na` (`run review --confirm-version-na` / `--confirm-execution-na`).
 Rejected when: the gate lists a version or execution deficiency for a concept pack.
 Home: hand-over (`GATE`).
 
@@ -98,9 +116,11 @@ Rejected when: `index.json` hash differs from a file.
 Home: validate:index.
 
 ## R15. The gate is reported, never forced
-Keep it: print the `gate:` line of `pack check` as is. `STOP_SUFFICIENT` needs ledger, sources, saturation and review;
-nothing in this skill can grant it.
-Rejected when: a hand-over says "sufficient" while the gate says DEEPEN, PAUSE_BUDGET or ABSTAIN_BLOCKED.
+Keep it: certify by printing the `gate:` line of `K pack check --root <pack> --recheck` as is
+(`K gate --root <pack> --run-id <run> --recheck` for one run). `STOP_SUFFICIENT` needs ledger, sources,
+saturation and review; nothing in this skill can grant it. Offline `pack check` trusts `review.json`.
+Rejected when: a hand-over says "sufficient" while the gate says DEEPEN, PAUSE_BUDGET or ABSTAIN_BLOCKED,
+or the gate line was not from `--recheck`.
 Home: hand-over (`GATE`).
 
 ## R16. Knowledge lives apart from the tool

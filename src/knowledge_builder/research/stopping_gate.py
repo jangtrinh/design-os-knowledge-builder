@@ -40,13 +40,17 @@ class StoppingEvaluationInput:
     independent_review_passed: bool = False
     minimum_independent_sources: int = 2
     # A pack with no target library declares the version gate not applicable.
-    # It passes only with a non-empty reason, which the gate prints.
+    # It passes only with a non-empty reason and a review that confirms it.
     version_not_applicable: bool = False
     version_reason: Optional[str] = None
     # A pack with no executable code declares the execution gate not applicable.
-    # It passes only with a non-empty reason, which the gate prints.
+    # It passes only with a non-empty reason and a review that confirms it.
     execution_not_applicable: bool = False
     execution_reason: Optional[str] = None
+    # Set when a bound review exists but is stale or a live quote is missing.
+    review_failure: Optional[str] = None
+    version_na_confirmed: bool = False
+    execution_na_confirmed: bool = False
 
 
 @dataclass
@@ -130,15 +134,17 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     """
     minimum_sources = _require_minimum_sources(inp.minimum_independent_sources)
     na_reason = version_not_applicable_reason(inp)
+    version_confirmed = getattr(inp, "version_na_confirmed", False) is True
     if getattr(inp, "version_not_applicable", False) is True:
-        # A declaration is judged by its reason alone; the matched flag cannot rescue it.
-        version_ok = na_reason is not None
+        # The matched flag cannot rescue a declaration. The review must confirm it.
+        version_ok = na_reason is not None and version_confirmed
     else:
         version_ok = bool_or_absent(inp, "is_target_version_matched", absent=False)
     version_note = f"not applicable: {na_reason}" if na_reason is not None else None
     exec_na_reason = execution_not_applicable_reason(inp)
+    execution_confirmed = getattr(inp, "execution_na_confirmed", False) is True
     if getattr(inp, "execution_not_applicable", False) is True:
-        execution_ok = exec_na_reason is not None
+        execution_ok = exec_na_reason is not None and execution_confirmed
     else:
         execution_ok = inp.has_execution_proof
     execution_note = f"not applicable: {exec_na_reason}" if exec_na_reason is not None else None
@@ -242,14 +248,20 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         )
     if not execution_ok:
         if getattr(inp, "execution_not_applicable", False) is True:
-            reasons.append("Execution declared not applicable but execution_reason is missing")
+            if exec_na_reason is None:
+                reasons.append("Execution declared not applicable but execution_reason is missing")
+            else:
+                reasons.append("Execution declared not applicable but the review did not confirm it")
         else:
             reasons.append("Missing code execution / test verification proof")
     if not counterevidence_ok:
         reasons.append("Counterevidence and failure modes not yet searched")
     if not version_ok:
         if getattr(inp, "version_not_applicable", False) is True:
-            reasons.append("Version declared not applicable but version_reason is missing")
+            if na_reason is None:
+                reasons.append("Version declared not applicable but version_reason is missing")
+            else:
+                reasons.append("Version declared not applicable but the review did not confirm it")
         else:
             reasons.append("Target library/framework version mismatch")
     if not no_contradiction_ok:
@@ -267,7 +279,11 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     if probe_remaining:
         reasons.append("A viable probe remains")
     if not inp.independent_review_passed:
-        reasons.append("Independent review has not passed")
+        failure = getattr(inp, "review_failure", None)
+        if isinstance(failure, str) and failure.strip():
+            reasons.append(failure.strip())
+        else:
+            reasons.append("Independent review has not passed")
 
     return StoppingDecision(
         state=TerminationState.DEEPEN,

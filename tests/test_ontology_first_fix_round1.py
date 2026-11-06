@@ -2,6 +2,7 @@
 
 import importlib.metadata
 import importlib.util
+import json
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from pathlib import Path
 from knowledge_builder.ontology.actions import run_action
 from knowledge_builder.ontology.claim_state import slug
 from knowledge_builder.research.ledger_gate import ledger_evaluation_input
+from tests.capture_support import run_review
 from tests.pack_support import PackCase, add_atom, scaffold_root
 from tests.test_ontology_support import FIXTURE, make_stop_run
 
@@ -23,8 +25,14 @@ class TestGatePublisherIndependence(PackCase):
     def setUp(self):
         super().setUp()
         scaffold_root(self.root)
+        state_path = self.root / "_evidence" / "r1" / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["researcher_runtime"] = "researcher-a"
+        state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
     def count(self):
+        """From-file captures count only after a current review finds their quotes."""
+        run_review(self.root, run="r1")
         return ledger_evaluation_input(self.root, "r1").independent_sources_count
 
     def promote(self, atom):

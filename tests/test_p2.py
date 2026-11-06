@@ -21,6 +21,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.capture_support import append_capture, run_review
+
 
 def _run(argv, stdin=""):
     import knowledge_builder.cli as cli_mod
@@ -263,30 +265,35 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
             run = root / "_evidence" / "run-1"
             sources = run / "sources"
             sources.mkdir(parents=True)
-            body_a = b"claim alpha holds\n"
-            body_b = b"known failure mode\n"
+            claim_quote = "claim alpha holds across the measured sample."
+            fail_quote = "known failure mode happens when the input is empty and unchecked."
+            exec_quote = "the command printed this measured line before it exited."
+            body_a = f"{claim_quote}\n".encode()
+            body_b = f"{fail_quote}\n".encode()
+            body_e = f"{exec_quote}\n".encode()
             rel_a = "_evidence/run-1/sources/a.txt"
             rel_b = "_evidence/run-1/sources/b.txt"
+            rel_e = "_evidence/run-1/sources/e.txt"
             (root / rel_a).write_bytes(body_a)
             (root / rel_b).write_bytes(body_b)
-            claim = _atom(
-                "atom-c1",
-                "c1",
-                rel_a,
-                _sha(body_a),
-                metadata={"command": "python3 -m unittest"},
-                quote="claim alpha holds",
+            (root / rel_e).write_bytes(body_e)
+            append_capture(root, rel_a, _sha(body_a), origin="fetched", url="https://example.com/a", run="run-1")
+            append_capture(root, rel_b, _sha(body_b), origin="from-file", url="https://example.com/b", run="run-1")
+            append_capture(
+                root, rel_e, _sha(body_e), origin="executed",
+                command=["python3", "-m", "unittest"], exit_code=0, run="run-1",
             )
+            claim = _atom("atom-c1", "c1", rel_a, _sha(body_a), quote=claim_quote)
             failure = _atom(
-                "atom-fail",
-                "fail-1",
-                rel_b,
-                _sha(body_b),
-                claim_type="FAILURE_MODE",
-                quote="known failure mode",
+                "atom-fail", "fail-1", rel_b, _sha(body_b),
+                claim_type="FAILURE_MODE", quote=fail_quote,
+            )
+            executed = _atom(
+                "atom-exec", "exec-1", rel_e, _sha(body_e),
+                metadata={"command": "python3 -m unittest"}, quote=exec_quote,
             )
             (run / "evidence.jsonl").write_text(
-                json.dumps(claim) + "\n" + json.dumps(failure) + "\n",
+                json.dumps(claim) + "\n" + json.dumps(failure) + "\n" + json.dumps(executed) + "\n",
                 encoding="utf-8",
             )
             state = {
@@ -309,16 +316,10 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
             state_path = run / "state.json"
             state_path.write_text(json.dumps(state), encoding="utf-8")
             review_path = run / "review.json"
-            review_path.write_text(
-                json.dumps(
-                    {
-                        "passed": True,
-                        "reviewer_runtime": "reviewer-b",
-                        "entailment_notes": "not-a-list",
-                    }
-                ),
-                encoding="utf-8",
-            )
+            run_review(root)
+            review = json.loads(review_path.read_text(encoding="utf-8"))
+            review["entailment_notes"] = "not-a-list"
+            review_path.write_text(json.dumps(review), encoding="utf-8")
             gate_argv = [
                 "knowledge-builder",
                 "gate",
@@ -345,16 +346,9 @@ class TestP2LedgerLockNotesExtractors(unittest.TestCase):
             self.assertEqual(state_path.read_text(encoding="utf-8"), disk_before)
 
             notes = [{"claim_id": "c1", "note": "the quote entails the claim"}]
-            review_path.write_text(
-                json.dumps(
-                    {
-                        "passed": True,
-                        "reviewer_runtime": "reviewer-b",
-                        "entailment_notes": notes,
-                    }
-                ),
-                encoding="utf-8",
-            )
+            review = json.loads(review_path.read_text(encoding="utf-8"))
+            review["entailment_notes"] = notes
+            review_path.write_text(json.dumps(review), encoding="utf-8")
             code, out, err = _run(gate_argv)
             self.assertEqual(code, 0, out + err)
             self.assertIn("STOP_SUFFICIENT", out)

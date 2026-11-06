@@ -6,8 +6,15 @@ import math
 import os
 from pathlib import Path
 
-from knowledge_builder.containment import ContainmentError, file_identity, read_text_nofollow, require_inside
-from knowledge_builder.quote_check import file_contains_quote
+from knowledge_builder.containment import ContainmentError, file_identity, require_inside
+from knowledge_builder.quote_rules import quote_failure
+from knowledge_builder.research.capture_log import (
+    CaptureLogError,
+    capture_origin,
+    execution_command,
+    is_attested,
+    load_captures,
+)
 from knowledge_builder.research.ledger import AtomicResearchLedger, require_relative_source_uri
 from knowledge_builder.research.stopping_gate import StoppingEvaluationInput, bool_or_absent
 
@@ -16,7 +23,7 @@ class LedgerGateError(Exception):
     """The ledger cannot be read. The gate must not certify."""
 
 
-def ledger_evaluation_input(root, run_id):
+def ledger_evaluation_input(root, run_id, *, recheck=False):
     run_dir = _run_dir(root, run_id)
     if not (run_dir / "state.json").is_file():
         raise LedgerGateError(f"run is not initialized: {run_id}")
@@ -29,14 +36,30 @@ def ledger_evaluation_input(root, run_id):
     if not isinstance(state, dict):
         raise LedgerGateError("state.json must be an object")
 
-    required, verified = _claim_coverage(root, run_id, state, atoms)
+    rows = _captures(root, run_id)
+    unattested = set()
+    required, verified = _claim_coverage(root, run_id, state, atoms, rows, unattested)
+    from knowledge_builder.research.live_sources import live_source_findings, recheck_lines
+    from knowledge_builder.research.review_check import assess, must_find_atoms
+
+    findings = live_source_findings(root, run_id, rows, atoms) if recheck else None
+    quotes = {atom.id: getattr(atom, "quote", None) for atom in atoms}
+    review = assess(
+        root,
+        run_id,
+        state,
+        must_find_atoms(root, run_id, state, atoms, rows, unattested),
+        sources=findings,
+        quotes=quotes,
+    )
+    execution = _has_execution_proof(root, run_id, atoms, rows, unattested)
     block_reason = state.get("block_reason")
-    return StoppingEvaluationInput(
+    result = StoppingEvaluationInput(
         required_claims_total=len(required),
         required_claims_verified=verified,
-        independent_sources_count=_independent_sources(root, run_id, atoms),
-        has_execution_proof=_has_execution_proof(root, run_id, atoms),
-        has_counterevidence_searched=_has_failure_mode(root, run_id, atoms),
+        independent_sources_count=_independent_sources(root, run_id, atoms, rows, unattested, review["found_paths"]),
+        has_execution_proof=execution,
+        has_counterevidence_searched=_has_failure_mode(root, run_id, atoms, rows, unattested),
         unresolved_contradictions_count=_unresolved_contradictions(state, atoms, _claim_resolved(root, run_id)),
         is_target_version_matched=_version_matched(state),
         consecutive_low_delta_rounds=_nonneg_int(state.get("consecutive_low_delta_rounds"), 0),
@@ -45,38 +68,44 @@ def ledger_evaluation_input(root, run_id):
         has_viable_probe_remaining=_probe_remaining(state),
         is_blocked=state.get("is_blocked") is True,
         block_reason=block_reason if isinstance(block_reason, str) else None,
-        independent_review_passed=_review_separates_duty(run_dir, state),
+        independent_review_passed=review["passed"],
         minimum_independent_sources=_minimum_sources(state),
         version_not_applicable=state.get("version_applicability") == "not_applicable",
         version_reason=_version_reason(state),
         execution_not_applicable=state.get("execution_applicability") == "not_applicable",
         execution_reason=_execution_reason(state),
+        review_failure=review["failure"],
+        version_na_confirmed=review["confirm_version_na"],
+        execution_na_confirmed=review["confirm_execution_na"],
     )
+    result.gate_notes = _gate_notes(state, unattested)
+    result.recheck_lines = recheck_lines(findings or [], execution_backed=execution) if recheck else []
+    return result
 
 
-def _review_separates_duty(run_dir, state):
-    """True only for review.json passed by a different non-empty runtime.
-
-    A missing or empty researcher_runtime cannot prove the reviewer is someone else.
-    A missing or unreadable review file is not a pass.
-    """
-    researcher = state.get("researcher_runtime")
-    if not isinstance(researcher, str) or not researcher.strip():
-        return False
-    path = run_dir / "review.json"
-    if os.path.islink(path) or not path.is_file():
-        return False
+def _captures(root, run_id):
     try:
-        require_inside(path, run_dir)
-        review = json.loads(read_text_nofollow(path))
-    except (ContainmentError, OSError, UnicodeError, json.JSONDecodeError):
-        return False
-    if not isinstance(review, dict) or review.get("passed") is not True:
-        return False
-    reviewer = review.get("reviewer_runtime")
-    if not isinstance(reviewer, str) or not reviewer.strip():
-        return False
-    return reviewer.strip() != researcher.strip()
+        return load_captures(root, run_id)
+    except (CaptureLogError, ContainmentError, OSError, UnicodeError) as exc:
+        raise LedgerGateError(f"unreadable capture log: {exc}") from exc
+
+
+def _gate_notes(state, unattested):
+    notes = []
+    if unattested:
+        names = sorted(unattested)
+        notes.append(f"unattested sources: {len(names)}: {', '.join(names[:5])}")
+    legacy = _legacy_resolved_count(state)
+    if legacy:
+        notes.append(f"ignored legacy resolved entries: {legacy}")
+    return notes
+
+
+def _legacy_resolved_count(state):
+    raw = state.get("resolved") or []
+    if not isinstance(raw, list):
+        return 0
+    return sum(1 for item in raw if isinstance(item, str))
 
 
 def _run_dir(root, run_id):
@@ -118,23 +147,23 @@ def _supports(atom, claim_id):
     return atom.id == claim_id
 
 
-def _claim_verified(root, run_id, atoms, claim_id):
-    return any(_atom_verifies_claim(root, run_id, atom, claim_id) for atom in atoms)
+def _claim_verified(root, run_id, atoms, claim_id, rows, unattested):
+    return any(_atom_verifies_claim(root, run_id, atom, claim_id, rows, unattested) for atom in atoms)
 
 
-def _atom_is_verified(root, run_id, atom):
-    real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
-    return real is not None and file_contains_quote(real, getattr(atom, "quote", None))
+def _atom_is_verified(root, run_id, atom, rows, unattested):
+    real = _attested_source(root, run_id, atom, rows, unattested)
+    return real is not None and _quote_in_capture(real, getattr(atom, "quote", None))
 
 
-def _claim_coverage(root, run_id, state, atoms):
+def _claim_coverage(root, run_id, state, atoms, rows, unattested):
     required = _required_ids(state)
-    verified_atom_ids = [atom.id for atom in atoms if _atom_is_verified(root, run_id, atom)]
+    verified_atom_ids = [atom.id for atom in atoms if _atom_is_verified(root, run_id, atom, rows, unattested)]
     from knowledge_builder.ontology.claim_coverage import verified_pack_claims
 
     pack_claims = verified_pack_claims(root, run_id, verified_atom_ids)
     if pack_claims is None:
-        verified = sum(1 for claim_id in required if _claim_verified(root, run_id, atoms, claim_id))
+        verified = sum(1 for claim_id in required if _claim_verified(root, run_id, atoms, claim_id, rows, unattested))
         return required, verified
     active_ids, verified_claim_ids = pack_claims
     if not required:
@@ -142,31 +171,63 @@ def _claim_coverage(root, run_id, state, atoms):
     active_set = set(active_ids)
     verified = sum(
         1 for claim_id in required
-        if (claim_id in verified_claim_ids if (claim_id in active_set or not state["required_claim_ids"]) else _claim_verified(root, run_id, atoms, claim_id))
+        if (claim_id in verified_claim_ids if (claim_id in active_set or not state["required_claim_ids"]) else _claim_verified(root, run_id, atoms, claim_id, rows, unattested))
     )
     return required, verified
 
 
-def _atom_verifies_claim(root, run_id, atom, claim_id):
-    """Hash match plus a quote that occurs in that file. No quote stays UNCHECKED."""
+def _atom_verifies_claim(root, run_id, atom, claim_id, rows, unattested):
+    """Attested hash match plus a quote in the capture body. No quote stays unverified."""
     if not _supports(atom, claim_id):
         return False
+    real = _attested_source(root, run_id, atom, rows, unattested)
+    return real is not None and _quote_in_capture(real, getattr(atom, "quote", None))
+
+
+def _attested_source(root, run_id, atom, rows, unattested):
+    """Hashed source file that a capture line attests. A hash match with no line is noted."""
     real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
     if real is None:
+        return None
+    rel = _repo_relative(atom.source_uri)
+    if rel is None or not is_attested(rows, rel, atom.source_digest):
+        if rel:
+            unattested.add(rel)
+        return None
+    return real
+
+
+def _quote_in_capture(real, quote):
+    try:
+        text = real.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
         return False
-    return file_contains_quote(real, getattr(atom, "quote", None))
+    return quote_failure(text, quote) is None
 
 
-def _independent_sources(root, run_id, atoms):
-    """Distinct inodes under this run's sources/ (aliases do not add a source).
+def _counts_independent(atom, rows, found_paths):
+    """Fetched captures count. A from-file capture counts only after its quotes were re-found. Executed never counts."""
+    rel = _repo_relative(atom.source_uri)
+    if rel is None:
+        return False
+    origin = capture_origin(rows, rel, atom.source_digest)
+    if origin == "executed":
+        return False
+    if origin == "from-file":
+        return rel in found_paths
+    return origin == "fetched"
+
+
+def _independent_sources(root, run_id, atoms, rows, unattested, found_paths=frozenset()):
+    """Distinct inodes of attested sources that count toward independence.
 
     In a pack (ontology.yaml with a frozen-source type) it is the distinct publishers of the Source objects the
-    verified atoms map to, so two pages of one publisher count once.
+    attested atoms map to, so two pages of one publisher count once.
     """
     found, verified = set(), []
     for atom in atoms:
-        real = _source_file(root, run_id, atom.source_uri, atom.source_digest)
-        if real is None:
+        real = _attested_source(root, run_id, atom, rows, unattested)
+        if real is None or not _counts_independent(atom, rows, found_paths):
             continue
         verified.append(atom.id)
         try:
@@ -179,21 +240,25 @@ def _independent_sources(root, run_id, atoms):
     return len(found) if publishers is None else publishers
 
 
-def _has_execution_proof(root, run_id, atoms):
+def _has_execution_proof(root, run_id, atoms, rows, unattested):
+    """True only for an executed capture that exited 0 and whose logged argv matches metadata.command."""
     for atom in atoms:
+        real = _attested_source(root, run_id, atom, rows, unattested)
+        if real is None:
+            continue
+        logged = execution_command(rows, _repo_relative(atom.source_uri), atom.source_digest)
         command = _meta(atom).get("command")
-        if isinstance(command, str) and command.strip() and _source_file(
-            root, run_id, atom.source_uri, atom.source_digest
-        ):
+        if isinstance(command, str) and logged is not None and command == logged:
             return True
     return False
 
 
-def _has_failure_mode(root, run_id, atoms):
+def _has_failure_mode(root, run_id, atoms, rows, unattested):
     for atom in atoms:
-        if atom.claim_type == "FAILURE_MODE" and _source_file(
-            root, run_id, atom.source_uri, atom.source_digest
-        ):
+        if atom.claim_type != "FAILURE_MODE":
+            continue
+        real = _attested_source(root, run_id, atom, rows, unattested)
+        if real is not None and _quote_in_capture(real, getattr(atom, "quote", None)):
             return True
     return False
 
@@ -205,20 +270,30 @@ def _claim_resolved(root, run_id):
     return resolved_atoms(root, run_id)
 
 
+def _resolution_ids(state):
+    """Atom ids named by resolutions entries that carry a non-empty reason."""
+    raw = state.get("resolutions")
+    found = set()
+    if not isinstance(raw, list):
+        return found
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        atom_id = item.get("atom")
+        reason = item.get("reason")
+        if isinstance(atom_id, str) and atom_id and isinstance(reason, str) and reason.strip():
+            found.add(atom_id)
+    return found
+
+
 def _unresolved_contradictions(state, atoms, claim_resolved=frozenset()):
-    raw = state.get("resolved") or []
-    listed = ({item for item in raw if isinstance(item, str)} if isinstance(raw, list) else set()) | set(claim_resolved)
+    """Contradictions with no resolutions entry and no ontology resolution."""
+    listed = _resolution_ids(state) | set(claim_resolved)
     count = 0
     for atom in atoms:
         if atom.claim_type != "CONTRADICTION":
             continue
-        keys = {atom.id}
-        claim = _meta(atom).get("claim")
-        if isinstance(claim, str) and claim:
-            keys.add(claim)
-        if isinstance(atom.statement, str) and atom.statement:
-            keys.add(atom.statement)
-        if keys.isdisjoint(listed):
+        if atom.id not in listed:
             count += 1
     return count
 

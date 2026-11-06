@@ -140,7 +140,8 @@ class TestStatusAndCheck(PackInitCase):
         self.assertIn("gate:", out)
 
     def test_check_exit_1_on_a_verify_failure_and_prints_it(self):
-        self.replace("claims/claim-one.md", 'quote: "First fact holds."', 'quote: "tampered"')
+        from tests.capture_support import fit_quote
+        self.replace("claims/claim-one.md", f'quote: "{fit_quote("First fact holds.")}"', 'quote: "tampered text is absent from this frozen capture."')
         code, out, err = pack("check", "--root", str(self.root))
         self.assertEqual(code, 1)
         self.assertIn("claims/claim-one.md", out)
@@ -214,8 +215,9 @@ class TestStatusAndCheck(PackInitCase):
         state["last_weighted_delta"] = 0.0
         state["researcher_runtime"] = "researcher-a"
         state_path.write_text(json.dumps(state), encoding="utf-8")
-        (self.root / "_evidence/demo-1/review.json").write_text(
-            json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}), encoding="utf-8"
+        from tests.capture_support import run_review
+        run_review(
+            self.root, run="demo-1", confirm_version_na=True, confirm_execution_na=True,
         )
         report = self.status()
         self.assertEqual(report["gate"]["decision"], "STOP_SUFFICIENT", report["gate"])
@@ -224,7 +226,12 @@ class TestStatusAndCheck(PackInitCase):
         """Red-team H2: claim_id == atom.id cannot bypass claim verification, and quote must match atom.quote."""
         run_action(self.root, "promote-claim", {"atom": "a3", "kind": "official", "id": "a3"})
         # Replace quote in claims/a3.md with a different valid substring of p3.txt ("Source-URL:")
-        self.replace("claims/a3.md", 'quote: "Third fact holds."', 'quote: "Source-URL: https://three.example/c"')
+        from tests.capture_support import fit_quote
+        self.replace(
+            "claims/a3.md",
+            f'quote: "{fit_quote("Third fact holds.")}"',
+            'quote: "Source-URL: https://three.example/c is only a header line here."',
+        )
         code, out, _err = pack("check", "--root", str(self.root))
         self.assertEqual(code, 1, out)
         self.assertIn("claims/a3.md", out)

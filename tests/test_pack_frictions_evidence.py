@@ -10,17 +10,22 @@ from knowledge_builder.ontology.claim_publishers import publisher_count
 from knowledge_builder.ontology.objects import load_graph
 from knowledge_builder.ontology.schema import load_ontology
 from knowledge_builder.pack import graph_counts
+from tests.capture_support import append_capture, fit_quote
 from tests.pack_support import FETCHED, RUN, PackCase, add_atom, scaffold_root, sha
 from tests.test_run_measure_and_state_set import ATOMS, _atom, _init, _measure, _state
 
 
 def add_local_atom(root, atom_id, stem, body, meta=None):
     """A local execution output: frozen file with no Source-URL header, atom with no metadata.url."""
+    body = fit_quote(body)
     data = f"{body}\n".encode("utf-8")
-    (Path(root) / "_evidence" / RUN / "sources" / f"{stem}.txt").write_bytes(data)
+    rel = f"_evidence/{RUN}/sources/{stem}.txt"
+    (Path(root) / rel).write_bytes(data)
+    digest = sha(data)
+    append_capture(root, rel, digest, origin="from-file", run=RUN)
     atom = {
         "id": atom_id, "run_id": RUN, "claim_type": "FACT", "statement": f"Statement for {atom_id}.",
-        "source_uri": f"_evidence/{RUN}/sources/{stem}.txt", "source_digest": sha(data), "captured_at": FETCHED,
+        "source_uri": rel, "source_digest": digest, "captured_at": FETCHED,
         "confidence": "HIGH", "verified_by_code": False, "metadata": meta or {}, "quote": body,
     }
     with (Path(root) / "_evidence" / RUN / "evidence.jsonl").open("a", encoding="utf-8") as handle:
@@ -85,9 +90,9 @@ class TestBackfillExcluded(unittest.TestCase):
             _init(tmp, atoms=self.atoms())
             code, out, err = _measure(tmp)
         self.assertEqual(code, 0, out + err)
-        self.assertIn("round 1: atoms 4, novel 0, before 0, delta n/a (baseline)", out)
-        self.assertIn("round 2: atoms 2, novel 1, before 4, delta 0.2500", out)
-        self.assertIn("round 3: atoms 3, novel 0, before 6, delta 0.0000", out)
+        self.assertIn("round 1: atoms 4, novel 4, before 0, delta n/a (baseline) (too small: 4 < 5, not counted)", out)
+        self.assertIn("round 2: atoms 2, novel 2, before 4, delta 0.5000 (too small: 2 < 5, not counted)", out)
+        self.assertIn("round 3: atoms 3, novel 3, before 6, delta 0.5000 (too small: 3 < 5, not counted)", out)
         self.assertIn("backfill atoms: 4 (excluded)", out)
 
     def test_no_backfill_line_without_backfill_atoms(self):
@@ -102,7 +107,9 @@ class TestBackfillExcluded(unittest.TestCase):
             code, out, err = _measure(tmp, "--write-state")
             state = _state(run)
         self.assertEqual(code, 0, out + err)
-        self.assertEqual((state["consecutive_low_delta_rounds"], state["last_weighted_delta"]), (1, 0.0))
+        self.assertIn("nothing to write", out)
+        self.assertIsNone(state["last_weighted_delta"])
+        self.assertNotIn("consecutive_low_delta_rounds", state)
 
 
 if __name__ == "__main__":

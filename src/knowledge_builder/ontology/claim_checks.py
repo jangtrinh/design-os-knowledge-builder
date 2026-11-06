@@ -7,7 +7,9 @@ from knowledge_builder.anchors import visible_lines
 from knowledge_builder.ontology.cited_paths import resolve_inside
 from knowledge_builder.ontology.objects import format_error
 from knowledge_builder.ontology.source_checks import SOURCE_INTERFACE
-from knowledge_builder.quote_check import file_contains_quote, normalise_newlines
+from knowledge_builder.quote_check import normalise_newlines
+from knowledge_builder.quote_rules import TOO_SHORT, quote_failure
+from knowledge_builder.research.capture_log import attestation_failure
 
 CLAIM_INTERFACE = "evidence-claim"
 EVIDENCE_KEYS = ("atom", "run", "source", "evidence_uri", "quote")
@@ -86,8 +88,12 @@ def _against_files(graph, obj, root, ledgers):
     for index, entry in enumerate(_good(obj)):
         pointer = f"/evidence/{index}"
         path = resolve_inside(root, entry["evidence_uri"])
-        if path is None or not path.is_file() or not file_contains_quote(path, entry["quote"]):
-            failures.append(format_error(obj.rel, "quote is not in the capture file", pointer + "/quote"))
+        quote_message = _quote_message(path, entry.get("quote"))
+        if quote_message:
+            failures.append(format_error(obj.rel, quote_message, pointer + "/quote"))
+        attest = attestation_failure(root, entry["evidence_uri"])
+        if attest:
+            failures.append(format_error(obj.rel, attest, pointer + "/evidence_uri"))
         atoms = _ledger(root, entry["run"], ledgers)
         record = atoms.get(entry["atom"])
         if record is None or record[0] != entry["evidence_uri"]:
@@ -95,6 +101,22 @@ def _against_files(graph, obj, root, ledgers):
         elif isinstance(record[1], str) and record[1].strip() and normalise_newlines(entry["quote"]) != normalise_newlines(record[1]):
             failures.append(format_error(obj.rel, f"quote does not match atom '{entry['atom']}' in run '{entry['run']}'", pointer + "/quote"))
     return failures
+
+
+def _quote_message(path, quote):
+    """Length rule, then absence from the capture body. None when the quote verifies."""
+    if path is None or not path.is_file():
+        return "quote is not in the capture file"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return "quote is not in the capture file"
+    failure = quote_failure(text, quote)
+    if failure == TOO_SHORT:
+        return TOO_SHORT
+    if failure:
+        return "quote is not in the capture file"
+    return None
 
 
 def _good(obj):

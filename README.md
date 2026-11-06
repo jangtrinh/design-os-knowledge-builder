@@ -195,7 +195,7 @@ Once installed, `skills/es-knowledge-forge/SKILL.md` activates automatically whe
 | `/doctor` | Claude Code / Codex | Read-only diagnostic check of installed skill paths, plugin manifests, and runtime prerequisites |
 | `python3 scripts/self_check.py` | Terminal / CI | Offline check of manifests, governance files and that a skill exists |
 | `python3 -m knowledge_builder.cli verify --claims <pack-root>` | Terminal / CI | Check metadata, anchors and every quote against the frozen capture |
-| `python3 -m knowledge_builder.cli pack check --root <pack-root>` | Terminal / CI | Exit 0 only when `verify --claims` passes; prints the stopping-gate decision |
+| `python3 -m knowledge_builder.cli pack check --root <pack-root> [--recheck]` | Terminal / CI | Exit 0 only when `verify --claims` passes; prints the stopping-gate decision. `--recheck` fetches attested captures first |
 | `python3 skills/es-knowledge-forge/validate.py --root <pack-root>` | Terminal / CI | The skill's rejection checks (uncited claims, hosting-host publishers, unresolved contradictions, stale index) |
 | `PYTHONPATH=src python3 -m unittest discover -s tests -t . -q` | Terminal / CI | Full test suite (or `python3 -m pytest -q` inside `.venv`), including the skill's shape, contract, example and look tests |
 
@@ -212,48 +212,99 @@ kb gate --run-id run-001 --required 5 --verified 5 --sources 3
 
 ### Research ledger: `run` and `ingest --freeze`
 ```bash
-# One run = _evidence/<id>/{state.json,evidence.jsonl,sources/}
+# One run = _evidence/<id>/{state.json,evidence.jsonl,sources/,captures.jsonl}
 kb run init --root <knowledge-root> --id <run> --budget 400 --require <claim-id> --researcher <runtime>
 
 # Freeze a web page as plain text into sources/ (identity encoding, gzip decoded, never overwrites).
-# Prints the sha256 and the repo-relative path to cite in an atom.
+# This fetches that URL. Prints the sha256 and the path to cite.
 kb ingest --freeze <url> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
-# When a site returns HTTP 401/403/429 to automated fetches, save the page locally and freeze from the file:
+# When a site returns HTTP 401/403/429, save the page and freeze the file. --from-file does not fetch.
 kb ingest --freeze <url> --from-file <saved.html> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
+# Capture a local command (stdout and stderr, cap 10 MiB, timeout default 300s). Does not fetch. Never overwrites.
+# A failing command is still captured: kb exits 0 and the file records the command's exit code.
+kb run exec --root <knowledge-root> --id <run> --stem <kebab-case-stem> [--timeout 300] -- <argv...>
+
+# Each successful freeze (either mode) and each run exec spends one budget call, under the ledger lock.
+# At 0 remaining both refuse before fetching or running:
+#   budget exhausted (used N of N): the gate will PAUSE_BUDGET
+
+# The command that wrote the file appends one JSON line to captures.jsonl:
+# path, sha256, origin (fetched | from-file | executed), url, command, exit_code, captured_at, tool_version.
+# The gate counts a source only when a line has the same path and sha256.
+# When any cited file lacks that line it prints: unattested sources: N: path1, path2
+# verify --claims fails an unattested ontology capture and names the path. There is no backfill.
 
 # Append one atom from stdin. metadata.round is an integer >= 1; metadata.novel is a boolean.
 kb run record --root <knowledge-root> --id <run> < atom.json
 
-# Per-round novelty: delta(r) = novel atoms in r / atoms before r. Round 1 is the baseline.
-# --material counts a novel atom only when an ease:source or ease:claim anchor in a document cites its quote.
-# Run --material --write-state after citing each round's claims; if no novel atom in the measured round is cited yet, state.json is left untouched.
-# Atoms with metadata.backfill=true are excluded from novelty and the denominator (printed as "backfill atoms: N (excluded)").
-# Nothing is written unless --write-state is given.
+# Per-round novelty: an atom is novel when its quote, after newline normalisation, did not
+# occur on any atom of an earlier round (backfill atoms count as earlier quotes).
+# metadata.novel is ignored for the count. delta(r) = novel atoms in r / atoms before r.
+# Round 1 is the baseline. A round with fewer than 5 non-backfill atoms is printed as
+# "(too small: N < 5, not counted)" and neither extends nor resets the low-delta streak.
+# --material counts a novel atom only when an ease:source or ease:claim anchor cites its quote.
+# Run --material --write-state after citing each round's claims; if no novel atom in a counted
+# round is cited yet, state.json is left untouched.
+# Atoms with metadata.backfill=true are excluded from the numerator and the denominator
+# (printed as "backfill atoms: N (excluded)"). Nothing is written unless --write-state is given.
 kb run measure --root <knowledge-root> --id <run> --material [--write-state]
+
+# Re-fetch every logged fetched or from-file capture and check each atom quote on the live page.
+# Writes _evidence/<run>/review.json. Does not write sources and does not spend a budget call.
+# Refuses an empty reviewer or one equal to state.json researcher_runtime.
+# Exit 0 when the file is written. The verdict is data, not the exit code.
+# A page that cannot be fetched is recorded as unreachable.
+kb run review --root <knowledge-root> --id <run> --reviewer <runtime> --verdict pass|fail \
+  [--note "<text>"] [--confirm-version-na] [--confirm-execution-na]
+
+# A quote verifies only when it has at least 6 words and 30 characters, after newline
+# normalisation, and occurs in the capture body (text after the first blank line when the
+# file starts with Source-URL:, Fetched:, or Command:; the whole file otherwise).
+# Too short: quote must be at least 6 words and 30 characters
 
 # Typed writes to state.json. Settable keys: round, has_viable_probe_remaining,
 # is_target_version_matched, version_applicability (applicable | not_applicable),
 # version_reason, execution_applicability (applicable | not_applicable),
-# execution_reason, resolved (appends).
+# execution_reason.
 # consecutive_low_delta_rounds and last_weighted_delta are measured: only
-# `run measure --write-state` writes them.
+# `run measure --write-state` writes them. `resolved` is not settable.
 kb run state set --root <knowledge-root> --id <run> --key version_applicability --value not_applicable
 kb run state set --root <knowledge-root> --id <run> --key version_reason --value "concept pack: no target library"
 kb run state set --root <knowledge-root> --id <run> --key execution_applicability --value not_applicable
 kb run state set --root <knowledge-root> --id <run> --key execution_reason --value "concept pack: no executable code"
 
+# Resolve one CONTRADICTION atom. Appends {"atom", "reason"} to state.json resolutions.
+# The atom must exist and be a CONTRADICTION; the reason must be non-empty.
+kb run resolve --root <knowledge-root> --id <run> --atom <contradiction-atom-id> --reason "<text>"
+
 # The gate reads the ledger. It prints "low-delta rounds N/3" and, for declared
 # not-applicable checks, "Version:  not applicable: <reason>" / "Execution: not applicable: <reason>".
-kb gate --root <knowledge-root> --run-id <run>
+# A legacy string list in state.json "resolved" does not resolve an atom. When that list
+# is non-empty the gate prints: ignored legacy resolved entries: N
+# Offline, quote checks use the sources list in review.json. --recheck fetches each
+# attested fetched or from-file capture an atom cites and uses those findings instead.
+# It prints: recheck: N sources fetched, M unreachable, K quotes missing
+# When an executed capture backs execution proof it also prints:
+# recheck: execution captures are not re-run
+# An unreachable source fails closed the same way as a missing quote.
+# A STOP_SUFFICIENT decision without --recheck also prints:
+# note: sources were checked by the review, not now; rerun with --recheck to fetch them
+kb gate --root <knowledge-root> --run-id <run> [--recheck]
 ```
-`version_applicability: not_applicable` and `execution_applicability: not_applicable` pass their respective gate checks only with a non-empty `version_reason` / `execution_reason`; without the reason the gate stays at DEEPEN.
+`version_applicability: not_applicable` and `execution_applicability: not_applicable` pass their respective gate checks only with a non-empty reason and a current review whose `confirm_version_na` or `confirm_execution_na` is true. Without the reason the gate says the reason is missing. With a reason the review did not confirm, it says the review did not confirm it.
+
+A source file counts for verified claims, independent sources, execution proof and counterevidence only when `captures.jsonl` matches its path and sha256. A fetched capture counts toward independent sources when it is attested. A from-file capture counts only when the current review found its quotes. An executed capture never counts. A quote that is too short, or that appears only in the capture header, does not verify. Execution proof counts only for an atom whose capture origin is `executed`, whose exit code is 0, and whose `metadata.command` equals the logged command; `metadata.command` on any other atom is ignored. A `FAILURE_MODE` atom counts only when it is attested and its quote verifies. A contradiction is resolved for the gate by a `resolutions` entry with that atom id and a non-empty reason, or by `resolve-contradiction` / deprecating one side.
+
+The gate treats `review.json` as a review only when it names the reviewer, a pass or fail verdict, a note, the time, the three hashes (ledger, capture log, claim files), both confirm flags, and a sources list. `independent_review_passed` is true only when the verdict is pass, the reviewer differs from the researcher, those hashes still match the files, and every required claim's verifying atom was found on re-fetch (or its capture origin is `executed`). A hand-written file without those fields is no review. When the bound file is stale the reason names the file that changed. When a quote is missing it names the atom and the quote. Offline, that re-fetch is the sources list stored in `review.json`. `gate --recheck` and `pack check --recheck` replace that list with a fetch done at certify time. The hashes, verdict, reviewer and confirm flags are still required.
+
+Every file under the knowledge root is local and writable by whoever runs the research. Offline, the gate trusts the findings stored in `review.json`. `--recheck` makes whoever certifies fetch the pages themselves, so a forged review no longer suffices. Execution captures are still trusted from the log.
 
 ### Ontology packs: `pack`, `action`, `query`
 A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
 ```bash
 kb pack init --root <pack-root> --topic "my topic" --run my-run --require some-claim-id   # new or empty root only
 kb pack status --root <pack-root>        # one screen of counts (add --json)
-kb pack check --root <pack-root>         # exits 0 only when verify --claims passes; prints the gate decision
+kb pack check --root <pack-root> [--recheck]   # exits 0 only when verify --claims passes; prints the gate decision. --recheck fetches first
 kb query --root <pack-root> --object-type concept --status active --fields id,links_in_count   # read-only; refuses a stale index
 kb action promote-claim --root <pack-root> --param atom=hb-1 --param kind=official
 kb action promote-claim --root <pack-root> --param atom=hb-3 --param into=<claim-id> --param kind=academic
@@ -269,9 +320,9 @@ Default actions: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`,
 
 Rules the tool enforces:
 - `set-source` edits only the `publisher` and/or `kind` lines of a `frozen-source` object (kind must be in the type's declared enum; a hosting or mirror host is refused as publisher; a refusal goes to `rejected.jsonl`). Publisher counts, `pack status` `with_2_publishers` and the gate's independence follow at once; publishers compare case-insensitively.
-- `promote-claim` refuses an atom whose frozen file hash or quote does not verify, and an atom that is already promoted (the error names the claim). Pass `--param id=<short-kebab-id>` to name the claim; without it the id is the first words of the statement, cut at 60 characters.
+- `promote-claim` refuses an atom whose frozen file hash or quote does not verify, and an atom that is already promoted (the error names the claim). A quote must be at least 6 words and 30 characters and occur in the capture body (`quote must be at least 6 words and 30 characters`). Pass `--param id=<short-kebab-id>` to name the claim; without it the id is the first words of the statement, cut at 60 characters.
 - It does not guess a publisher from a hosting or mirror host (`web.archive.org`, `github.com`, `raw.githubusercontent.com`, `githubusercontent.com`, `arxiv.org`, `hackmd.io`, and subdomains): pass `--param publisher=<who published it>`. `pack status` and `pack check` print a `warning:` for a publisher whose sources carry more than one `kind`.
-- Promoting a `CONTRADICTION` atom also promotes the atom named in `metadata.contradicts` and links the two with `contradicts`. That records the contradiction; it resolves nothing for the stopping gate. `resolve-contradiction` (or deprecating one side) does, and the claim must still verify.
+- Promoting a `CONTRADICTION` atom also promotes the atom named in `metadata.contradicts` and links the two with `contradicts`. That records the contradiction; it resolves nothing for the stopping gate. `resolve-contradiction` (or deprecating one side) does, and the claim must still verify. `run resolve` appends a reason for that atom to `state.json` `resolutions`.
 - `create-object` takes the parameters of the object type it creates: `id`, `object_type`, `title`, every property the type declares (enum, integer and boolean values are checked before anything is written; an undeclared name is refused and the declared ones are listed), and, for a type with an interface, `domain`, `description`, `when` and `source`. The file goes into the type's `folder:`.
 - `promote-trust-tier` to `verified` also needs the stopping gate to return STOP_SUFFICIENT for every `_evidence/<run>` the file cites.
 
@@ -288,7 +339,7 @@ Other anchor rules checked by `verify --claims`:
 
 1. **Intent Routing** — Your AI agent matches your request against `skills/es-knowledge-forge/SKILL.md` frontmatter triggers.
 2. **Progressive Context Loading** — Only the entry-point `SKILL.md` router loads initially; `rules.md`, `concepts.md`, `look.md` and `references/` load on demand.
-3. **Deterministic Execution** — `build.py` turns a JSON spec into real CLI calls; `ingest --freeze` fetches a URL; `validate.py` and `look.py` use no network.
+3. **Deterministic Execution** — `build.py` turns a JSON spec into real CLI calls. `ingest --freeze` without `--from-file` fetches that URL. `run review` re-fetches the URLs of logged captures. `gate --recheck` and `pack check --recheck` fetch those pages again at certify time. `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch. Without `--recheck`, `gate` and `pack check` do not fetch.
 4. **Gate Verification** — `scripts/self_check.py` and `verify --claims`, `pack check` and the skill's `validate.py` validate the artifact before completion.
 5. **Zero-Telemetry Delivery** — Verified files are written to your workspace; no telemetry is sent.
 
@@ -384,7 +435,8 @@ design-os-knowledge-builder/
 - `python3 -m pytest -q` passes and `python3 scripts/generate-skill-contract.py --check` exits `0`.
 - `python3 skills/es-knowledge-forge/validate.py --root <pack-root>` prints `ok` for your pack.
 - Your AI coding agent loads `skills/es-knowledge-forge/SKILL.md` automatically when given any prompt from [`docs/cookbook.md`](docs/cookbook.md).
-- Network traffic during execution remains zero (guaranteed by [`PRIVACY.md`](PRIVACY.md)).
+- Network calls are `ingest --freeze` without `--from-file` (it fetches that URL), `run review` (it re-fetches the URLs of logged captures), and `gate --recheck` / `pack check --recheck` (they fetch those pages at certify time). `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch. Without `--recheck`, `gate` and `pack check` do not fetch. No telemetry ([`PRIVACY.md`](PRIVACY.md)).
+- Every file is local and writable by whoever runs the research. Offline, the gate trusts the findings stored in `review.json`. `--recheck` makes whoever certifies fetch the pages themselves, so a forged review no longer suffices. Execution captures are still trusted from the log.
 
 ### When not to use
 
