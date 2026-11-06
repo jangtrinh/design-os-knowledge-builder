@@ -33,7 +33,7 @@ def cmd_pack_status(args):
 
 def cmd_pack_check(args):
     try:
-        code, lines = check_pack(args.root, args.run)
+        code, lines = check_pack(args.root, args.run, recheck=args.recheck)
     except PackError as exc:
         _fail(str(exc))
     print("\n".join(lines))
@@ -62,4 +62,9 @@ def register_pack(subparsers, parser_class):
     check = commands.add_parser("check", help="verify --claims, coverage, index freshness and the gate; exit 0 only if verify passes")
     check.add_argument("--root", required=True, help="Pack root")
     check.add_argument("--run", default=None, help="Run id (default: pack.json)")
+    check.add_argument(
+        "--recheck",
+        action="store_true",
+        help="Re-fetch attested captures an atom cites and use those findings instead of review.json sources",
+    )
     check.set_defaults(func=cmd_pack_check)

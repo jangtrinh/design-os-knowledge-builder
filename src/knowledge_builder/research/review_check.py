@@ -145,20 +145,29 @@ def _quotes_found(entry):
     )
 
 
-def _by_path(review):
+def _by_path(entries):
     found = {}
-    for entry in review.get("sources") or []:
+    for entry in entries or []:
         if isinstance(entry, dict) and isinstance(entry.get("path"), str):
             found.setdefault(canonical_path(entry["path"]), entry)
     return found
 
 
-def assess(root, run_id, state, must_find):
+def _missing_line(atom_id, quotes):
+    line = f"quote not found on live page for {atom_id}"
+    quote = quotes.get(atom_id) if isinstance(quotes, dict) else None
+    if isinstance(quote, str) and quote.strip():
+        return f"{line}: {' '.join(quote.split())}"
+    return line
+
+
+def assess(root, run_id, state, must_find, sources=None, quotes=None):
     """passed, failure text, confirm flags, and paths whose quotes were all found.
 
     must_find maps an atom id to its capture path. Executed captures are omitted
     by the caller. Confirm flags and found paths need a current review. The
-    pass verdict is separate from those flags.
+    pass verdict is separate from those flags. sources, when given, replaces
+    the sources list stored in the review.
     """
     view = {
         "passed": False,
@@ -176,24 +185,27 @@ def assess(root, run_id, state, must_find):
         return view
     view["confirm_version_na"] = review.get("confirm_version_na") is True
     view["confirm_execution_na"] = review.get("confirm_execution_na") is True
+    listed = review.get("sources") if sources is None else sources
+    if not isinstance(listed, list):
+        listed = []
     view["found_paths"] = frozenset(
         canonical_path(entry["path"])
-        for entry in review["sources"]
+        for entry in listed
         if isinstance(entry, dict) and isinstance(entry.get("path"), str) and _quotes_found(entry)
     )
     if review.get("verdict") != "pass":
         return view
     missing = []
-    sources = _by_path(review)
+    by_path = _by_path(listed)
     for atom_id, path in must_find.items():
-        entry = sources.get(canonical_path(path))
+        entry = by_path.get(canonical_path(path))
         names = entry.get("missing_atoms") if isinstance(entry, dict) else None
         if not isinstance(names, list):
             names = []
         if not (isinstance(entry, dict) and entry.get("status") == "ok" and atom_id not in names):
             missing.append(atom_id)
     if missing:
-        view["failure"] = "; ".join(f"quote not found on live page for {atom_id}" for atom_id in missing)
+        view["failure"] = "; ".join(_missing_line(atom_id, quotes) for atom_id in missing)
         return view
     view["passed"] = True
     return view

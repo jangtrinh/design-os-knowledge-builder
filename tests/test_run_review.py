@@ -197,7 +197,7 @@ class TestRunReview(unittest.TestCase):
                 name: (run / "sources" / name).read_bytes() for name in ("a.txt", "down.txt", "nourl.txt")
             }
             before_budget = json.loads((run / "state.json").read_text(encoding="utf-8"))["budget_used"]
-            with patch("knowledge_builder.research.run_review.fetch_html", fake_fetch):
+            with patch("knowledge_builder.research.live_sources.fetch_html", fake_fetch):
                 code, out, err = _review(tmp, verdict="fail")
             self.assertEqual(code, 0, out + err)
             self.assertIn(f"{rel_a} ok quotes 1/1", out)
@@ -285,7 +285,7 @@ class TestRunReview(unittest.TestCase):
                 body = QUOTE if url.endswith("/a") else FAIL_QUOTE
                 return f"<html><body><p>{body}</p></body></html>"
 
-            with patch("knowledge_builder.research.run_review.fetch_html", fake_fetch):
+            with patch("knowledge_builder.research.live_sources.fetch_html", fake_fetch):
                 code, out, err = _review(tmp)
             self.assertEqual(code, 0, out + err)
             after = ledger_evaluation_input(tmp, "run-1")

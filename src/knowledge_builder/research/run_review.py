@@ -1,20 +1,17 @@
-"""Re-fetch every logged web capture and record which quotes are still on the page.
+"""Re-fetch every logged capture an atom cites and record which quotes are still on the page.
 
 The command writes review.json. It does not write sources and it does not
 spend a call. A page that cannot be fetched is recorded as unreachable.
 The verdict is stored; it is not the exit code.
 """
 
-import hashlib
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from knowledge_builder.containment import ContainmentError, atomic_write, require_inside
-from knowledge_builder.processors.web_freeze import FreezeError, fetch_html, page_text
-from knowledge_builder.quote_rules import quote_failure
-from knowledge_builder.research.capture_log import canonical_path, load_captures
+from knowledge_builder.containment import ContainmentError, atomic_write
+from knowledge_builder.research.capture_log import load_captures
+from knowledge_builder.research.live_sources import live_source_findings
 from knowledge_builder.research.review_check import claims_digest, digest_file
 
 
@@ -58,7 +55,7 @@ def cmd_run_review(args):
         rows = load_captures(args.root, args.id)
     except (CaptureLogError, ContainmentError, OSError, UnicodeError, ValueError) as exc:
         _fail(f"unreadable ledger: {exc}")
-    sources = _source_rows(args.root, rows, atoms)
+    sources = live_source_findings(args.root, args.id, rows, atoms)
     run = Path(args.root) / "_evidence" / args.id
     ledger_sha = digest_file(run / "evidence.jsonl")
     captures_sha = digest_file(run / "captures.jsonl")
@@ -83,72 +80,3 @@ def cmd_run_review(args):
         _fail(str(exc))
     for row in sources:
         print(f"{row['path']} {row['status']} quotes {row['quotes_found']}/{row['quotes_total']}")
-
-
-def _source_rows(root, rows, atoms):
-    seen = set()
-    listed = []
-    for row in rows:
-        if row.get("origin") not in ("fetched", "from-file"):
-            continue
-        path = canonical_path(row.get("path", ""))
-        digest = row.get("sha256")
-        if not path or path in seen or not _matches_file(root, path, digest):
-            continue
-        seen.add(path)
-        citing = _citing(atoms, path, digest)
-        url = row.get("url") if isinstance(row.get("url"), str) and row.get("url").strip() else None
-        status, found, missing = _check_url(url, citing)
-        listed.append(
-            {
-                "url": url,
-                "path": path,
-                "status": status,
-                "quotes_found": found,
-                "quotes_total": len(citing),
-                "missing_atoms": missing,
-            }
-        )
-    return listed
-
-
-def _matches_file(root, rel, digest):
-    if not isinstance(digest, str) or len(digest) != 64:
-        return False
-    path = Path(root) / rel
-    if os.path.islink(path) or not path.is_file():
-        return False
-    try:
-        require_inside(path, Path(root))
-        hashed = hashlib.sha256(path.read_bytes()).hexdigest()
-    except (ContainmentError, OSError, UnicodeError):
-        return False
-    return hashed.lower() == digest.lower()
-
-
-def _citing(atoms, path, digest):
-    found = []
-    for atom in atoms:
-        rel = canonical_path(getattr(atom, "source_uri", ""))
-        logged = getattr(atom, "source_digest", "")
-        if rel == path and isinstance(logged, str) and logged.lower() == digest.lower():
-            found.append(atom)
-    return found
-
-
-def _check_url(url, citing):
-    missing_ids = [atom.id for atom in citing]
-    if not url:
-        return "unreachable", 0, missing_ids
-    try:
-        text = page_text(fetch_html(url))
-    except (FreezeError, OSError):
-        return "unreachable", 0, missing_ids
-    missing = []
-    found = 0
-    for atom in citing:
-        if quote_failure(text, getattr(atom, "quote", None)) is None:
-            found += 1
-        else:
-            missing.append(atom.id)
-    return "ok", found, missing

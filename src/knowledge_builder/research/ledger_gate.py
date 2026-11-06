@@ -23,7 +23,7 @@ class LedgerGateError(Exception):
     """The ledger cannot be read. The gate must not certify."""
 
 
-def ledger_evaluation_input(root, run_id):
+def ledger_evaluation_input(root, run_id, *, recheck=False):
     run_dir = _run_dir(root, run_id)
     if not (run_dir / "state.json").is_file():
         raise LedgerGateError(f"run is not initialized: {run_id}")
@@ -39,15 +39,26 @@ def ledger_evaluation_input(root, run_id):
     rows = _captures(root, run_id)
     unattested = set()
     required, verified = _claim_coverage(root, run_id, state, atoms, rows, unattested)
+    from knowledge_builder.research.live_sources import live_source_findings, recheck_lines
     from knowledge_builder.research.review_check import assess, must_find_atoms
 
-    review = assess(root, run_id, state, must_find_atoms(root, run_id, state, atoms, rows, unattested))
+    findings = live_source_findings(root, run_id, rows, atoms) if recheck else None
+    quotes = {atom.id: getattr(atom, "quote", None) for atom in atoms}
+    review = assess(
+        root,
+        run_id,
+        state,
+        must_find_atoms(root, run_id, state, atoms, rows, unattested),
+        sources=findings,
+        quotes=quotes,
+    )
+    execution = _has_execution_proof(root, run_id, atoms, rows, unattested)
     block_reason = state.get("block_reason")
     result = StoppingEvaluationInput(
         required_claims_total=len(required),
         required_claims_verified=verified,
         independent_sources_count=_independent_sources(root, run_id, atoms, rows, unattested, review["found_paths"]),
-        has_execution_proof=_has_execution_proof(root, run_id, atoms, rows, unattested),
+        has_execution_proof=execution,
         has_counterevidence_searched=_has_failure_mode(root, run_id, atoms, rows, unattested),
         unresolved_contradictions_count=_unresolved_contradictions(state, atoms, _claim_resolved(root, run_id)),
         is_target_version_matched=_version_matched(state),
@@ -68,6 +79,7 @@ def ledger_evaluation_input(root, run_id):
         execution_na_confirmed=review["confirm_execution_na"],
     )
     result.gate_notes = _gate_notes(state, unattested)
+    result.recheck_lines = recheck_lines(findings or [], execution_backed=execution) if recheck else []
     return result
 
 

@@ -111,7 +111,7 @@ def cmd_gate(args):
         )
     else:
         try:
-            inp = ledger_evaluation_input(args.root, args.run_id)
+            inp = ledger_evaluation_input(args.root, args.run_id, recheck=args.recheck)
         except LedgerGateError as exc:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
@@ -124,6 +124,8 @@ def cmd_gate(args):
     print(f"Reason:   {decision.reason}")
     for note in getattr(inp, "gate_notes", ()) or ():
         print(note)
+    for line in getattr(inp, "recheck_lines", ()) or ():
+        print(line)
     print(f"Hard Gates Passed: {decision.hard_gates_passed}")
     print(f"Saturation Passed: {decision.saturation_passed}")
     if decision.version_note:
@@ -132,6 +134,10 @@ def cmd_gate(args):
         print(f"Execution: {decision.execution_note}")
     if decision.certificate:
         print(f"Certificate: {json.dumps(decision.certificate, indent=2)}")
+    if args.root and not args.recheck and decision.state == TerminationState.STOP_SUFFICIENT:
+        from knowledge_builder.research.live_sources import OFFLINE_NOTE
+
+        print(OFFLINE_NOTE)
     print(f"--------------------------------------------------")
     sys.exit(gate_exit_code(decision.state, self_reported=self_reported))
 
@@ -195,6 +201,11 @@ def main():
     p_gate = subparsers.add_parser("gate", help="Evaluate stopping condition gate")
     p_gate.add_argument("--root", default=None, help="Knowledge root. With --run-id, counts come from the ledger.")
     p_gate.add_argument("--run-id", default="run-001")
+    p_gate.add_argument(
+        "--recheck",
+        action="store_true",
+        help="Re-fetch attested captures an atom cites and use those findings instead of review.json sources",
+    )
     p_gate.add_argument("--self-report", action="store_true", help="Integer flags only. Cannot exit 0.")
     p_gate.add_argument("--required", type=int, default=5)
     p_gate.add_argument("--verified", type=int, default=0)

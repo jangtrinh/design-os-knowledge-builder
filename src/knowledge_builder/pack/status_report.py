@@ -27,15 +27,17 @@ def load_pack(root):
     return root, ontology, load_graph(root)
 
 
-def gate_report(root, run):
+def gate_report(root, run, *, recheck=False):
     if not run:
-        return {"decision": None, "reason": "no run: pass --run or add pack.json", "hard_gates_passed": None, "saturation_passed": None}
+        return {"decision": None, "reason": "no run: pass --run or add pack.json", "hard_gates_passed": None, "saturation_passed": None}, []
     try:
-        decision = evaluate_stopping_gate(ledger_evaluation_input(root, run))
+        evaluation = ledger_evaluation_input(root, run, recheck=recheck)
+        decision = evaluate_stopping_gate(evaluation)
     except (LedgerGateError, ContainmentError, OSError, ValueError) as exc:
-        return {"decision": None, "reason": f"not evaluated: {exc}", "hard_gates_passed": None, "saturation_passed": None}
+        return {"decision": None, "reason": f"not evaluated: {exc}", "hard_gates_passed": None, "saturation_passed": None}, []
+    lines = list(getattr(evaluation, "recheck_lines", ()) or ())
     return {"decision": decision.state.value, "reason": decision.reason,
-            "hard_gates_passed": decision.hard_gates_passed, "saturation_passed": decision.saturation_passed}
+            "hard_gates_passed": decision.hard_gates_passed, "saturation_passed": decision.saturation_passed}, lines
 
 
 def ledger_report(root, run, promoted):
@@ -57,7 +59,7 @@ def ledger_report(root, run, promoted):
     return len([a for a in atoms if (run, a.id) not in promoted]), saturation
 
 
-def build_status(root, run=None):
+def build_status(root, run=None, *, recheck=False):
     root, ontology, graph = load_pack(root)
     meta = read_pack(root)
     run = run or meta.get("run")
@@ -68,7 +70,8 @@ def build_status(root, run=None):
         for e in claim.data.get("evidence") or [] if isinstance(e, dict)
     }
     unpromoted, saturation = ledger_report(root, run, promoted)
-    return {
+    gate, recheck_lines = gate_report(root, run, recheck=recheck)
+    report = {
         "root": str(root),
         "topic": meta.get("topic"),
         "run": run,
@@ -81,6 +84,9 @@ def build_status(root, run=None):
         "deprecated_claims_cited": graph_counts.deprecated_cited(ontology, graph),
         "publisher_kind_conflicts": publisher_kind_conflicts(ontology, graph),
         "verify": {"failures": len(failures)},
-        "gate": gate_report(root, run),
+        "gate": gate,
         "saturation": saturation,
     }
+    if recheck_lines:
+        report["recheck_lines"] = recheck_lines
+    return report

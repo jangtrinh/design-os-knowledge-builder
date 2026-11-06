@@ -98,7 +98,7 @@ def run_review(root, run="run-1", reviewer="reviewer-b", verdict="pass", note=""
         patch("sys.argv", argv),
         patch("sys.stdout", out),
         patch("sys.stderr", err),
-        patch("knowledge_builder.research.run_review.fetch_html", fake_fetch),
+        patch("knowledge_builder.research.live_sources.fetch_html", fake_fetch),
     ):
         try:
             cli_mod.main()

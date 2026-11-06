@@ -60,18 +60,19 @@ python3 skills/es-knowledge-forge/build.py --spec skills/es-knowledge-forge/exam
 ## 3. Check
 
 ```sh
-K pack check --root P
+K pack check --root P [--recheck]        # --recheck certifies: fetches the pages now; a forged review.json does not suffice
+K gate --root P --run-id R [--recheck]   # same fetch, one run
 python3 skills/es-knowledge-forge/validate.py --root P
 python3 skills/es-knowledge-forge/look.py --root P --sheet /absolute/look-sheet.png
 ```
-
 [validate.py](validate.py): offline, deterministic; one `<check>: <what to fix>` line per failure; exit 0 ok, 1 reject,
 2 could not run. Checks: contract, verify, index, uncited-claims, documents-without-claims, hosting-publisher,
-publisher-kind, contradictions, review. It rejects facts, never taste. On `ok` it also prints the gate line.
+publisher-kind, contradictions, review. It rejects facts, never taste. On `ok` it prints the gate line.
+Certify with `pack check --recheck` or `gate --recheck`. Offline, the gate trusts `review.json`; `--recheck` fetches the pages, so a forged review no longer suffices. Execution captures stay trusted from the log and are not re-run.
 The council report lists gaps (no FAILURE_MODE or BENCHMARK atom, a `verified_by_code` atom without `metadata.command`) and grants nothing.
 [look.py](look.py) (sheet markup in [look_sheet.py](look_sheet.py), shared helpers in [forge_common.py](forge_common.py))
 renders one sheet with headless Chrome/Chromium and measures L1-L4; read [look.md](look.md) and judge L5-L8 on the PNG.
-Neither installs anything or uses the network. Machine checks do not grade whether the knowledge is right.
+validate.py and look.py install nothing and do not use the network. Machine checks do not grade whether the knowledge is right.
 
 ## 4. Hand over
 
@@ -82,13 +83,12 @@ PACK: <absolute pack root>   RUN: <run id>
 APPROVAL: <who approved ontology.yaml and when, or NOT ASKED>
 VALIDATE: <exit and actual lines, or ok>
 LOOK: <exit, sheet path, L1-L4 lines, your L5-L8 reading>
-GATE: <gate line of pack check as printed; never "sufficient" unless it says STOP_SUFFICIENT>
+GATE: <gate line of pack check --recheck as printed; never "sufficient" unless it says STOP_SUFFICIENT>
 REVIEW: <reviewer_runtime vs researcher_runtime, or MISSING>
 LIMITS: <checks not run, sources single-publisher, open frictions>
 ```
 
-Without a browser use exactly: `LOOK: NOT RUN — no browser (Chrome/Chromium) available.`
-Never write "should work". Report checks run after the last edit only.
+Without a browser use exactly: `LOOK: NOT RUN — no browser (Chrome/Chromium) available.` Never write "should work". Report checks run after the last edit only.
 
 ## 5. Adjust
 

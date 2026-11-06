@@ -95,6 +95,10 @@ must be non-empty and must differ from `researcher_runtime`. The command re-fetc
 `from-file` URL and checks each atom quote on the live page. It writes `_evidence/<run>/review.json` bound to the
 ledger hash, the capture-log hash, and the claim-file hash. A hand-written file without those fields is not a review.
 `validate.py` also accepts a fixture file whose `passed` is true; the stopping gate does not.
+Offline, the gate trusts the sources list in that file. Certify with `K pack check --root <pack> --recheck`
+or `K gate --root <pack> --run-id <run> --recheck`: that fetch replaces the stored findings. The hashes, verdict,
+reviewer and confirm flags are still required. An unreachable page fails closed the same way as a missing quote.
+Execution captures are not re-run.
 Rejected when: the file is missing, the verdict is not pass, the reviewer equals the researcher, the hashes no longer match, or a required quote was not on the live page.
 Home: validate:review.
 
@@ -112,9 +116,11 @@ Rejected when: `index.json` hash differs from a file.
 Home: validate:index.
 
 ## R15. The gate is reported, never forced
-Keep it: print the `gate:` line of `pack check` as is. `STOP_SUFFICIENT` needs ledger, sources, saturation and review;
-nothing in this skill can grant it.
-Rejected when: a hand-over says "sufficient" while the gate says DEEPEN, PAUSE_BUDGET or ABSTAIN_BLOCKED.
+Keep it: certify by printing the `gate:` line of `K pack check --root <pack> --recheck` as is
+(`K gate --root <pack> --run-id <run> --recheck` for one run). `STOP_SUFFICIENT` needs ledger, sources,
+saturation and review; nothing in this skill can grant it. Offline `pack check` trusts `review.json`.
+Rejected when: a hand-over says "sufficient" while the gate says DEEPEN, PAUSE_BUDGET or ABSTAIN_BLOCKED,
+or the gate line was not from `--recheck`.
 Home: hand-over (`GATE`).
 
 ## R16. Knowledge lives apart from the tool

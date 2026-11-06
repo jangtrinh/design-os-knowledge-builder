@@ -18,7 +18,7 @@ the closing condition (done only when it holds). Flags: [../contract.txt](../con
 | 11 | Contradictions | `K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"`, or `K run resolve --root P --id R --atom <id> --reason "<text>"` for a CONTRADICTION atom. A string list in `resolved` does not count | none unresolved |
 | 12 | Independent review | `K run review --root P --id R --reviewer <other-runtime> --verdict pass` re-fetches logged URLs and writes `_evidence/R/review.json` bound to the ledger, the capture log, and the claim files. Add `--confirm-version-na` or `--confirm-execution-na` when that declaration is honest | `validate:review` passes and the gate no longer says the review is missing or stale |
 | 13 | State | `K run state set --root P --id R --key version_applicability --value not_applicable` + `--key version_reason` (and `execution_applicability` + `execution_reason` when no code). The current review must confirm the declaration | gate shows no version/execution deficiency |
-| 14 | Check | `K pack check --root P`, `K pack status --root P`, then [../validate.py](../validate.py), [../look.py](../look.py) | exit 0, sheet inspected |
+| 14 | Check | `K pack check --root P`, then `K pack check --root P --recheck` to certify (fetches the pages; a forged review does not suffice). `K pack status --root P`, then [../validate.py](../validate.py), [../look.py](../look.py) | exit 0, sheet inspected, gate line is from `--recheck` |
 
 ## Atom shape
 
@@ -45,5 +45,5 @@ Declared properties of the type are accepted and validated (enum values). Anythi
 
 ## When to stop
 
-Read the `gate:` line of `pack check`. DEEPEN lists what is missing (saturation, probes, review, version).
-Do not edit state to make it pass: measure, review and declare honestly (R15).
+Read the `gate:` line of `pack check --recheck`. DEEPEN lists what is missing (saturation, probes, review, version).
+Do not edit state to make it pass: measure, review and declare honestly (R15). Offline `pack check` trusts `review.json`.
