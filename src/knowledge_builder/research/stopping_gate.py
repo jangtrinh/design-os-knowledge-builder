@@ -144,17 +144,16 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
     execution_note = f"not applicable: {exec_na_reason}" if exec_na_reason is not None else None
     probe_remaining = bool_or_absent(inp, "has_viable_probe_remaining", absent=True)
 
-    # 1. Check if blocked
-    if inp.is_blocked or (not probe_remaining and inp.required_claims_verified < inp.required_claims_total):
-        if inp.is_blocked:
-            return StoppingDecision(
-                state=TerminationState.ABSTAIN_BLOCKED,
-                reason=f"Blocked by upstream environment: {inp.block_reason or 'No viable probe available.'}",
-                hard_gates_passed=False,
-                saturation_passed=False,
-                version_note=version_note,
-                execution_note=execution_note,
-            )
+    # 1. A blocked run abstains before any other decision.
+    if inp.is_blocked:
+        return StoppingDecision(
+            state=TerminationState.ABSTAIN_BLOCKED,
+            reason=f"Blocked by upstream environment: {inp.block_reason or 'No viable probe available.'}",
+            hard_gates_passed=False,
+            saturation_passed=False,
+            version_note=version_note,
+            execution_note=execution_note,
+        )
 
     # 2. Hard Gate Evaluation (Score cannot compensate for a broken hard gate)
     coverage_ok = (inp.required_claims_total > 0) and (inp.required_claims_verified >= inp.required_claims_total)
@@ -176,6 +175,20 @@ def evaluate_stopping_gate(inp: StoppingEvaluationInput) -> StoppingDecision:
         inp.consecutive_low_delta_rounds,
         inp.last_weighted_delta,
     )
+
+    # No probe left, and required claims still short: deepening cannot finish them.
+    if not probe_remaining and inp.required_claims_verified < inp.required_claims_total:
+        return StoppingDecision(
+            state=TerminationState.ABSTAIN_BLOCKED,
+            reason=(
+                "No viable probe remains and required claims are unverified "
+                f"({inp.required_claims_verified}/{inp.required_claims_total})"
+            ),
+            hard_gates_passed=hard_gates_passed,
+            saturation_passed=saturation_passed,
+            version_note=version_note,
+            execution_note=execution_note,
+        )
 
     # 4. STOP_SUFFICIENT only when every conjunct holds (fail closed).
     if (

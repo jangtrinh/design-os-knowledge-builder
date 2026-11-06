@@ -35,9 +35,10 @@ class TestStoppingGateScenarios(unittest.TestCase):
         self.assertIsNotNone(res.certificate)
 
     def test_scenario_2_low_delta_but_missing_critical_claims(self):
-        """Scenario 2: Only the missing claims differ from a passing ledger -> DEEPEN."""
+        """Scenario 2: Missing claims and no probe left -> ABSTAIN_BLOCKED."""
         res = evaluate_stopping_gate(_passing(required_claims_verified=3))
-        self.assertEqual(res.state, TerminationState.DEEPEN)
+        self.assertEqual(res.state, TerminationState.ABSTAIN_BLOCKED)
+        self.assertIn("unverified (3/5)", res.reason)
         self.assertFalse(res.hard_gates_passed)
 
     def test_scenario_3_many_urls_same_origin(self):
@@ -168,9 +169,11 @@ class TestGateExitCodes(unittest.TestCase):
                 cli_mod.main()
         return caught.exception.code, stdout.getvalue(), stderr.getvalue()
 
-    def test_bare_gate_exits_deepen(self):
+    def test_bare_gate_exits_abstain(self):
+        """Bare gate has unverified claims and no probe, so it abstains."""
         code, out, _err = self._run(["knowledge-builder", "gate"])
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 4)
+        self.assertIn("ABSTAIN_BLOCKED", out)
         self.assertNotIn("STOP_SUFFICIENT", out)
 
     def test_bare_gate_saturation_is_not_observed(self):
@@ -187,7 +190,7 @@ class TestGateExitCodes(unittest.TestCase):
         self.assertIn("Saturation Passed: True", out)
 
     def test_budget_zero_exits_pause(self):
-        code, out, _err = self._run(["knowledge-builder", "gate", "--budget", "0"])
+        code, out, _err = self._run(["knowledge-builder", "gate", "--budget", "0", "--has-probes"])
         self.assertEqual(code, 3)
         self.assertIn("PAUSE_BUDGET", out)
         self.assertNotEqual(code, 0)
