@@ -1,8 +1,9 @@
-"""P1.4 review.json is a separate duty.
+"""review.json is a separate duty.
 
 A full ledger with no review.json does not exit 0. The same
 reviewer_runtime as state.researcher_runtime does not exit 0.
-A different runtime and passed true exits 0 when the other gates hold.
+A file that only says passed is not a review. A review written by
+run review, from a different runtime, exits 0 when the other gates hold.
 A missing researcher_runtime cannot prove that separation.
 Required atoms still count only when their quote matches the file.
 """
@@ -15,7 +16,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.capture_support import append_capture
+from tests.capture_support import append_capture, run_review
 
 
 def _run(argv):
@@ -79,33 +80,34 @@ class TestReviewFileSeparateDuty(unittest.TestCase):
             sources.mkdir(parents=True)
             claim_quote = "claim alpha holds across the measured sample."
             fail_quote = "known failure mode happens when the input is empty and unchecked."
+            exec_quote = "the command printed this measured line before it exited."
             body_a = f"{claim_quote}\n".encode()
             body_b = f"{fail_quote}\n".encode()
+            body_e = f"{exec_quote}\n".encode()
             rel_a = "_evidence/run-1/sources/a.txt"
             rel_b = "_evidence/run-1/sources/b.txt"
+            rel_e = "_evidence/run-1/sources/e.txt"
             (root / rel_a).write_bytes(body_a)
             (root / rel_b).write_bytes(body_b)
-            append_capture(root, rel_a, _sha(body_a), origin="executed", command=["python3", "-m", "unittest"], exit_code=0, run="run-1")
-            append_capture(root, rel_b, _sha(body_b), origin="from-file", run="run-1")
-            claim = _atom(
-                "atom-c1",
-                "c1",
-                rel_a,
-                _sha(body_a),
-                metadata={"command": "python3 -m unittest"},
-                quote=claim_quote,
+            (root / rel_e).write_bytes(body_e)
+            append_capture(root, rel_a, _sha(body_a), origin="fetched", url="https://example.com/a", run="run-1")
+            append_capture(root, rel_b, _sha(body_b), origin="from-file", url="https://example.com/b", run="run-1")
+            append_capture(
+                root, rel_e, _sha(body_e), origin="executed",
+                command=["python3", "-m", "unittest"], exit_code=0, run="run-1",
             )
+            claim = _atom("atom-c1", "c1", rel_a, _sha(body_a), quote=claim_quote)
             failure = _atom(
-                "atom-fail",
-                "fail-1",
-                rel_b,
-                _sha(body_b),
-                claim_type="FAILURE_MODE",
-                quote=fail_quote,
+                "atom-fail", "fail-1", rel_b, _sha(body_b),
+                claim_type="FAILURE_MODE", quote=fail_quote,
+            )
+            executed = _atom(
+                "atom-exec", "exec-1", rel_e, _sha(body_e),
+                metadata={"command": "python3 -m unittest"}, quote=exec_quote,
             )
             evidence = run / "evidence.jsonl"
             evidence.write_text(
-                json.dumps(claim) + "\n" + json.dumps(failure) + "\n",
+                json.dumps(claim) + "\n" + json.dumps(failure) + "\n" + json.dumps(executed) + "\n",
                 encoding="utf-8",
             )
             state = {
@@ -153,6 +155,11 @@ class TestReviewFileSeparateDuty(unittest.TestCase):
 
             _write_json(review_path, {"passed": True, "reviewer_runtime": "reviewer-b"})
             code, out, err = _run(argv)
+            self.assertNotEqual(code, 0, out + err)
+            self.assertNotIn("STOP_SUFFICIENT", out)
+
+            run_review(root)
+            code, out, err = _run(argv)
             self.assertEqual(code, 0, out + err)
             self.assertIn("STOP_SUFFICIENT", out)
             self.assertIn("independent review passed", out)
@@ -165,7 +172,7 @@ class TestReviewFileSeparateDuty(unittest.TestCase):
 
             claim.pop("quote")
             evidence.write_text(
-                json.dumps(claim) + "\n" + json.dumps(failure) + "\n",
+                json.dumps(claim) + "\n" + json.dumps(failure) + "\n" + json.dumps(executed) + "\n",
                 encoding="utf-8",
             )
             state["researcher_runtime"] = "researcher-a"

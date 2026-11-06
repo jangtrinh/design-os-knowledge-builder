@@ -215,8 +215,9 @@ class TestStatusAndCheck(PackInitCase):
         state["last_weighted_delta"] = 0.0
         state["researcher_runtime"] = "researcher-a"
         state_path.write_text(json.dumps(state), encoding="utf-8")
-        (self.root / "_evidence/demo-1/review.json").write_text(
-            json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}), encoding="utf-8"
+        from tests.capture_support import run_review
+        run_review(
+            self.root, run="demo-1", confirm_version_na=True, confirm_execution_na=True,
         )
         report = self.status()
         self.assertEqual(report["gate"]["decision"], "STOP_SUFFICIENT", report["gate"])

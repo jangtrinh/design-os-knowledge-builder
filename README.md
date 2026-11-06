@@ -216,7 +216,7 @@ kb gate --run-id run-001 --required 5 --verified 5 --sources 3
 kb run init --root <knowledge-root> --id <run> --budget 400 --require <claim-id> --researcher <runtime>
 
 # Freeze a web page as plain text into sources/ (identity encoding, gzip decoded, never overwrites).
-# This is the only network call: it fetches that URL. Prints the sha256 and the path to cite.
+# This fetches that URL. Prints the sha256 and the path to cite.
 kb ingest --freeze <url> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
 # When a site returns HTTP 401/403/429, save the page and freeze the file. --from-file does not fetch.
 kb ingest --freeze <url> --from-file <saved.html> --root <knowledge-root> --run <run> --stem <kebab-case-stem>
@@ -237,12 +237,25 @@ kb run exec --root <knowledge-root> --id <run> --stem <kebab-case-stem> [--timeo
 # Append one atom from stdin. metadata.round is an integer >= 1; metadata.novel is a boolean.
 kb run record --root <knowledge-root> --id <run> < atom.json
 
-# Per-round novelty: delta(r) = novel atoms in r / atoms before r. Round 1 is the baseline.
-# --material counts a novel atom only when an ease:source or ease:claim anchor in a document cites its quote.
-# Run --material --write-state after citing each round's claims; if no novel atom in the measured round is cited yet, state.json is left untouched.
-# Atoms with metadata.backfill=true are excluded from novelty and the denominator (printed as "backfill atoms: N (excluded)").
-# Nothing is written unless --write-state is given.
+# Per-round novelty: an atom is novel when its quote, after newline normalisation, did not
+# occur on any atom of an earlier round (backfill atoms count as earlier quotes).
+# metadata.novel is ignored for the count. delta(r) = novel atoms in r / atoms before r.
+# Round 1 is the baseline. A round with fewer than 5 non-backfill atoms is printed as
+# "(too small: N < 5, not counted)" and neither extends nor resets the low-delta streak.
+# --material counts a novel atom only when an ease:source or ease:claim anchor cites its quote.
+# Run --material --write-state after citing each round's claims; if no novel atom in a counted
+# round is cited yet, state.json is left untouched.
+# Atoms with metadata.backfill=true are excluded from the numerator and the denominator
+# (printed as "backfill atoms: N (excluded)"). Nothing is written unless --write-state is given.
 kb run measure --root <knowledge-root> --id <run> --material [--write-state]
+
+# Re-fetch every logged fetched or from-file capture and check each atom quote on the live page.
+# Writes _evidence/<run>/review.json. Does not write sources and does not spend a budget call.
+# Refuses an empty reviewer or one equal to state.json researcher_runtime.
+# Exit 0 when the file is written. The verdict is data, not the exit code.
+# A page that cannot be fetched is recorded as unreachable.
+kb run review --root <knowledge-root> --id <run> --reviewer <runtime> --verdict pass|fail \
+  [--note "<text>"] [--confirm-version-na] [--confirm-execution-na]
 
 # A quote verifies only when it has at least 6 words and 30 characters, after newline
 # normalisation, and occurs in the capture body (text after the first blank line when the
@@ -270,11 +283,13 @@ kb run resolve --root <knowledge-root> --id <run> --atom <contradiction-atom-id>
 # is non-empty the gate prints: ignored legacy resolved entries: N
 kb gate --root <knowledge-root> --run-id <run>
 ```
-`version_applicability: not_applicable` and `execution_applicability: not_applicable` pass their respective gate checks only with a non-empty `version_reason` / `execution_reason`; without the reason the gate stays at DEEPEN.
+`version_applicability: not_applicable` and `execution_applicability: not_applicable` pass their respective gate checks only with a non-empty reason and a current review whose `confirm_version_na` or `confirm_execution_na` is true. Without the reason the gate says the reason is missing. With a reason the review did not confirm, it says the review did not confirm it.
 
-A source file counts for verified claims, independent sources, execution proof and counterevidence only when `captures.jsonl` matches its path and sha256. A quote that is too short, or that appears only in the capture header, does not verify. Execution proof counts only for an atom whose capture origin is `executed`, whose exit code is 0, and whose `metadata.command` equals the logged command; `metadata.command` on any other atom is ignored. A `FAILURE_MODE` atom counts only when it is attested and its quote verifies. A contradiction is resolved for the gate by a `resolutions` entry with that atom id and a non-empty reason, or by `resolve-contradiction` / deprecating one side.
+A source file counts for verified claims, independent sources, execution proof and counterevidence only when `captures.jsonl` matches its path and sha256. A fetched capture counts toward independent sources when it is attested. A from-file capture counts only when the current review found its quotes. An executed capture never counts. A quote that is too short, or that appears only in the capture header, does not verify. Execution proof counts only for an atom whose capture origin is `executed`, whose exit code is 0, and whose `metadata.command` equals the logged command; `metadata.command` on any other atom is ignored. A `FAILURE_MODE` atom counts only when it is attested and its quote verifies. A contradiction is resolved for the gate by a `resolutions` entry with that atom id and a non-empty reason, or by `resolve-contradiction` / deprecating one side.
 
-Every file under the knowledge root is local and writable by the researcher. These checks make a false stop require deliberate forgery of several coordinated artifacts. They do not make forgery impossible.
+The gate treats `review.json` as a review only when it names the reviewer, a pass or fail verdict, a note, the time, the three hashes (ledger, capture log, claim files), both confirm flags, and a sources list. `independent_review_passed` is true only when the verdict is pass, the reviewer differs from the researcher, those hashes still match the files, and every required claim's verifying atom was found on re-fetch (or its capture origin is `executed`). A hand-written file without those fields is no review. When the bound file is stale the reason names the file that changed. When a quote is missing it names the atom.
+
+Every file under the knowledge root is local and writable by whoever runs the research. The capture log and the bound review make cheating require deliberate forgery of several files, and `run review` checks quotes against the live pages. They do not make forgery impossible.
 
 ### Ontology packs: `pack`, `action`, `query`
 A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
@@ -316,7 +331,7 @@ Other anchor rules checked by `verify --claims`:
 
 1. **Intent Routing** — Your AI agent matches your request against `skills/es-knowledge-forge/SKILL.md` frontmatter triggers.
 2. **Progressive Context Loading** — Only the entry-point `SKILL.md` router loads initially; `rules.md`, `concepts.md`, `look.md` and `references/` load on demand.
-3. **Deterministic Execution** — `build.py` turns a JSON spec into real CLI calls. `ingest --freeze` without `--from-file` fetches that URL; `--from-file` and `run exec` do not. `validate.py` and `look.py` use no network.
+3. **Deterministic Execution** — `build.py` turns a JSON spec into real CLI calls. `ingest --freeze` without `--from-file` fetches that URL. `run review` re-fetches the URLs of logged captures. `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch.
 4. **Gate Verification** — `scripts/self_check.py` and `verify --claims`, `pack check` and the skill's `validate.py` validate the artifact before completion.
 5. **Zero-Telemetry Delivery** — Verified files are written to your workspace; no telemetry is sent.
 
@@ -412,7 +427,8 @@ design-os-knowledge-builder/
 - `python3 -m pytest -q` passes and `python3 scripts/generate-skill-contract.py --check` exits `0`.
 - `python3 skills/es-knowledge-forge/validate.py --root <pack-root>` prints `ok` for your pack.
 - Your AI coding agent loads `skills/es-knowledge-forge/SKILL.md` automatically when given any prompt from [`docs/cookbook.md`](docs/cookbook.md).
-- The only network call is `ingest --freeze` without `--from-file` (it fetches that URL). `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch. No telemetry ([`PRIVACY.md`](PRIVACY.md)).
+- Network calls are `ingest --freeze` without `--from-file` (it fetches that URL) and `run review` (it re-fetches the URLs of logged captures). `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch. No telemetry ([`PRIVACY.md`](PRIVACY.md)).
+- Every file is local and writable by whoever runs the research. The capture log and the bound review make cheating require deliberate forgery of several files, and `run review` checks quotes against the live pages. They do not make forgery impossible.
 
 ### When not to use
 

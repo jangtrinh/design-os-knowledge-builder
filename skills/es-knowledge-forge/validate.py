@@ -103,8 +103,10 @@ def review_failures(root, run):
     if not isinstance(review, dict):
         return [f"review: {where} is not a JSON object: rewrite it"]
     runtime = review.get("reviewer_runtime")
-    if review.get("passed") is not True:
-        return [f"review: {where} passed is not true: fix the findings and re-review"]
+    # A fixture review may say passed. A review from `run review` says verdict pass.
+    # The stopping gate does not accept `passed` on its own; it re-checks the bound file.
+    if review.get("passed") is not True and review.get("verdict") != "pass":
+        return [f"review: {where} verdict is not pass: fix the findings and re-review"]
     if not isinstance(runtime, str) or not runtime.strip():
         return [f"review: {where} has no reviewer_runtime: name the runtime that reviewed"]
     researcher = state.get("researcher_runtime")

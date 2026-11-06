@@ -13,11 +13,11 @@ the closing condition (done only when it holds). Flags: [../contract.txt](../con
 | 6 | Promote | `K action promote-claim --root P --param atom=<id> --param id=<claim-id> [--param publisher=<org>] [--param kind=<kind>]` or `--batch f.jsonl` | claim + source files exist; `--into` for corroboration |
 | 7 | Documents, entities | `K action create-object ...` then write the body | file under its type's folder |
 | 8 | Cite | body anchor `<!-- ease:claim id=<claim> -->` + `K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>` or `--batch f.jsonl` | anchors == cites links |
-| 9 | Measure | `K run measure --root P --id R --material --write-state` (after citing each round) | `consecutive_low_delta_rounds` and `last_weighted_delta` written; `run state set` does not accept them |
+| 9 | Measure | `K run measure --root P --id R --material --write-state` (after citing each round). An atom is novel when its quote is new versus earlier rounds. A round with fewer than 5 atoms is not counted | `consecutive_low_delta_rounds` and `last_weighted_delta` written; `run state set` does not accept them |
 | 10 | Relate | `add-link` with `about` / `compares` / `depends-on` | no declared relation missing |
 | 11 | Contradictions | `K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"`, or `K run resolve --root P --id R --atom <id> --reason "<text>"` for a CONTRADICTION atom. A string list in `resolved` does not count | none unresolved |
-| 12 | Independent review | a different runtime writes `_evidence/R/review.json` | `validate:review` passes |
-| 13 | State | `K run state set --root P --id R --key version_applicability --value not_applicable` + `--key version_reason` (and `execution_applicability` + `execution_reason` when no code) | gate shows no version/execution deficiency |
+| 12 | Independent review | `K run review --root P --id R --reviewer <other-runtime> --verdict pass` re-fetches logged URLs and writes `_evidence/R/review.json` bound to the ledger, the capture log, and the claim files. Add `--confirm-version-na` or `--confirm-execution-na` when that declaration is honest | `validate:review` passes and the gate no longer says the review is missing or stale |
+| 13 | State | `K run state set --root P --id R --key version_applicability --value not_applicable` + `--key version_reason` (and `execution_applicability` + `execution_reason` when no code). The current review must confirm the declaration | gate shows no version/execution deficiency |
 | 14 | Check | `K pack check --root P`, `K pack status --root P`, then [../validate.py](../validate.py), [../look.py](../look.py) | exit 0, sheet inspected |
 
 ## Atom shape

@@ -124,7 +124,7 @@ class TestGateLedger(unittest.TestCase):
             rel = "_evidence/run-1/sources/c1.txt"
             (root / rel).write_bytes(body)
             digest = _sha(body)
-            append_capture(root, rel, digest, origin="from-file", run="run-1")
+            append_capture(root, rel, digest, origin="fetched", url="https://example.com/c1", run="run-1")
             atoms = [
                 _atom("atom-c1", "c1", rel, digest, quote=quote),
                 _atom(

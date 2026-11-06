@@ -6,10 +6,11 @@ import math
 import os
 from pathlib import Path
 
-from knowledge_builder.containment import ContainmentError, file_identity, read_text_nofollow, require_inside
+from knowledge_builder.containment import ContainmentError, file_identity, require_inside
 from knowledge_builder.quote_rules import quote_failure
 from knowledge_builder.research.capture_log import (
     CaptureLogError,
+    capture_origin,
     execution_command,
     is_attested,
     load_captures,
@@ -38,11 +39,14 @@ def ledger_evaluation_input(root, run_id):
     rows = _captures(root, run_id)
     unattested = set()
     required, verified = _claim_coverage(root, run_id, state, atoms, rows, unattested)
+    from knowledge_builder.research.review_check import assess, must_find_atoms
+
+    review = assess(root, run_id, state, must_find_atoms(root, run_id, state, atoms, rows, unattested))
     block_reason = state.get("block_reason")
     result = StoppingEvaluationInput(
         required_claims_total=len(required),
         required_claims_verified=verified,
-        independent_sources_count=_independent_sources(root, run_id, atoms, rows, unattested),
+        independent_sources_count=_independent_sources(root, run_id, atoms, rows, unattested, review["found_paths"]),
         has_execution_proof=_has_execution_proof(root, run_id, atoms, rows, unattested),
         has_counterevidence_searched=_has_failure_mode(root, run_id, atoms, rows, unattested),
         unresolved_contradictions_count=_unresolved_contradictions(state, atoms, _claim_resolved(root, run_id)),
@@ -53,12 +57,15 @@ def ledger_evaluation_input(root, run_id):
         has_viable_probe_remaining=_probe_remaining(state),
         is_blocked=state.get("is_blocked") is True,
         block_reason=block_reason if isinstance(block_reason, str) else None,
-        independent_review_passed=_review_separates_duty(run_dir, state),
+        independent_review_passed=review["passed"],
         minimum_independent_sources=_minimum_sources(state),
         version_not_applicable=state.get("version_applicability") == "not_applicable",
         version_reason=_version_reason(state),
         execution_not_applicable=state.get("execution_applicability") == "not_applicable",
         execution_reason=_execution_reason(state),
+        review_failure=review["failure"],
+        version_na_confirmed=review["confirm_version_na"],
+        execution_na_confirmed=review["confirm_execution_na"],
     )
     result.gate_notes = _gate_notes(state, unattested)
     return result
@@ -87,31 +94,6 @@ def _legacy_resolved_count(state):
     if not isinstance(raw, list):
         return 0
     return sum(1 for item in raw if isinstance(item, str))
-
-
-def _review_separates_duty(run_dir, state):
-    """True only for review.json passed by a different non-empty runtime.
-
-    A missing or empty researcher_runtime cannot prove the reviewer is someone else.
-    A missing or unreadable review file is not a pass.
-    """
-    researcher = state.get("researcher_runtime")
-    if not isinstance(researcher, str) or not researcher.strip():
-        return False
-    path = run_dir / "review.json"
-    if os.path.islink(path) or not path.is_file():
-        return False
-    try:
-        require_inside(path, run_dir)
-        review = json.loads(read_text_nofollow(path))
-    except (ContainmentError, OSError, UnicodeError, json.JSONDecodeError):
-        return False
-    if not isinstance(review, dict) or review.get("passed") is not True:
-        return False
-    reviewer = review.get("reviewer_runtime")
-    if not isinstance(reviewer, str) or not reviewer.strip():
-        return False
-    return reviewer.strip() != researcher.strip()
 
 
 def _run_dir(root, run_id):
@@ -211,8 +193,21 @@ def _quote_in_capture(real, quote):
     return quote_failure(text, quote) is None
 
 
-def _independent_sources(root, run_id, atoms, rows, unattested):
-    """Distinct inodes of attested sources (aliases do not add a source).
+def _counts_independent(atom, rows, found_paths):
+    """Fetched captures count. A from-file capture counts only after its quotes were re-found. Executed never counts."""
+    rel = _repo_relative(atom.source_uri)
+    if rel is None:
+        return False
+    origin = capture_origin(rows, rel, atom.source_digest)
+    if origin == "executed":
+        return False
+    if origin == "from-file":
+        return rel in found_paths
+    return origin == "fetched"
+
+
+def _independent_sources(root, run_id, atoms, rows, unattested, found_paths=frozenset()):
+    """Distinct inodes of attested sources that count toward independence.
 
     In a pack (ontology.yaml with a frozen-source type) it is the distinct publishers of the Source objects the
     attested atoms map to, so two pages of one publisher count once.
@@ -220,7 +215,7 @@ def _independent_sources(root, run_id, atoms, rows, unattested):
     found, verified = set(), []
     for atom in atoms:
         real = _attested_source(root, run_id, atom, rows, unattested)
-        if real is None:
+        if real is None or not _counts_independent(atom, rows, found_paths):
             continue
         verified.append(atom.id)
         try:

@@ -18,7 +18,7 @@ Examples: [../examples/tiny-document-pack.json](../examples/tiny-document-pack.j
 | `links[]` | `{source, link_type, target}` -> `add-link` |
 | `resolutions[]` | `{claim, resolution}` -> `resolve-contradiction` |
 | `state` | `{key: value}` -> `run state set`. `consecutive_low_delta_rounds`, `last_weighted_delta` and `resolved` are not accepted; `run measure --write-state` writes the saturation keys |
-| `review` | object written to `_evidence/<run>/review.json` (fixture only; a real review is another runtime's work) |
+| `review` | object written to `_evidence/<run>/review.json` (fixture only; `validate.py` accepts `passed: true`. A real review is `run review`, which re-fetches logged URLs and binds the file to the ledger. The stopping gate does not accept `passed` on its own) |
 
 Order: init, freeze, record, promote, entities, documents, links, resolutions, state, review, index.
 Exit 0 prints the pack path; 1 means a CLI step refused (its message is printed); 2 means the product could not run.

@@ -1,12 +1,14 @@
 """`run measure`: per-round novelty from the ledger. Reads; writes only with --write-state.
 
 An atom belongs to round metadata.round (none means round 1). It is novel when
-metadata.novel is true. delta(round r) = novel atoms in r / atoms before r. The
-first round present is the baseline and has no delta. With --material an atom
-counts as novel only when its quote is cited by an ease:source anchor in a
-module under the root, so it changed a claim, a failure mode, or a Decision.
-An atom with metadata.backfill true (a re-recorded or imported atom) is left out of
-novelty and of the denominator; it is reported separately.
+its quote, after newline normalisation, did not occur on any atom of an earlier
+round. Backfill atoms count as earlier quotes and are left out of the numerator
+and the denominator. metadata.novel is ignored. delta(round r) = novel atoms in
+r / atoms before r. The first round present is the baseline and has no delta.
+A round with fewer than five non-backfill atoms is printed and does not extend
+or reset the low-delta streak. With --material an atom counts as novel only
+when its quote is also cited by an ease:source anchor in a module under the
+root, so it changed a claim, a failure mode, or a Decision.
 """
 
 import re
@@ -19,6 +21,7 @@ from knowledge_builder.quote_check import normalise_newlines
 from knowledge_builder.research.ledger import AtomicResearchLedger
 
 THRESHOLD = 0.02
+MIN_COUNTED = 5
 _ANCHOR_PREFIX = re.compile(r"\s*ease:source\b")
 
 
@@ -90,20 +93,50 @@ def backfill_count(atoms):
     return sum(1 for atom in atoms if is_backfill(atom))
 
 
+def _round_number(atom):
+    meta = atom.metadata if isinstance(atom.metadata, dict) else {}
+    rnd = meta.get("round")
+    if isinstance(rnd, int) and not isinstance(rnd, bool) and rnd >= 1:
+        return rnd
+    return 1
+
+
+def _quote_key(atom):
+    quote = atom.quote if isinstance(atom.quote, str) else ""
+    return normalise_newlines(quote)
+
+
+def _novel_by_history(atoms):
+    """True when the quote is absent from every earlier round, backfill included."""
+    by_round = defaultdict(list)
+    for atom in atoms:
+        by_round[_round_number(atom)].append(atom)
+    seen = set()
+    novel = {}
+    for rnd in sorted(by_round):
+        for atom in by_round[rnd]:
+            if not is_backfill(atom):
+                novel[id(atom)] = _quote_key(atom) not in seen
+        for atom in by_round[rnd]:
+            seen.add(_quote_key(atom))
+    return novel
+
+
+def _cited_novel(atom, is_novel, cited):
+    if not is_novel or cited is None:
+        return is_novel
+    quote = atom.quote if isinstance(atom.quote, str) else ""
+    return bool(quote.strip()) and normalise_newlines(quote) in cited
+
+
 def measure_rounds(atoms, cited=None):
     """([(round, atoms, novel, before, delta)], trailing_low_rounds, last_delta). Backfill atoms are not measured."""
+    history = _novel_by_history(atoms)
     groups = defaultdict(list)
     for atom in atoms:
         if is_backfill(atom):
             continue
-        meta = atom.metadata if isinstance(atom.metadata, dict) else {}
-        rnd = meta.get("round")
-        rnd = rnd if isinstance(rnd, int) and not isinstance(rnd, bool) and rnd >= 1 else 1
-        novel = meta.get("novel") is True
-        if novel and cited is not None:
-            quote = atom.quote if isinstance(atom.quote, str) else ""
-            novel = bool(quote.strip()) and normalise_newlines(quote) in cited
-        groups[rnd].append(novel)
+        groups[_round_number(atom)].append(_cited_novel(atom, history[id(atom)], cited))
     rows = []
     before = 0
     trailing = 0
@@ -111,37 +144,39 @@ def measure_rounds(atoms, cited=None):
     for index, rnd in enumerate(sorted(groups)):
         flags = groups[rnd]
         novel = sum(flags)
+        count = len(flags)
         delta = None if index == 0 else novel / before
-        if delta is None or delta > THRESHOLD:
-            trailing = 0
-        else:
-            trailing += 1
-        if delta is not None:
-            last = delta
-        rows.append((rnd, len(flags), novel, before, delta))
-        before += len(flags)
+        if count >= MIN_COUNTED:
+            if delta is None or delta > THRESHOLD:
+                trailing = 0
+            else:
+                trailing += 1
+            if delta is not None:
+                last = delta
+        rows.append((rnd, count, novel, before, delta))
+        before += count
     return rows, trailing, last
 
 
 def _latest_round_all_novel_uncited(atoms, cited):
-    """True when no quotes are cited at all, or any post-baseline round has novel=True atoms and none are cited."""
+    """True when nothing is cited, or a counted post-baseline round has new quotes and none are cited."""
     if not cited:
         return True
+    history = _novel_by_history(atoms)
     rounds = defaultdict(list)
     for atom in atoms:
         if is_backfill(atom):
             continue
-        meta = atom.metadata if isinstance(atom.metadata, dict) else {}
-        rnd = meta.get("round")
-        rnd = rnd if isinstance(rnd, int) and not isinstance(rnd, bool) and rnd >= 1 else 1
-        rounds[rnd].append(atom)
-    if not rounds:
-        return False
-    for rnd in sorted(rounds)[1:]:
-        raw_novel = [a for a in rounds[rnd] if isinstance(a.metadata, dict) and a.metadata.get("novel") is True]
+        rounds[_round_number(atom)].append(atom)
+    measured = sorted(rounds)
+    for rnd in measured[1:]:
+        group = rounds[rnd]
+        if len(group) < MIN_COUNTED:
+            continue
+        raw_novel = [atom for atom in group if history[id(atom)]]
         if raw_novel and not any(
-            isinstance(a.quote, str) and a.quote.strip() and normalise_newlines(a.quote) in cited
-            for a in raw_novel
+            isinstance(atom.quote, str) and atom.quote.strip() and normalise_newlines(atom.quote) in cited
+            for atom in raw_novel
         ):
             return True
     return False
@@ -160,7 +195,8 @@ def cmd_run_measure(args):
     rows, trailing, last = measure_rounds(atoms, cited)
     for rnd, count, novel, before, delta in rows:
         shown = "n/a (baseline)" if delta is None else f"{delta:.4f}"
-        print(f"round {rnd}: atoms {count}, novel {novel}, before {before}, delta {shown}")
+        suffix = f" (too small: {count} < {MIN_COUNTED}, not counted)" if count < MIN_COUNTED else ""
+        print(f"round {rnd}: atoms {count}, novel {novel}, before {before}, delta {shown}{suffix}")
     if backfill_count(atoms):
         print(f"backfill atoms: {backfill_count(atoms)} (excluded)")
     print(f"consecutive_low_delta_rounds={trailing} last_weighted_delta={last}")

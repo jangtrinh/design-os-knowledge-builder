@@ -98,6 +98,23 @@ def is_attested(rows, path, digest):
     return any(_matches(row, path, digest) for row in rows)
 
 
+def capture_origin(rows, path, digest):
+    """Origin of this capture. Any executed line wins; otherwise the last match."""
+    origin = None
+    executed = False
+    for row in rows:
+        if not _matches(row, path, digest):
+            continue
+        logged = row.get("origin")
+        if logged == "executed":
+            executed = True
+        if isinstance(logged, str):
+            origin = logged
+    if executed:
+        return "executed"
+    return origin
+
+
 def execution_command(rows, path, digest):
     """shlex.join of an executed argv whose exit_code is the integer 0, else None."""
     for row in rows:

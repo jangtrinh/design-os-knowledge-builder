@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.capture_support import append_capture
+from tests.capture_support import append_capture, run_review
 
 
 def _run(argv, stdin=""):
@@ -83,53 +83,53 @@ def _sufficient_state(**overrides):
 
 
 def _write_sufficient(root, *, alias=False):
-    """Two hashed sources, a passing review, and a ledger that stops today."""
+    """Fetched claim, reviewed from-file failure, executed proof, and a current review.
+
+    A symlink from b.txt to a.txt is one file. The review skips the symlink, so only
+    the fetched capture counts and the gate reports 1 < 2.
+    """
     run = root / "_evidence" / "run-1"
     sources = run / "sources"
     sources.mkdir(parents=True)
     claim_quote = "claim alpha holds across the measured sample."
     fail_quote = "known failure mode happens when the input is empty and unchecked."
-    body_a = f"{claim_quote}\n{fail_quote}\n".encode()
-    body_b = f"{fail_quote}\n".encode()
+    exec_quote = "the command printed this measured line before it exited."
+    body_a = f"{claim_quote}\n{fail_quote}\n".encode() if alias else f"{claim_quote}\n".encode()
+    body_b = body_a if alias else f"{fail_quote}\n".encode()
+    body_e = f"{exec_quote}\n".encode()
     rel_a = "_evidence/run-1/sources/a.txt"
     rel_b = "_evidence/run-1/sources/b.txt"
+    rel_e = "_evidence/run-1/sources/e.txt"
     (root / rel_a).write_bytes(body_a)
+    (root / rel_e).write_bytes(body_e)
     digest_a = _sha(body_a)
-    append_capture(root, rel_a, digest_a, origin="executed", command=["python3", "-m", "unittest"], exit_code=0, run="run-1")
+    digest_e = _sha(body_e)
+    append_capture(root, rel_a, digest_a, origin="fetched", url="https://example.com/a", run="run-1")
+    append_capture(
+        root, rel_e, digest_e, origin="executed",
+        command=["python3", "-m", "unittest"], exit_code=0, run="run-1",
+    )
     if alias:
         os.symlink("a.txt", root / rel_b)
         digest_b = digest_a
-        quote_b = fail_quote
     else:
         (root / rel_b).write_bytes(body_b)
         digest_b = _sha(body_b)
-        quote_b = fail_quote
-    append_capture(root, rel_b, digest_b, origin="from-file", run="run-1")
-    claim = _atom(
-        "atom-c1",
-        "c1",
-        rel_a,
-        digest_a,
-        metadata={"command": "python3 -m unittest"},
-        quote=claim_quote,
-    )
+    append_capture(root, rel_b, digest_b, origin="from-file", url="https://example.com/b", run="run-1")
+    claim = _atom("atom-c1", "c1", rel_a, digest_a, quote=claim_quote)
     failure = _atom(
-        "atom-fail",
-        "fail-1",
-        rel_b,
-        digest_b,
-        claim_type="FAILURE_MODE",
-        quote=quote_b,
+        "atom-fail", "fail-1", rel_b, digest_b, claim_type="FAILURE_MODE", quote=fail_quote,
+    )
+    executed = _atom(
+        "atom-exec", "exec-1", rel_e, digest_e,
+        metadata={"command": "python3 -m unittest"}, quote=exec_quote,
     )
     (run / "evidence.jsonl").write_text(
-        json.dumps(claim) + "\n" + json.dumps(failure) + "\n",
+        json.dumps(claim) + "\n" + json.dumps(failure) + "\n" + json.dumps(executed) + "\n",
         encoding="utf-8",
     )
     (run / "state.json").write_text(json.dumps(_sufficient_state()), encoding="utf-8")
-    (run / "review.json").write_text(
-        json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}),
-        encoding="utf-8",
-    )
+    run_review(root)
     return run
 
 

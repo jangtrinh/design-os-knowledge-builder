@@ -23,14 +23,17 @@ the file counts only when the log matches its path and sha256.
 Rejected when: a quote is shorter than that, sits only in the header, is absent from the body, or the capture is unattested.
 Home: validate:verify.
 
-## R3. Every atom carries its round and novelty
-Keep it: `K run record --root <pack> --id <run>` with `metadata.round` (integer >= 1), `metadata.novel` (true/false),
+## R3. Every atom carries its round
+Keep it: `K run record --root <pack> --id <run>` with `metadata.round` (integer >= 1) and
 `metadata.url` when the frozen file has no `Source-URL:` header. One atom, one quote, one fact.
+`metadata.novel` may be recorded; `run measure` does not read it. An atom is novel when its quote
+did not occur on any atom of an earlier round.
 Rejected when: `run record` answers `invalid atom`.
 Home: tool.
 
 ## R4. Measure saturation on material atoms, then write it
 Keep it: `K run measure --root <pack> --id <run> --material --write-state` after citing each round's claims in a document.
+A round with fewer than 5 non-backfill atoms is printed `(too small: N < 5, not counted)` and neither extends nor resets the low-delta streak.
 `consecutive_low_delta_rounds` and `last_weighted_delta` are written only by that command. `run state set` refuses them.
 Rejected when: the gate prints `delta 100.0%` only because `last_weighted_delta` was never written, or `--material --write-state` was called before citing.
 Home: hand-over (`GATE`).
@@ -87,14 +90,19 @@ Rejected when: a CONTRADICTION claim has no resolution and neither side is depre
 Home: validate:contradictions.
 
 ## R12. A different runtime reviews the pack
-Keep it: the reviewer writes `_evidence/<run>/review.json` with `passed: true`, a `reviewer_runtime` that differs
-from the run's `researcher_runtime`, `scope`, `checks`, `findings`. The researcher never writes it. The tool does not fetch pages for this file.
-Rejected when: the file is missing, `passed` is not true, or both runtimes are equal.
+Keep it: `K run review --root <pack> --id <run> --reviewer <runtime> --verdict pass|fail`. The reviewer runtime
+must be non-empty and must differ from `researcher_runtime`. The command re-fetches every logged `fetched` or
+`from-file` URL and checks each atom quote on the live page. It writes `_evidence/<run>/review.json` bound to the
+ledger hash, the capture-log hash, and the claim-file hash. A hand-written file without those fields is not a review.
+`validate.py` also accepts a fixture file whose `passed` is true; the stopping gate does not.
+Rejected when: the file is missing, the verdict is not pass, the reviewer equals the researcher, the hashes no longer match, or a required quote was not on the live page.
 Home: validate:review.
 
 ## R13. A pack with no target library or executable code declares it
 Keep it: `K run state set --root <pack> --id <run> --key version_applicability --value not_applicable` and
-`--key version_reason --value "<why>"` (and `execution_applicability` / `execution_reason` when the topic has no executable code; without the reason the gate does not pass it).
+`--key version_reason --value "<why>"` (and `execution_applicability` / `execution_reason` when the topic has no executable code).
+The gate passes that declaration only when the reason is non-empty and the current review sets
+`confirm_version_na` or `confirm_execution_na` (`run review --confirm-version-na` / `--confirm-execution-na`).
 Rejected when: the gate lists a version or execution deficiency for a concept pack.
 Home: hand-over (`GATE`).
 

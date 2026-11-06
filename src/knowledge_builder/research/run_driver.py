@@ -55,6 +55,7 @@ def register_run(subparsers, parser_class):
 
     from knowledge_builder.research.run_exec import register_exec
     from knowledge_builder.research.run_resolve import register_resolve
+    from knowledge_builder.research.run_review import register_review
     from knowledge_builder.research.run_state import register_state
     from knowledge_builder.research.saturation import register_measure
 
@@ -62,6 +63,7 @@ def register_run(subparsers, parser_class):
     register_state(commands, parser_class)
     register_exec(commands)
     register_resolve(commands)
+    register_review(commands)
 
 
 def cmd_run_init(args):

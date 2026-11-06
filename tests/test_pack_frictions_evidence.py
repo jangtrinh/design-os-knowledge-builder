@@ -90,9 +90,9 @@ class TestBackfillExcluded(unittest.TestCase):
             _init(tmp, atoms=self.atoms())
             code, out, err = _measure(tmp)
         self.assertEqual(code, 0, out + err)
-        self.assertIn("round 1: atoms 4, novel 0, before 0, delta n/a (baseline)", out)
-        self.assertIn("round 2: atoms 2, novel 1, before 4, delta 0.2500", out)
-        self.assertIn("round 3: atoms 3, novel 0, before 6, delta 0.0000", out)
+        self.assertIn("round 1: atoms 4, novel 4, before 0, delta n/a (baseline) (too small: 4 < 5, not counted)", out)
+        self.assertIn("round 2: atoms 2, novel 2, before 4, delta 0.5000 (too small: 2 < 5, not counted)", out)
+        self.assertIn("round 3: atoms 3, novel 3, before 6, delta 0.5000 (too small: 3 < 5, not counted)", out)
         self.assertIn("backfill atoms: 4 (excluded)", out)
 
     def test_no_backfill_line_without_backfill_atoms(self):
@@ -107,7 +107,9 @@ class TestBackfillExcluded(unittest.TestCase):
             code, out, err = _measure(tmp, "--write-state")
             state = _state(run)
         self.assertEqual(code, 0, out + err)
-        self.assertEqual((state["consecutive_low_delta_rounds"], state["last_weighted_delta"]), (1, 0.0))
+        self.assertIn("nothing to write", out)
+        self.assertIsNone(state["last_weighted_delta"])
+        self.assertNotIn("consecutive_low_delta_rounds", state)
 
 
 if __name__ == "__main__":

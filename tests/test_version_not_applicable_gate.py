@@ -1,9 +1,9 @@
-"""B1/B7: a concept pack may declare the version gate not applicable, with a reason.
+"""A concept pack may declare the version gate not applicable, with a reason.
 
-Fixture: a ledger that passes every hard gate except the version flag.
-`version_applicability: not_applicable` with a non-empty `version_reason`
-passes the version gate and prints the reason. A missing, blank, or non-string
-reason does not pass. The saturation label reads "low-delta rounds N/3".
+The printed note appears when the reason is a non-empty string. The gate
+passes that check only when a current review also confirms it. A missing,
+blank, or non-string reason does not pass. The saturation label reads
+"low-delta rounds N/3".
 """
 
 import hashlib
@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.capture_support import append_capture
+from tests.capture_support import append_capture, run_review
 
 from knowledge_builder.research.stopping_gate import (
     StoppingEvaluationInput,
@@ -79,9 +79,9 @@ def _fixture(root, **state_extra):
         (root / rel).write_bytes(body)
         digest = _sha(body)
         if atom_id == "c1":
-            append_capture(root, rel, digest, origin="executed", command=["echo", "ok"], exit_code=0, run="run-1")
+            append_capture(root, rel, digest, origin="fetched", url="https://example.com/c1", run="run-1")
         else:
-            append_capture(root, rel, digest, origin="from-file", run="run-1")
+            append_capture(root, rel, digest, origin="from-file", url="https://example.com/fm", run="run-1")
         atoms.append(_atom(atom_id, "c1" if atom_id == "c1" else "other", rel, digest, quote,
                            claim_type=claim_type, metadata=meta))
     (run / "evidence.jsonl").write_text("".join(json.dumps(a) + "\n" for a in atoms), encoding="utf-8")
@@ -102,9 +102,6 @@ def _fixture(root, **state_extra):
     }
     state.update(state_extra)
     (run / "state.json").write_text(json.dumps(state), encoding="utf-8")
-    (run / "review.json").write_text(
-        json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}), encoding="utf-8"
-    )
     return run
 
 
@@ -174,7 +171,11 @@ class TestVersionNotApplicable(unittest.TestCase):
 
     def test_gate_can_reach_stop_when_declared_with_reason(self):
         decision = evaluate_stopping_gate(
-            _passing(version_not_applicable=True, version_reason="no target library")
+            _passing(
+                version_not_applicable=True,
+                version_reason="no target library",
+                version_na_confirmed=True,
+            )
         )
         self.assertEqual(decision.state, TerminationState.STOP_SUFFICIENT)
         self.assertIn("no target library", decision.version_note)
@@ -233,6 +234,7 @@ class TestExecutionNotApplicable(unittest.TestCase):
         for row in rows:
             row["metadata"].pop("command", None)
         (run / "evidence.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        run_review(root, confirm_version_na=True, confirm_execution_na=True)
         return run
 
     def test_default_ledger_without_command_reports_missing_execution_proof(self):

@@ -42,13 +42,13 @@ K action promote-claim --root P --param atom=<id> --param id=<claim-id>   # --in
 K action set-source --root P --param source=<source-id> --param publisher=<name>   # and/or kind=; fixes an existing Source
 K action create-object --root P --param id=<id> --param object_type=<type> --param title=<t> ...
 K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>   # or --batch f.jsonl
-K run measure --root P --id R --material --write-state                    # writes consecutive_low_delta_rounds and last_weighted_delta
+K run measure --root P --id R --material --write-state                    # quote history; rounds under 5 are not counted
+K run review --root P --id R --reviewer <other-runtime> --verdict pass    # re-fetches logged URLs; binds review.json
 K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"
-K run state set --root P --id R --key version_applicability --value not_applicable   # + version_reason
+K run state set --root P --id R --key version_applicability --value not_applicable   # + version_reason; review must confirm
 ```
-
 Document bodies carry `<!-- ease:claim id=<claim> -->` anchors, written between create-object and add-link, then
-`K index --root P`. A different runtime writes `_evidence/R/review.json` (rule R12).
+`K index --root P`. A different runtime runs `run review`, which re-fetches logged URLs and writes `_evidence/R/review.json` (rule R12).
 For fixtures and tiny packs, [build.py](build.py) runs the same CLI from a JSON spec
 ([references/build-spec.md](references/build-spec.md), [examples/tiny-document-pack.json](examples/tiny-document-pack.json),
 [examples/tiny-entity-pack.json](examples/tiny-entity-pack.json)) into a new directory and prints its path:
@@ -101,12 +101,12 @@ claims, sources, captures, the [contract](contract.txt) or `index.json`.
 | `hosting-publisher` / `publisher-kind` | Re-promote with `publisher=<author org>` and one `kind`; R6, R7 |
 | `uncited-claims` / `documents-without-claims` | Anchor + `cites` link, or deprecate the claim; R9 |
 | `contradictions` | `resolve-contradiction` or `run resolve --atom <id> --reason "<text>"`; R11 |
-| `review` | Another runtime writes review.json; R12 |
+| `review` | A different runtime runs `run review`; a file that only says passed is not a review; R12 |
 | `index` | `K index --root P`; R14 |
 | promote-claim: no `metadata.url` and no `Source-URL:` header | A local execution output or authored example takes `--param kind=first-party` (publisher `local`, never counted as independent); a web page keeps its `metadata.url` |
 | A rejected action is not in `_actions/actions.jsonl` (successes only) | Read `_actions/rejected.jsonl` (action, params, reason, at); `pack status` shows the count |
 | `query --linked-to <unknown id>` exits 1 `unknown object` (also unknown `--implements` / `--object-type`) | Fix the id: `K query --root P --fields id` |
-| Saturation `0/N novel`, `delta 100.0%` | Set `round` + `novel` when recording; mark re-recorded atoms `metadata.backfill=true` (excluded, printed as `backfill atoms: N (excluded)`); `run measure --material --write-state` |
+| Saturation `0/N novel`, `delta 100.0%` | Record `round`. Novelty is the quote against earlier rounds, not `metadata.novel`. A round under 5 atoms is not counted. Mark re-recorded atoms `metadata.backfill=true` (excluded, printed as `backfill atoms: N (excluded)`); `run measure --material --write-state` |
 | 200+ add-link calls, no body action | `K action add-link --root P --batch links.jsonl` (one verify, all or nothing); hand-write the body, then `K index` |
 | Many arXiv/W3C papers count as one publisher | Pass `publisher=<authors' organisation>` per source; R6 |
 | No browser | Record NOT RUN; look.md "Without a browser" |

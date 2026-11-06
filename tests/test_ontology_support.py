@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.capture_support import append_capture
+from tests.capture_support import append_capture, run_review
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ontology" / "root"
 FACT_QUOTE = "Alpha facts live here. Beta facts live here."
@@ -52,7 +52,11 @@ class RootCase(unittest.TestCase):
 
 
 def make_stop_run(root, run_id="run-1"):
-    """Complete a run under root/_evidence/<run_id> so the stopping gate returns STOP_SUFFICIENT."""
+    """Complete a run under root/_evidence/<run_id> so the stopping gate returns STOP_SUFFICIENT.
+
+    source.txt is a fetched capture (it counts). failure.txt is from-file and counts only
+    after the review finds its quote. exec.txt is the execution proof and does not count.
+    """
     run = Path(root) / "_evidence" / run_id
     sources = run / "sources"
     sources.mkdir(parents=True, exist_ok=True)
@@ -62,12 +66,21 @@ def make_stop_run(root, run_id="run-1"):
     (sources / "source.txt").write_bytes(body_a)
     body_b = (FAIL_QUOTE + "\n").encode()
     (sources / "failure.txt").write_bytes(body_b)
+    exec_quote = "the command printed this measured line before it exited."
+    body_e = (exec_quote + "\n").encode()
+    (sources / "exec.txt").write_bytes(body_e)
     rel_a = f"_evidence/{run_id}/sources/source.txt"
     rel_b = f"_evidence/{run_id}/sources/failure.txt"
+    rel_e = f"_evidence/{run_id}/sources/exec.txt"
     digest_a = hashlib.sha256(body_a).hexdigest()
     digest_b = hashlib.sha256(body_b).hexdigest()
-    append_capture(root, rel_a, digest_a, origin="executed", command=EXEC_ARGV, exit_code=0, run=run_id)
-    append_capture(root, rel_b, digest_b, origin="from-file", run=run_id)
+    digest_e = hashlib.sha256(body_e).hexdigest()
+    log = run / "captures.jsonl"
+    if log.is_file() and not log.is_symlink():
+        log.unlink()
+    append_capture(root, rel_a, digest_a, origin="fetched", url="https://example.com/source", run=run_id)
+    append_capture(root, rel_b, digest_b, origin="from-file", url="https://example.com/failure", run=run_id)
+    append_capture(root, rel_e, digest_e, origin="executed", command=EXEC_ARGV, exit_code=0, run=run_id)
 
     def atom(ident, claim, name, digest, kind, quote, extra=None):
         return {
@@ -78,8 +91,9 @@ def make_stop_run(root, run_id="run-1"):
         }
 
     lines = [
-        atom("atom-c1", "c1", "source.txt", digest_a, "FACT", FACT_QUOTE, {"command": "python3 -m unittest"}),
+        atom("atom-c1", "c1", "source.txt", digest_a, "FACT", FACT_QUOTE),
         atom("atom-fail", "fail-1", "failure.txt", digest_b, "FAILURE_MODE", FAIL_QUOTE),
+        atom("atom-exec", "exec-1", "exec.txt", digest_e, "FACT", exec_quote, {"command": "python3 -m unittest"}),
     ]
     (run / "evidence.jsonl").write_text("".join(json.dumps(a) + "\n" for a in lines), encoding="utf-8")
     state = {
@@ -89,4 +103,4 @@ def make_stop_run(root, run_id="run-1"):
         "has_viable_probe_remaining": False, "is_target_version_matched": True, "researcher_runtime": "researcher-a",
     }
     (run / "state.json").write_text(json.dumps(state), encoding="utf-8")
-    (run / "review.json").write_text(json.dumps({"passed": True, "reviewer_runtime": "reviewer-b"}), encoding="utf-8")
+    run_review(root, run=run_id)

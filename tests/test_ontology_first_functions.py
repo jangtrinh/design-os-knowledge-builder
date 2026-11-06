@@ -105,6 +105,8 @@ class TestRunsStopSufficientThroughClaims(PackCase):
         fail_uri = "_evidence/run-1/sources/failure.txt"  # the run's second atom, from a second publisher
         write_source(self.root, "src-fail", fail_uri, hashlib.sha256((self.root / fail_uri).read_bytes()).hexdigest(), publisher="other.org")
         write_claim(self.root, "c-fail", "src-fail", fail_uri, FAIL_QUOTE, atom="atom-fail", claim_type="FAILURE_MODE", run="run-1")
+        from tests.capture_support import run_review
+        run_review(self.root, run="run-1")
 
     def test_stopped_run_behind_the_claim_passes(self):
         self.assertEqual(self.verify(), [])
@@ -116,6 +118,8 @@ class TestRunsStopSufficientThroughClaims(PackCase):
         write_claim(self.root, "c2", "src-2", other["source_uri"], other["quote"], atom="b1")
         self.replace("doc-1.md", '    target_id: "c1"\n', '    target_id: "c1"\n  - link_type: "cites"\n    target_id: "c2"\n')
         self.replace("doc-1.md", "<!-- ease:claim id=c1 -->", "<!-- ease:claim id=c1 -->\n\nUnfinished run fact.\n<!-- ease:claim id=c2 -->")
+        from tests.capture_support import run_review
+        run_review(self.root, run="run-1")
         self.assertEqual(self.verify(), [])
         self.assertFalse(call(self.root, "runs-stop-sufficient", "doc-1", "verified"))
         self.assertTrue(call(self.root, "runs-stop-sufficient", "doc-1", "draft"))
