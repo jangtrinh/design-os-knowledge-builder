@@ -13,7 +13,7 @@ the closing condition (done only when it holds). Flags: [../contract.txt](../con
 | 6 | Promote | `K action promote-claim --root P --param atom=<id> --param id=<claim-id> [--param publisher=<org>] [--param kind=<kind>]` or `--batch f.jsonl` | claim + source files exist; `--into` for corroboration |
 | 7 | Documents, entities | `K action create-object ...` then write the body | file under its type's folder |
 | 8 | Cite | body anchor `<!-- ease:claim id=<claim> -->` + `K action add-link --root P --param source=<doc> --param link_type=cites --param target=<claim>` or `--batch f.jsonl` | anchors == cites links |
-| 9 | Measure | `K run measure --root P --id R --material --write-state` (after citing each round) | `last_weighted_delta` written |
+| 9 | Measure | `K run measure --root P --id R --material --write-state` (after citing each round) | `consecutive_low_delta_rounds` and `last_weighted_delta` written; `run state set` does not accept them |
 | 10 | Relate | `add-link` with `about` / `compares` / `depends-on` | no declared relation missing |
 | 11 | Contradictions | `K action resolve-contradiction --root P --param claim=<id> --param resolution="<reason>"` | none unresolved |
 | 12 | Independent review | a different runtime writes `_evidence/R/review.json` | `validate:review` passes |

@@ -251,8 +251,6 @@ class TestRunStateSet(unittest.TestCase):
     def test_typed_keys_round_trip(self):
         cases = (
             ("round", "5", 5),
-            ("consecutive_low_delta_rounds", "2", 2),
-            ("last_weighted_delta", "0.0949", 0.0949),
             ("has_viable_probe_remaining", "false", False),
             ("has_viable_probe_remaining", "true", True),
             ("is_target_version_matched", "true", True),

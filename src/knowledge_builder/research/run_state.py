@@ -1,12 +1,12 @@
-"""`run state set`: typed writes of the measured and declared state.json keys.
+"""`run state set`: typed writes of declared state.json keys.
 
-Only the keys below can be set. The frozen criteria (required claims, budget,
-minimum sources, researcher) are not settable. A bad value exits 1 and leaves
-state.json byte-identical.
+Saturation (`consecutive_low_delta_rounds`, `last_weighted_delta`) is written
+only by `run measure --write-state`. The frozen criteria (required claims,
+budget, minimum sources, researcher) are not settable. A bad value exits 1
+and leaves state.json byte-identical.
 """
 
 import json
-import math
 import os
 import re
 import sys
@@ -22,16 +22,6 @@ def _count(raw):
     if re.fullmatch(r"[0-9]+", raw) is None:
         raise ValueError("must be an integer >= 0")
     return int(raw)
-
-
-def _delta(raw):
-    try:
-        number = float(raw)
-    except ValueError:
-        raise ValueError("must be a finite number >= 0") from None
-    if not math.isfinite(number) or number < 0:
-        raise ValueError("must be a finite number >= 0")
-    return number
 
 
 def _boolean(raw):
@@ -52,10 +42,11 @@ def _text(raw):
     return raw.strip()
 
 
+# Written by `run measure --write-state`. state set names that command and refuses them.
+MEASURED = ("consecutive_low_delta_rounds", "last_weighted_delta")
+
 SETTERS = {
     "round": _count,
-    "consecutive_low_delta_rounds": _count,
-    "last_weighted_delta": _delta,
     "has_viable_probe_remaining": _boolean,
     "is_target_version_matched": _boolean,
     "version_applicability": _applicability,
@@ -71,7 +62,7 @@ def register_state(commands, parser_class):
     sub = state.add_subparsers(dest="state_command", required=True, parser_class=parser_class)
     setter = sub.add_parser(
         "set",
-        help="Set one measured or declared key: " + ", ".join(sorted(SETTERS)),
+        help="Set one declared key: " + ", ".join(sorted(SETTERS)),
     )
     setter.add_argument("--root", required=True, help="External knowledge repository root")
     setter.add_argument("--id", required=True, help="Run id")
@@ -112,6 +103,8 @@ def save_run_state(ledger, state):
 def cmd_run_state_set(args):
     from knowledge_builder.research.run_driver import _fail
 
+    if args.key in MEASURED:
+        _fail(f"{args.key} is measured, not declared; write it with run measure --write-state")
     parse = SETTERS.get(args.key)
     if parse is None:
         _fail(f"{args.key} is not a settable key; settable: {', '.join(sorted(SETTERS))}")
