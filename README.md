@@ -1,44 +1,26 @@
-# DESIGN:OS Knowledge Builder (`design-os-knowledge-builder`)
+# DESIGN:OS Knowledge Builder
 
-**Ontology-first knowledge packs: claims with verifiable sources, and a ledger-backed stopping gate.**
-
-Freeze web pages and documents as sources, promote evidence into claims that quote them, and let `verify` check every quote against the frozen file. An agent skill (`skills/es-knowledge-forge/`) teaches Claude Code, Codex, Gemini CLI, and Antigravity the workflow.
-
-<p align="center">
-  <img src="assets/cover.png" alt="DESIGN:OS Knowledge Builder — 2:1 Axonometric Technical Architecture" width="840">
+<p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/cover-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/readme/cover-light.png">
+  <img src="docs/images/readme/cover-dark.png" alt="design:os by Jang" width="100%">
+</picture>
 </p>
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Shield_1.0.0-202020?style=flat-square&labelColor=202020&color=444444" alt="PolyForm Shield 1.0.0 License"></a>
-  <img src="https://img.shields.io/badge/Claude_Code_%C2%B7_Codex_%C2%B7_Gemini_%C2%B7_Antigravity-skill-202020?style=flat-square&labelColor=202020&color=444444" alt="Compatible agents">
-  <a href="commands/doctor.md"><img src="https://img.shields.io/badge/diagnostics-%2Fdoctor-202020?style=flat-square&labelColor=202020&color=444444" alt="Doctor command"></a>
-  <a href="https://jangtrinh.github.io/design-os-knowledge-builder/"><img src="https://img.shields.io/badge/live_docs-GitHub_Pages-202020?style=flat-square&labelColor=202020&color=444444" alt="Live GitHub Pages"></a>
-  <a href="https://buymeacoffee.com/jangtrinh"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee"></a>
+A local Python CLI and an agent skill for knowledge packs where every claim quotes a file you froze. You save web pages and command output as sources, promote quotes into claims, and `verify --claims` checks each quote against the frozen file. A stopping gate reads the research ledger and says when the evidence is enough. The skill (`skills/es-knowledge-forge/`) teaches Claude Code, Codex, Gemini CLI and Antigravity the same workflow.
+
+Version 1.0.0, from `pyproject.toml`. Python 3.10 or later, and no third-party runtime dependencies (`dependencies = []`). The CLI is `knowledge-builder` (or `python3 -m knowledge_builder.cli`) with nine commands: `ingest`, `gate`, `lint`, `verify`, `index`, `run`, `query`, `action` and `pack`. The gate returns one of four decisions defined in `src/knowledge_builder/research/stopping_gate.py`: `STOP_SUFFICIENT`, `DEEPEN`, `PAUSE_BUDGET` or `ABSTAIN_BLOCKED`.
+
+This repository stores no topic files. Packs live in a knowledge root you choose (`<knowledge-root>/<domain>/<topic>`), apart from the tool.
+
+FREE + source-available ([PolyForm Shield 1.0.0](LICENSE)). It runs locally, with no telemetry. See [PRIVACY.md](PRIVACY.md).
+
+<p>
+  <a href="#quickstart">Quickstart</a> · <a href="#what-it-makes">What it makes</a> · <a href="#how-it-works">How it works</a> · <a href="#commands">Commands</a> · <a href="#install-for-your-agent">Install</a> · <a href="#limits">Limits</a>
 </p>
-
-<p align="center">
-  <a href="#quickstart">Quickstart</a> · <a href="#what-it-makes">What it makes</a> · <a href="#installation">Install</a> · <a href="#how-it-works">How it works</a> · <a href="#commands--diagnostics">Commands</a> · <a href="#quality-bar--limitations">Limits</a>
-</p>
-
----
-
-## Why this exists
-
-Raw RAG chunks and scraped markdown files pollute agent context windows with unverified claims, missing provenance, and prompt-injection risks. **`design-os-knowledge-builder`** compiles raw sources into structured knowledge packs (`UKMC.v2`, with `UKMC.v1` still supported) where a claim is only as good as the quote and hash that back it, and where a research run stops only when its ledger says it is enough. This repository stores no topic files. Packs live in an external knowledge root you choose (`<knowledge-root>/<domain>/<topic>`), apart from the tool.
-
-| Dimension | Generic AI / Manual Workflow | DESIGN:OS Knowledge Builder (`DESIGN:OS`) |
-| :--- | :--- | :--- |
-| **Provenance & Trust** | Unattributed markdown scrapes with zero hash verification | Mandatory `source_attribution` (`uri`, `sha256`, `license`, `trust_tier`) on every node |
-| **Prompt-Injection Safety** | External web text mixed directly into system instructions | Explicit `quarantine.is_external_untrusted` isolation and sanitization |
-| **Failure Prevention** | Happy-path notes that omit edge cases | Mandatory `## When to Use / When NOT` and `>= 5` concrete `## Failure Modes` per node |
-| **Context Efficiency** | Monolithic dumps that blow the 200k context window | Progressive disclosure (`SKILL.md` router -> domain index -> leaf node) |
-| **Privacy & Telemetry** | Opaque cloud telemetry or unverified third-party APIs | **Zero telemetry** — 100% local execution ([`PRIVACY.md`](PRIVACY.md) audited) |
-
----
 
 ## Quickstart
-
-### 1. Install the plugin or CLI
 
 **In Claude Code:**
 
@@ -47,21 +29,20 @@ Raw RAG chunks and scraped markdown files pollute agent context windows with unv
 /plugin install design-os-knowledge-builder@design-os-knowledge-builder
 ```
 
-**Or from your terminal (Codex, Gemini CLI, Antigravity, OpenCode, or standalone CLI):**
+**From a clone:**
 
 ```bash
 git clone https://github.com/jangtrinh/design-os-knowledge-builder.git
 cd design-os-knowledge-builder
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
-python3 -m knowledge_builder.cli --help
-# Or run directly from the checkout without installing:
-PYTHONPATH=src python3 -m knowledge_builder.cli --help
+knowledge-builder --help
+python3 scripts/self_check.py
 ```
 
-### 2. Ask in plain English
+Without installing, run it from the checkout with `PYTHONPATH=src python3 -m knowledge_builder.cli --help`.
 
-Open your project in your AI coding agent and describe what you need:
+Then ask your agent in plain words:
 
 > "Build an ontology-first knowledge pack on <topic>: freeze the sources, promote claims, cite them from a document, then run the stopping gate."
 
@@ -69,148 +50,88 @@ Open your project in your AI coding agent and describe what you need:
 
 > "Add a claim to this pack from a verified evidence atom and cite it in the concept document."
 
-### 3. Verify your setup
-
-```bash
-python3 scripts/self_check.py
-```
-
----
+More recipes are in [docs/cookbook.md](docs/cookbook.md).
 
 ## What it makes
 
-Every pack is checked by deterministic commands (`verify`, `pack check`, `gate`) rather than by an agent's say-so.
+A pack is plain files: `ontology.yaml`, `claims/`, `sources/`, documents, `index.json` and one `_evidence/<run>/` folder per research run. `look.py` renders a pack to one sheet so a person can check it at a glance. These two sheets are real `look.py` output for the example specs in `skills/es-knowledge-forge/examples/`, built with `build.py` and not edited.
 
-| Deliverable | Best for | Output | Check |
-| :--- | :--- | :--- | :--- |
-| **Ontology-first pack** | Domain knowledge where every claim must quote a frozen source | `ontology.yaml`, `claims/`, `sources/`, documents, `_evidence/<run>/` | `pack check` (`verify --claims` + stopping gate) |
-| **Index and object sets** | Letting an agent query a pack instead of re-reading it | `index.json`, `query` results | `index` refuses a stale index |
-| **Agent skill** | Teaching an agent to build and check packs | `skills/es-knowledge-forge/` | `python3 scripts/self_check.py` |
+<table>
+<tr>
+<td width="50%"><img src="docs/images/readme/look-sheet-tiny-entity-pack.png" alt="design:os by Jang" width="100%"></td>
+<td width="50%"><img src="docs/images/readme/look-sheet-tiny-document-pack.png" alt="design:os by Jang" width="100%"></td>
+</tr>
+<tr>
+<td><sub>design:os by Jang</sub></td>
+<td><sub>design:os by Jang</sub></td>
+</tr>
+</table>
 
----
+Both gates say `DEEPEN`: a two-source example has too few independent sources and no review, so the gate keeps asking for more. That is the point.
 
-## Installation
+| Output | What it is | Checked by |
+| :--- | :--- | :--- |
+| Ontology-first pack | Claims that quote frozen sources, cited from documents | `pack check` (`verify --claims` plus the stopping gate) |
+| Index and object sets | `index.json` and `query` results, so an agent can query a pack instead of re-reading it | `query` refuses a stale index |
+| Agent skill | `skills/es-knowledge-forge/`, which teaches an agent to build and check packs | `python3 scripts/self_check.py` |
 
-Choose the setup that matches your AI coding agent. Every option installs the same canonical skill (`skills/es-knowledge-forge/SKILL.md`) and `/doctor` diagnostic suite.
+## How it works
 
-### Claude Code
+<p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/flow-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/readme/flow-light.png">
+  <img src="docs/images/readme/flow-dark.png" alt="design:os by Jang" width="100%">
+</picture>
+</p>
 
-Run these two commands inside Claude Code:
+1. **Freeze.** `ingest --freeze` saves a page as plain text and prints its sha256. `run exec` captures a local command (10 MiB cap, 300 s default timeout). Each capture appends a line to `captures.jsonl`, and the gate counts a file only when its path and sha256 match that line.
+2. **Claim.** `action promote-claim` turns a ledger atom into a claim. It refuses a quote under 6 words or 30 characters, or one the frozen file does not contain (`src/knowledge_builder/quote_rules.py`). A document cites a claim with an `ease:claim` anchor and a `cites` link, and the two must match.
+3. **Gate.** `gate` reads the ledger. Saturation needs 3 measured low-delta rounds with delta at or under 2%. Independent review needs a reviewer other than the researcher. `--recheck` fetches the cited pages again at certify time.
 
-```text
-/plugin marketplace add jangtrinh/design-os-knowledge-builder
-/plugin install design-os-knowledge-builder@design-os-knowledge-builder
-```
+The skill loads in layers so the agent's context stays small:
 
-### OpenAI Codex
+| File | Loaded when |
+| :--- | :--- |
+| `skills/es-knowledge-forge/SKILL.md` | Always. 120 lines; `tests/test_skill_shape.py` holds it to 120 or fewer |
+| `rules.md`, `concepts.md`, `look.md` | While building, checking and reviewing a pack |
+| `contract.txt` | When the agent needs exact CLI flags (generated, sha256 on its first line) |
+| `references/` | Workflow, `UKMC.v2` summary and build spec, on demand |
+| `commands/doctor.md`, `prompts/doctor.md` | Only for `/doctor` |
 
-Install to your personal Codex skills directory:
+`build.py`, `validate.py` and `look.py` use the Python standard library only and call the `knowledge_builder` tool.
 
-```bash
-git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
-mkdir -p ~/.codex/skills/es-knowledge-forge ~/.codex/prompts
-cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.codex/skills/es-knowledge-forge/
-cp /tmp/design-os-knowledge-builder/prompts/doctor.md ~/.codex/prompts/es-knowledge-forge-doctor.md
-rm -rf /tmp/design-os-knowledge-builder
-```
+## Commands
 
-### Gemini CLI & Google Antigravity
+The full list with every flag is `skills/es-knowledge-forge/contract.txt`, generated by `scripts/generate-skill-contract.py`. Below, `kb` stands for `knowledge-builder`.
 
-```bash
-git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
-mkdir -p ~/.gemini/skills/es-knowledge-forge
-cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.gemini/skills/es-knowledge-forge/
-rm -rf /tmp/design-os-knowledge-builder
-```
+| Command | What it does |
+| :--- | :--- |
+| `kb ingest <target>` | Ingest a PDF, video, image or URL. `--freeze` saves a page as a source |
+| `kb verify [--claims] <root>` | Check metadata and anchors; `--claims` checks every quote against its frozen capture |
+| `kb lint <file.md>` | Lint one markdown file against the UKMC standard |
+| `kb index --root <root>` | Write `index.json` |
+| `kb run init / record / status / measure / state set / exec / resolve / review` | The research ledger for one run |
+| `kb gate --root <root> --run-id <run> [--recheck]` | The stopping decision |
+| `kb pack init / status / check` | Scaffold, report on and check an ontology-first pack |
+| `kb action <name>` | One typed, verified, logged write. Seven built in: `create-object`, `add-link`, `deprecate`, `promote-trust-tier`, `promote-claim`, `set-source`, `resolve-contradiction` |
+| `kb query --root <root>` | Read-only filter over `index.json` |
 
-### OpenCode, Cursor, Windsurf & Other Agent Harnesses
-
-```bash
-git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
-mkdir -p ~/.agents/skills/es-knowledge-forge
-cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.agents/skills/es-knowledge-forge/
-rm -rf /tmp/design-os-knowledge-builder
-```
-
-The skill is a plain folder: `SKILL.md` routes, `rules.md`, `concepts.md` and `look.md` hold the judgment, and `build.py`, `validate.py` and `look.py` do the mechanics with the Python standard library only. They call the `knowledge_builder` tool, so either keep a checkout next to the skill, pass `--repo-root <checkout>`, or run `python3 -m venv .venv && . .venv/bin/activate && pip install -e .` from the checkout. A copied skill is a snapshot: re-copy it after you update the repository.
+Skill and repo checks:
 
 ```bash
 python3 skills/es-knowledge-forge/build.py --spec skills/es-knowledge-forge/examples/tiny-entity-pack.json --output-dir /absolute/new-pack
 python3 skills/es-knowledge-forge/validate.py --root /absolute/new-pack          # exit 0 ok, 1 reject, 2 could not run
 python3 skills/es-knowledge-forge/look.py --root /absolute/new-pack --sheet /absolute/look-sheet.png   # needs Chrome or Chromium
 python3 scripts/generate-skill-contract.py --check                                # the skill's CLI contract is current
+python3 scripts/self_check.py                                                     # manifests, governance files, skill present
+PYTHONPATH=src python3 -m unittest discover -s tests -t . -q                      # or python3 -m pytest -q inside .venv
 ```
-
-CI runs the full test suite, including the skill tests, on Python 3.10 and 3.12.
 
 <details>
-<summary>Verify or uninstall</summary>
+<summary>The full ledger, gate and ontology reference</summary>
 
-**Verify installation:**
-
-```bash
-python3 scripts/self_check.py
-```
-
-Or run `/doctor` inside Claude Code / Codex to inspect installed skill paths, plugin manifests, and gate health.
-
-**Uninstall:**
-
-```bash
-rm -rf ~/.claude/skills/es-knowledge-forge ~/.codex/skills/es-knowledge-forge ~/.gemini/skills/es-knowledge-forge ~/.agents/skills/es-knowledge-forge
-```
-
-</details>
-
----
-
-## Usage & Prompt Cookbook
-
-Once installed, `skills/es-knowledge-forge/SKILL.md` activates automatically when your prompt matches its domain triggers. Browse [`docs/cookbook.md`](docs/cookbook.md) for copy-paste prompt recipes.
-
-**Build**
-
-```text
-"Build an ontology-first knowledge pack on <topic>: freeze the sources, promote claims, cite them from a document, then run the stopping gate."
-```
-
-**Check**
-
-```text
-"Check this knowledge pack: run verify --claims and pack check, and list the claims no document cites."
-```
-
-**Extend**
-
-```text
-"Add a claim to this pack from a verified evidence atom and cite it in the concept document."
-```
-
----
-
-## Commands & Diagnostics
-
-| Command | Environment | What it does |
-| :--- | :--- | :--- |
-| `/doctor` | Claude Code / Codex | Read-only diagnostic check of installed skill paths, plugin manifests, and runtime prerequisites |
-| `python3 scripts/self_check.py` | Terminal / CI | Offline check of manifests, governance files and that a skill exists |
-| `python3 -m knowledge_builder.cli verify --claims <pack-root>` | Terminal / CI | Check metadata, anchors and every quote against the frozen capture |
-| `python3 -m knowledge_builder.cli pack check --root <pack-root> [--recheck]` | Terminal / CI | Exit 0 only when `verify --claims` passes; prints the stopping-gate decision. `--recheck` fetches attested captures first |
-| `python3 skills/es-knowledge-forge/validate.py --root <pack-root>` | Terminal / CI | The skill's rejection checks (uncited claims, hosting-host publishers, unresolved contradictions, stale index) |
-| `PYTHONPATH=src python3 -m unittest discover -s tests -t . -q` | Terminal / CI | Full test suite (or `python3 -m pytest -q` inside `.venv`), including the skill's shape, contract, example and look tests |
-
-The CLI is `python3 -m knowledge_builder.cli <command>`; the examples below write `kb` for it. Every command is listed with its flags in `skills/es-knowledge-forge/contract.txt` (generated by `scripts/generate-skill-contract.py`).
-
-### Ingest, verify, lint, index
-```bash
-kb ingest ./whitepaper.pdf                       # PDF; video and images take --out for their extracts
-kb verify <knowledge-root>/<domain>/<topic>      # add --claims to check every quote against the frozen capture
-kb lint <knowledge-root>/<domain>/<topic>/note.md
-kb index --root <knowledge-root>/<domain>/<topic>
-kb gate --run-id run-001 --required 5 --verified 5 --sources 3
-```
-
-### Research ledger: `run` and `ingest --freeze`
+#### Research ledger: `run` and `ingest --freeze`
 ```bash
 # One run = _evidence/<id>/{state.json,evidence.jsonl,sources/,captures.jsonl}
 kb run init --root <knowledge-root> --id <run> --budget 400 --require <claim-id> --researcher <runtime>
@@ -299,7 +220,7 @@ The gate treats `review.json` as a review only when it names the reviewer, a pas
 
 Every file under the knowledge root is local and writable by whoever runs the research. Offline, the gate trusts the findings stored in `review.json`. `--recheck` makes whoever certifies fetch the pages themselves, so a forged review no longer suffices. Execution captures are still trusted from the log.
 
-### Ontology packs: `pack`, `action`, `query`
+#### Ontology packs: `pack`, `action`, `query`
 A root with an `ontology.yaml` is in ontology mode (`UKMC.v2`); without one the tool behaves as before and prints a legacy-mode warning to stderr. See the `UKMC.v2` section of [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md).
 ```bash
 kb pack init --root <pack-root> --topic "my topic" --run my-run --require some-claim-id   # new or empty root only
@@ -326,163 +247,77 @@ Rules the tool enforces:
 - `create-object` takes the parameters of the object type it creates: `id`, `object_type`, `title`, every property the type declares (enum, integer and boolean values are checked before anything is written; an undeclared name is refused and the declared ones are listed), and, for a type with an interface, `domain`, `description`, `when` and `source`. The file goes into the type's `folder:`.
 - `promote-trust-tier` to `verified` also needs the stopping gate to return STOP_SUFFICIENT for every `_evidence/<run>` the file cites.
 
-### Anchor rule: `ease:claim` must equal `cites`
+#### Anchor rule: `ease:claim` must equal `cites`
 A document cites a claim with `<!-- ease:claim id=<claim-id> -->` under the block it supports and a `cites` link to that claim. The quote lives only in the claim. Every anchor id must be in the document's `cites` links and every `cites` target must be used by an anchor; `verify --claims` rejects either mismatch.
 
 Other anchor rules checked by `verify --claims`:
 - A quote that contains `"` is written with single quotes: `<!-- ease:source uri=... sha256=... quote='He said "go".' -->`. A quote holding both `"` and `'` cannot be written either way; cite a shorter fragment.
 - A `Derived:`, `Observed:`, or `Decision:` line directly above a table or code fence (the very next line) exempts that one block. A blank line in between, or the label below the block, does not.
 
----
+</details>
 
-## How it works
+## Install for your agent
 
-1. **Intent Routing** — Your AI agent matches your request against `skills/es-knowledge-forge/SKILL.md` frontmatter triggers.
-2. **Progressive Context Loading** — Only the entry-point `SKILL.md` router loads initially; `rules.md`, `concepts.md`, `look.md` and `references/` load on demand.
-3. **Deterministic Execution** — `build.py` turns a JSON spec into real CLI calls. `ingest --freeze` without `--from-file` fetches that URL. `run review` re-fetches the URLs of logged captures. `gate --recheck` and `pack check --recheck` fetch those pages again at certify time. `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch. Without `--recheck`, `gate` and `pack check` do not fetch.
-4. **Gate Verification** — `scripts/self_check.py` and `verify --claims`, `pack check` and the skill's `validate.py` validate the artifact before completion.
-5. **Zero-Telemetry Delivery** — Verified files are written to your workspace; no telemetry is sent.
+Every option installs the same skill, `skills/es-knowledge-forge/SKILL.md`.
 
-```text
-User Prompt / CLI Invocation
-            │
-            ▼
-┌───────────────────────────────────────────────┐
-│ skills/es-knowledge-forge/SKILL.md
-│ Progressive disclosure router & hard rules    │
-└───────────┬───────────────────────────────────┘
-            │ loads on demand
-            ▼
-┌───────────────────────────────────────────────┐
-│ build.py -> knowledge_builder CLI             │
-│ Frozen sources, claims, links, ontology       │
-└───────────┬───────────────────────────────────┘
-            │ verifies
-            ▼
-┌───────────────────────────────────────────────┐
-│ validate.py + pack check + stopping gate      │
-│ look.py renders the pack for human eyes       │
-└───────────────────────────────────────────────┘
+**Claude Code:** the two `/plugin` commands in Quickstart.
+
+**Codex**
+
+```bash
+git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
+mkdir -p ~/.codex/skills/es-knowledge-forge ~/.codex/prompts
+cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.codex/skills/es-knowledge-forge/
+cp /tmp/design-os-knowledge-builder/prompts/doctor.md ~/.codex/prompts/es-knowledge-forge-doctor.md
+rm -rf /tmp/design-os-knowledge-builder
 ```
 
-### What loads when
+**Gemini CLI and Antigravity**
 
-`design-os-knowledge-builder` uses progressive context disclosure so your agent's context window stays fast and focused:
-
-| File | Loaded when |
-| :--- | :--- |
-| `skills/es-knowledge-forge/SKILL.md` | Always (under 120 lines) — the procedure and what to open next |
-| `skills/es-knowledge-forge/rules.md`, `concepts.md`, `look.md` | While building, checking and reviewing a pack |
-| `skills/es-knowledge-forge/contract.txt` | When you need the exact CLI flags (generated, sha256 on its first line) |
-| `docs/cookbook.md` | When selecting multi-step prompt recipes or domain patterns |
-| `commands/doctor.md` / `prompts/doctor.md` | Only when running `/doctor` diagnostics |
-| `llms.txt` | When indexed by AI answer engines, RAG pipelines, or repo crawlers |
-
----
-
-## File structure
-
-```text
-design-os-knowledge-builder/
-├── .claude-plugin/
-│   ├── plugin.json                 # Claude Code plugin manifest
-│   └── marketplace.json            # Claude Code marketplace catalog
-├── .codex-plugin/
-│   └── plugin.json                 # OpenAI Codex plugin & interface manifest
-├── .agents/
-│   └── plugins/marketplace.json    # Cross-agent local plugin registry
-├── .factory-plugin/
-│   ├── plugin.json                 # Factory / Droid plugin manifest
-│   └── marketplace.json            # Factory marketplace metadata
-├── skills/
-│   └── es-knowledge-forge/
-│       ├── SKILL.md                # Canonical agent skill entrypoint (router)
-│       ├── rules.md  concepts.md  look.md
-│       ├── build.py  validate.py  look.py  forge_common.py  look_sheet.py
-│       ├── contract.txt            # Generated CLI contract
-│       ├── references/             # Ontology-first workflow, UKMC.v2 summary, build spec
-│       └── examples/               # Two small packs as build specs
-├── commands/
-│   └── doctor.md                   # /doctor diagnostic slash command
-├── prompts/
-│   └── doctor.md                   # Codex diagnostic prompt mirror
-├── scripts/
-│   ├── self_check.py               # Deterministic repository & skill self-check
-│   └── generate-skill-contract.py  # Regenerates skills/es-knowledge-forge/contract.txt (--check)
-├── src/knowledge_builder/          # The tool (CLI, verify, index, gate, actions, pack)
-├── tests/                          # Tool tests and test_skill_* tests
-├── .github/workflows/test.yml      # pytest on Python 3.10 and 3.12, self-check, contract --check
-├── docs/
-│   ├── cookbook.md                 # Copy-paste prompt recipes by job
-│   └── llms.txt                    # GEO / LLM discovery index
-├── PRIVACY.md                      # Zero-telemetry & local-first privacy commitment
-├── SECURITY.md                     # Vulnerability disclosure & security policy
-├── CONTRIBUTING.md                 # Contribution workflow & verification rules
-├── CODE_OF_CONDUCT.md              # Contributor Covenant code of conduct
-├── CHANGELOG.md                    # Release history
-├── llms.txt                        # Root LLM indexing manifest
-├── LICENSE                         # PolyForm Shield 1.0.0
-└── README.md
+```bash
+git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
+mkdir -p ~/.gemini/skills/es-knowledge-forge
+cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.gemini/skills/es-knowledge-forge/
+rm -rf /tmp/design-os-knowledge-builder
 ```
 
----
+**OpenCode, Cursor, Windsurf and other harnesses**
 
-## Quality bar & Limitations
+```bash
+git clone https://github.com/jangtrinh/design-os-knowledge-builder.git /tmp/design-os-knowledge-builder
+mkdir -p ~/.agents/skills/es-knowledge-forge
+cp -R /tmp/design-os-knowledge-builder/skills/es-knowledge-forge/* ~/.agents/skills/es-knowledge-forge/
+rm -rf /tmp/design-os-knowledge-builder
+```
 
-### It's working if...
+The skill scripts call the `knowledge_builder` tool, so keep a checkout next to the skill, pass `--repo-root <checkout>`, or run `pip install -e .` from the checkout. A copied skill is a snapshot: copy it again after you update the repository. Run `/doctor` in Claude Code or Codex to see installed skill paths, plugin manifests and gate health.
 
-- `python3 scripts/self_check.py` prints `ok: design-os-knowledge-builder self-check passed (es-knowledge-forge)` and exits `0`.
-- `python3 -m pytest -q` passes and `python3 scripts/generate-skill-contract.py --check` exits `0`.
-- `python3 skills/es-knowledge-forge/validate.py --root <pack-root>` prints `ok` for your pack.
-- Your AI coding agent loads `skills/es-knowledge-forge/SKILL.md` automatically when given any prompt from [`docs/cookbook.md`](docs/cookbook.md).
-- Network calls are `ingest --freeze` without `--from-file` (it fetches that URL), `run review` (it re-fetches the URLs of logged captures), and `gate --recheck` / `pack check --recheck` (they fetch those pages at certify time). `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch. Without `--recheck`, `gate` and `pack check` do not fetch. No telemetry ([`PRIVACY.md`](PRIVACY.md)).
-- Every file is local and writable by whoever runs the research. Offline, the gate trusts the findings stored in `review.json`. `--recheck` makes whoever certifies fetch the pages themselves, so a forged review no longer suffices. Execution captures are still trusted from the log.
+To uninstall:
 
-### When not to use
+```bash
+rm -rf ~/.claude/skills/es-knowledge-forge ~/.codex/skills/es-knowledge-forge ~/.gemini/skills/es-knowledge-forge ~/.agents/skills/es-knowledge-forge
+```
 
-- Unstructured creative brainstorming or freeform journaling where strict schema gates add unnecessary friction.
-- Storing live credentials, secrets, or personally identifiable customer data (PII).
-- Replacing a transactional SQL/vector database for millions of real-time user records.
+CI (`.github/workflows/test.yml`) runs the full test suite on Python 3.10 and 3.12, then `generate-skill-contract.py --check` and `self_check.py`. A healthy checkout prints `ok: design-os-knowledge-builder self-check passed (es-knowledge-forge)`.
 
----
+## Limits
 
-## DESIGN:OS Ecosystem
+Network use is narrow. `ingest --freeze` without `--from-file` fetches that URL. `run review` re-fetches the URLs of logged captures. `gate --recheck` and `pack check --recheck` fetch those pages again at certify time. `--from-file`, `run exec`, `validate.py` and `look.py` do not fetch, and without `--recheck` neither do `gate` nor `pack check`.
 
-`design-os-knowledge-builder` is one of the 13 source-available engines in the **`DESIGN:OS`** ecosystem:
+Every file under the knowledge root is local and writable by whoever runs the research. Offline, the gate trusts the findings stored in `review.json`. `--recheck` makes whoever certifies fetch the pages themselves, so a forged review no longer passes. Execution captures are still trusted from the log.
 
-| Engine | Live Docs | Repository | Layer |
-| :--- | :--- | :--- | :--- |
-| **DESIGN:OS CLI** | [jangtrinh.github.io/design-os](https://jangtrinh.github.io/design-os/) | [`jangtrinh/design-os`](https://github.com/jangtrinh/design-os) | `cli` |
-| **Knowledge Builder** | [jangtrinh.github.io/design-os-knowledge-builder](https://jangtrinh.github.io/design-os-knowledge-builder/) | [`jangtrinh/design-os-knowledge-builder`](https://github.com/jangtrinh/design-os-knowledge-builder) | `compiler` |
-| **Figma Plugin & CLI** | [jangtrinh.github.io/design-os-figma-plugin](https://jangtrinh.github.io/design-os-figma-plugin/) | [`jangtrinh/design-os-figma-plugin`](https://github.com/jangtrinh/design-os-figma-plugin) | `plugin` |
-| **SVG Animation Engine** | [jangtrinh.github.io/design-os-svg-animation](https://jangtrinh.github.io/design-os-svg-animation/) | [`jangtrinh/design-os-svg-animation`](https://github.com/jangtrinh/design-os-svg-animation) | `engine` |
-| **3D Blender Agent** | [jangtrinh.github.io/design-os-3d-blender](https://jangtrinh.github.io/design-os-3d-blender/) | [`jangtrinh/design-os-3d-blender`](https://github.com/jangtrinh/design-os-3d-blender) | `3d / cad` |
-| **OPAH ONE Drone** | [jangtrinh.github.io/design-os-drone-showcase](https://jangtrinh.github.io/design-os-drone-showcase/) | [`jangtrinh/design-os-drone-showcase`](https://github.com/jangtrinh/design-os-drone-showcase) | `hardware` |
-| **GitHub Pages Engine** | [jangtrinh.github.io/design-os-github-page](https://jangtrinh.github.io/design-os-github-page/) | [`jangtrinh/design-os-github-page`](https://github.com/jangtrinh/design-os-github-page) | `pages` |
-| **Apple Design OS** | [jangtrinh.github.io/design-os-apple](https://jangtrinh.github.io/design-os-apple/) | [`jangtrinh/design-os-apple`](https://github.com/jangtrinh/design-os-apple) | `swiftui` |
-| **Agent Teacher** | [jangtrinh.github.io/design-os-pedagogy](https://jangtrinh.github.io/design-os-pedagogy/) | [`jangtrinh/design-os-pedagogy`](https://github.com/jangtrinh/design-os-pedagogy) | `pedagogy` |
-| **Origami CAD** | [jangtrinh.github.io/design-os-origami](https://jangtrinh.github.io/design-os-origami/) | [`jangtrinh/design-os-origami`](https://github.com/jangtrinh/design-os-origami) | `packaging` |
-| **Voice UX Architecture** | [jangtrinh.github.io/design-os-voice-ux](https://jangtrinh.github.io/design-os-voice-ux/) | [`jangtrinh/design-os-voice-ux`](https://github.com/jangtrinh/design-os-voice-ux) | `voice-ai` |
-| **Code2Flow** | [jangtrinh.github.io/design-os-code2flow](https://jangtrinh.github.io/design-os-code2flow/) | [`jangtrinh/design-os-code2flow`](https://github.com/jangtrinh/design-os-code2flow) | `ast / audit` |
-| **Generative UI** | [jangtrinh.github.io/design-os-generative-ui](https://jangtrinh.github.io/design-os-generative-ui/) | [`jangtrinh/design-os-generative-ui`](https://github.com/jangtrinh/design-os-generative-ui) | `runtime` |
+It is the wrong tool for freeform brainstorming, for storing credentials or personal customer data, and as a replacement for a transactional or vector database.
 
----
+## DESIGN:OS
 
-## Author
+Knowledge Builder is one of the DESIGN:OS tools. The others: [Studio](https://github.com/jangtrinh/design-os-studio), [CLI](https://github.com/jangtrinh/design-os), [Bridge](https://github.com/jangtrinh/design-os-figma-plugin), [SVG Animation](https://github.com/jangtrinh/design-os-svg-animation), [3D Blender](https://github.com/jangtrinh/design-os-3d-blender) and [mcp-bridge-go](https://github.com/jangtrinh/mcp-bridge-go). More on [jangtrinh.github.io](https://jangtrinh.github.io/).
 
-Built by [Jang Trịnh](https://www.jang.work/?utm_source=github&utm_medium=readme&utm_campaign=design-os-knowledge-builder). More projects, case studies and writing at [jang.work](https://www.jang.work/?utm_source=github&utm_medium=readme&utm_campaign=design-os-knowledge-builder).
+Docs: [jangtrinh.github.io/design-os-knowledge-builder](https://jangtrinh.github.io/design-os-knowledge-builder/) · Pack contract: [docs/master-contract-ukmc.md](docs/master-contract-ukmc.md) · Changelog: [CHANGELOG.md](CHANGELOG.md) · Index for AI agents: [llms.txt](llms.txt)
 
----
+## Contributing and license
 
-## Contributing, Governance & License
-
-- **Contributing**: See [`CONTRIBUTING.md`](CONTRIBUTING.md) for pull request guidelines and verification gates (`python3 scripts/self_check.py`).
-- **Code of Conduct**: Governed by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
-- **Security & Privacy**: Zero telemetry — see [`SECURITY.md`](SECURITY.md) and [`PRIVACY.md`](PRIVACY.md).
-- **Changelog & LLM Index**: Track releases in [`CHANGELOG.md`](CHANGELOG.md) and machine-readable index in [`llms.txt`](llms.txt).
-- **License**: [PolyForm Shield 1.0.0](LICENSE) © [Jang Trinh](https://github.com/jangtrinh). Free to use and modify, including for paid client work; you may not resell it or build a competing product from it.
-
----
+- [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md) · [PRIVACY.md](PRIVACY.md)
+- [PolyForm Shield 1.0.0](LICENSE). FREE to use and modify, including for paid client work; you may not resell it or build a competing product from it.
 
 If `design-os-knowledge-builder` saves you time, a star on GitHub helps other engineers and AI agents find it.
 
@@ -491,3 +326,7 @@ If `design-os-knowledge-builder` saves you time, a star on GitHub helps other en
     <img src="https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee">
   </a>
 </p>
+
+Built by [Jang Trịnh](https://github.com/jangtrinh), creative technologist and autonomous system architect.
+
+[GitHub](https://github.com/jangtrinh) · [LinkedIn](https://www.linkedin.com/in/jangtrinh/) · [Hub](https://jangtrinh.github.io/) · [YouTube](https://www.youtube.com/@designosbyjang) · [X](https://x.com/Jangtrinhvn)
