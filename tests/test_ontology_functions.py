@@ -87,7 +87,10 @@ class TestFunctions(RootCase):
         oldest = FUNCTIONS["evidence-age-days"](self.ctx(), "alpha")
         self.assertGreaterEqual(oldest, 200)
         old.write_text("no fetched line here\n", encoding="utf-8")
-        os.utime(old, (time.time() - 3 * 86400, time.time() - 3 * 86400))
+        source = self.root / "_evidence/run-1/sources/source.txt"
+        now = time.time()
+        os.utime(source, (now, now))
+        os.utime(old, (now - 3 * 86400, now - 3 * 86400))
         self.assertEqual(FUNCTIONS["evidence-age-days"](self.ctx(), "alpha"), 3)
 
     def test_root_code_is_never_loaded(self):
