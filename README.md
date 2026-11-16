@@ -44,7 +44,7 @@ Without installing, run it from the checkout with `PYTHONPATH=src python3 -m kno
 
 Then ask your agent in plain words:
 
-> "Build an ontology-first knowledge pack on <topic>: freeze the sources, promote claims, cite them from a document, then run the stopping gate."
+> "Build an ontology-first knowledge pack on &lt;topic&gt;: freeze the sources, promote claims, cite them from a document, then run the stopping gate."
 
 > "Check this knowledge pack: run `verify --claims` and `pack check`, and list the claims no document cites."
 
@@ -56,16 +56,17 @@ More recipes are in [docs/cookbook.md](docs/cookbook.md).
 
 A pack is plain files: `ontology.yaml`, `claims/`, `sources/`, documents, `index.json` and one `_evidence/<run>/` folder per research run. `look.py` renders a pack to one sheet so a person can check it at a glance. These two sheets are real `look.py` output for the example specs in `skills/es-knowledge-forge/examples/`, built with `build.py` and not edited.
 
-<table>
-<tr>
-<td width="50%"><img src="docs/images/readme/look-sheet-tiny-entity-pack.png" alt="design:os by Jang" width="100%"></td>
-<td width="50%"><img src="docs/images/readme/look-sheet-tiny-document-pack.png" alt="design:os by Jang" width="100%"></td>
-</tr>
-<tr>
-<td><sub>design:os by Jang</sub></td>
-<td><sub>design:os by Jang</sub></td>
-</tr>
-</table>
+<p>
+<img src="docs/images/readme/look-sheet-tiny-entity-pack.png" alt="design:os by Jang" width="100%">
+</p>
+
+<sub>design:os by Jang</sub>
+
+<p>
+<img src="docs/images/readme/look-sheet-tiny-document-pack.png" alt="design:os by Jang" width="100%">
+</p>
+
+<sub>design:os by Jang</sub>
 
 Both gates say `DEEPEN`: a two-source example has too few independent sources and no review, so the gate keeps asking for more. That is the point.
 
